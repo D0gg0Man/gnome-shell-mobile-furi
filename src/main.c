@@ -42,16 +42,26 @@ static char *session_mode = NULL;
 static int caught_signal = 0;
 static gboolean force_animations = FALSE;
 static char *script_path = NULL;
+static gboolean _tracked_signals[NSIG] = { 0 };
 
 #define DBUS_REQUEST_NAME_REPLY_PRIMARY_OWNER 1
 #define DBUS_REQUEST_NAME_REPLY_ALREADY_OWNER 4
 
 enum {
-  SHELL_DEBUG_BACKTRACE_WARNINGS = 1,
-  SHELL_DEBUG_BACKTRACE_SEGFAULTS = 2,
+  SHELL_DEBUG_BACKTRACE_WARNINGS  = (1 << 0),
+  SHELL_DEBUG_BACKTRACE_SEGFAULTS = (1 << 1),
+  SHELL_DEBUG_BACKTRACE_ABORTS    = (1 << 2),
+  SHELL_DEBUG_BACKTRACE_FPE       = (1 << 3),
 };
-static int _shell_debug;
-static gboolean _tracked_signals[NSIG] = { 0 };
+static const GDebugKey SHELL_DEBUG_KEYS[] = {
+  { "backtrace-warnings",    SHELL_DEBUG_BACKTRACE_WARNINGS },
+  { "backtrace-segfaults",   SHELL_DEBUG_BACKTRACE_SEGFAULTS },
+  { "backtrace-aborts",      SHELL_DEBUG_BACKTRACE_ABORTS },
+  { "backtrace-math-errors", SHELL_DEBUG_BACKTRACE_FPE },
+};
+static int _default_debug_flags = SHELL_DEBUG_BACKTRACE_ABORTS |
+                                  SHELL_DEBUG_BACKTRACE_FPE;
+static int _shell_debug = 0;
 
 static void
 shell_dbus_acquire_name (GDBusProxy  *bus,
@@ -362,13 +372,23 @@ shell_a11y_init (void)
 static void
 shell_update_debug (const char *debug_string)
 {
-  static const GDebugKey keys[] = {
-    { "backtrace-warnings", SHELL_DEBUG_BACKTRACE_WARNINGS },
-    { "backtrace-segfaults", SHELL_DEBUG_BACKTRACE_SEGFAULTS },
-  };
+  _shell_debug = g_parse_debug_string (debug_string, SHELL_DEBUG_KEYS,
+                                       G_N_ELEMENTS (SHELL_DEBUG_KEYS));
+}
 
-  _shell_debug = g_parse_debug_string (debug_string, keys,
-                                       G_N_ELEMENTS (keys));
+static char *
+debug_flags_to_string (void)
+{
+  gsize i, j;
+  const char *enabled_flags[G_N_ELEMENTS (SHELL_DEBUG_KEYS) + 1] = { 0 };
+
+  for (i = 0, j = 0; i < G_N_ELEMENTS (SHELL_DEBUG_KEYS); ++i)
+    {
+      if ((_shell_debug & SHELL_DEBUG_KEYS[i].value))
+        enabled_flags[j++] = SHELL_DEBUG_KEYS[i].key;
+    }
+
+  return g_strjoinv (":", (char**) enabled_flags);
 }
 
 static GLogWriterOutput
@@ -477,10 +497,23 @@ reset_signal_handler_to_default (int signo)
 static void
 setup_debug_signal_listners (void)
 {
-  dump_gjs_stack_on_signal (SIGABRT);
-  dump_gjs_stack_on_signal (SIGFPE);
-  dump_gjs_stack_on_signal (SIGIOT);
-  dump_gjs_stack_on_signal (SIGTRAP);
+  if ((_shell_debug & SHELL_DEBUG_BACKTRACE_ABORTS))
+    {
+      dump_gjs_stack_on_signal (SIGABRT);
+      dump_gjs_stack_on_signal (SIGIOT);
+      dump_gjs_stack_on_signal (SIGTRAP);
+    }
+  else
+    {
+      reset_signal_handler_to_default (SIGABRT);
+      reset_signal_handler_to_default (SIGIOT);
+      reset_signal_handler_to_default (SIGTRAP);
+    }
+
+  if ((_shell_debug & SHELL_DEBUG_BACKTRACE_FPE))
+    dump_gjs_stack_on_signal (SIGFPE);
+  else
+    reset_signal_handler_to_default (SIGFPE);
 
   if ((_shell_debug & SHELL_DEBUG_BACKTRACE_SEGFAULTS))
     {
@@ -634,8 +667,9 @@ main (int argc, char **argv)
   g_autoptr (MetaContext) context = NULL;
   g_autoptr (GFile) automation_script = NULL;
   g_autofree char *cwd = NULL;
+  g_autofree char *debug_flags_string = NULL;
   GError *error = NULL;
-  const char *debug_flags;
+  const char *shell_debug;
   int ecode = EXIT_SUCCESS;
 
   bindtextdomain (GETTEXT_PACKAGE, LOCALEDIR);
@@ -674,8 +708,14 @@ main (int argc, char **argv)
   if (script_path)
     automation_script = g_file_new_for_commandline_arg_and_cwd (script_path, cwd);
 
-  debug_flags = g_getenv ("SHELL_DEBUG");
-  shell_update_debug (debug_flags);
+  shell_debug = g_getenv ("SHELL_DEBUG");
+
+  if (shell_debug)
+    shell_update_debug (shell_debug);
+  else
+    _shell_debug = _default_debug_flags;
+
+  debug_flags_string = debug_flags_to_string ();
 
   /* Initialize the Shell global, including GjsContext
    * GjsContext will iterate the default main loop to
@@ -684,7 +724,7 @@ main (int argc, char **argv)
   _shell_global_init ("session-mode", session_mode,
                       "force-animations", force_animations,
                       "automation-script", automation_script,
-                      "debug-flags", debug_flags,
+                      "debug-flags", debug_flags_string,
                       NULL);
 
   g_signal_connect (shell_global_get (), "notify::debug-flags",
