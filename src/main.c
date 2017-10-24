@@ -360,14 +360,14 @@ shell_a11y_init (void)
 }
 
 static void
-shell_init_debug (const char *debug_env)
+shell_update_debug (const char *debug_string)
 {
   static const GDebugKey keys[] = {
     { "backtrace-warnings", SHELL_DEBUG_BACKTRACE_WARNINGS },
     { "backtrace-segfaults", SHELL_DEBUG_BACKTRACE_SEGFAULTS },
   };
 
-  _shell_debug = g_parse_debug_string (debug_env, keys,
+  _shell_debug = g_parse_debug_string (debug_string, keys,
                                        G_N_ELEMENTS (keys));
 }
 
@@ -465,6 +465,42 @@ dump_gjs_stack_on_signal (int signo)
 
   sigaction (signo, &sa, NULL);
   _tracked_signals[signo] = TRUE;
+}
+
+static void
+reset_signal_handler_to_default (int signo)
+{
+  signal (signo, SIG_DFL);
+  _tracked_signals[signo] = FALSE;
+}
+
+static void
+setup_debug_signal_listners (void)
+{
+  dump_gjs_stack_on_signal (SIGABRT);
+  dump_gjs_stack_on_signal (SIGFPE);
+  dump_gjs_stack_on_signal (SIGIOT);
+  dump_gjs_stack_on_signal (SIGTRAP);
+
+  if ((_shell_debug & SHELL_DEBUG_BACKTRACE_SEGFAULTS))
+    {
+      dump_gjs_stack_on_signal (SIGBUS);
+      dump_gjs_stack_on_signal (SIGSEGV);
+    }
+  else
+    {
+      reset_signal_handler_to_default (SIGBUS);
+      reset_signal_handler_to_default (SIGSEGV);
+    }
+}
+
+static void
+global_notify_debug_flags (GObject    *gobject,
+                           GParamSpec *pspec,
+                           gpointer    data)
+{
+  shell_update_debug (shell_global_get_debug_flags (shell_global_get ()));
+  setup_debug_signal_listners ();
 }
 
 static gboolean
@@ -599,6 +635,7 @@ main (int argc, char **argv)
   g_autoptr (GFile) automation_script = NULL;
   g_autofree char *cwd = NULL;
   GError *error = NULL;
+  const char *debug_flags;
   int ecode = EXIT_SUCCESS;
 
   bindtextdomain (GETTEXT_PACKAGE, LOCALEDIR);
@@ -634,19 +671,11 @@ main (int argc, char **argv)
   if (session_mode == NULL)
     session_mode = is_gdm_mode ? (char *)"gdm" : (char *)"user";
 
-  dump_gjs_stack_on_signal (SIGABRT);
-  dump_gjs_stack_on_signal (SIGFPE);
-  dump_gjs_stack_on_signal (SIGIOT);
-  dump_gjs_stack_on_signal (SIGTRAP);
-
-  if ((_shell_debug & SHELL_DEBUG_BACKTRACE_SEGFAULTS))
-    {
-      dump_gjs_stack_on_signal (SIGBUS);
-      dump_gjs_stack_on_signal (SIGSEGV);
-    }
-
   if (script_path)
     automation_script = g_file_new_for_commandline_arg_and_cwd (script_path, cwd);
+
+  debug_flags = g_getenv ("SHELL_DEBUG");
+  shell_update_debug (debug_flags);
 
   /* Initialize the Shell global, including GjsContext
    * GjsContext will iterate the default main loop to
@@ -655,7 +684,13 @@ main (int argc, char **argv)
   _shell_global_init ("session-mode", session_mode,
                       "force-animations", force_animations,
                       "automation-script", automation_script,
+                      "debug-flags", debug_flags,
                       NULL);
+
+  g_signal_connect (shell_global_get (), "notify::debug-flags",
+                    G_CALLBACK (global_notify_debug_flags), NULL);
+
+  setup_debug_signal_listners ();
 
   /* Setup Meta _after_ the Shell global to avoid GjsContext
    * iterating on the main loop once Meta starts adding events
@@ -665,8 +700,6 @@ main (int argc, char **argv)
       g_printerr ("Failed to setup: %s\n", error->message);
       return EXIT_FAILURE;
     }
-
-  shell_init_debug (g_getenv ("SHELL_DEBUG"));
 
   shell_dbus_init (meta_context_is_replacing (context));
   shell_a11y_init ();
