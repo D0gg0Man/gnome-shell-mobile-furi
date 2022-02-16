@@ -801,7 +801,6 @@ class CalendarMessageList extends St.Widget {
         this._messageView = new MessageList.MessageView();
 
         this._scrollView = new St.ScrollView({
-            overlay_scrollbars: true,
             x_expand: true, y_expand: true,
             child: this._messageView,
         });
