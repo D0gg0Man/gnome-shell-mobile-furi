@@ -122,9 +122,17 @@ st_scroll_bar_set_orientation (StScrollBar        *bar,
   priv->orientation = orientation;
 
   if (priv->orientation == CLUTTER_ORIENTATION_VERTICAL)
-    st_widget_set_style_class_name (ST_WIDGET (priv->handle), "vhandle");
+    {
+      st_widget_remove_style_class_name (ST_WIDGET (bar), "horizontal");
+      st_widget_add_style_class_name (ST_WIDGET (bar), "vertical");
+      st_widget_set_style_class_name (ST_WIDGET (priv->handle), "vhandle");
+    }
   else
-    st_widget_set_style_class_name (ST_WIDGET (priv->handle), "hhandle");
+    {
+      st_widget_remove_style_class_name (ST_WIDGET (bar), "vertical");
+      st_widget_add_style_class_name (ST_WIDGET (bar), "horizontal");
+      st_widget_set_style_class_name (ST_WIDGET (priv->handle), "hhandle");
+    }
 
   clutter_actor_queue_relayout (CLUTTER_ACTOR (bar));
   g_object_notify_by_pspec (G_OBJECT (bar), props[PROP_ORIENTATION]);
