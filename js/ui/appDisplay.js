@@ -2874,6 +2874,15 @@ export const AppFolderDialog = GObject.registerClass({
         this.emit('open-state-changed', true);
     }
 
+    vfunc_collect_event_actors(target, forEvent) {
+        if (Main.layoutManager.keyboardBox.contains(target) ||
+            !!target._extendedKeys || !!target.extendedKey) {
+            return Main.uiGroup.get_event_actors(target);
+        } else {
+            return this.get_event_actors(target);
+        }
+    }
+
     popdown(callback) {
         // Either call the callback right away, or wait for the zoom out
         // animation to finish

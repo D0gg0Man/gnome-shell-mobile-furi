@@ -928,6 +928,15 @@ export const UnlockDialog = GObject.registerClass({
         this._authPrompt.finish(onComplete);
     }
 
+    vfunc_collect_event_actors(target, forEvent) {
+        if (Main.layoutManager.keyboardBox.contains(target) ||
+            !!target._extendedKeys || !!target.extendedKey) {
+            return Main.uiGroup.get_event_actors(target);
+        } else {
+            return this.get_event_actors(target);
+        }
+    }
+
     open() {
         this.show();
 
