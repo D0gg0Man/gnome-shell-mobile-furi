@@ -29,12 +29,6 @@ const EPSILON = 0.005;
 
 const GESTURE_FINGER_COUNT = 3;
 
-/** @enum {number} */
-const State = {
-    NONE: 0,
-    SCROLLING: 1,
-};
-
 // USAGE:
 //
 // To correctly implement the gesture, there must be handlers for the following
@@ -109,7 +103,11 @@ export const SwipeTracker = GObject.registerClass({
         this._allowedModes = allowedModes;
         this._enabled = true;
         this._distance = -1;
-        this._reset();
+
+        this._snapPoints = [];
+        this._initialProgress = 0;
+        this._cancelProgress = 0;
+        this._progress = 0;
 
         this._panGesture = new Clutter.PanGesture({
             min_n_points: params.allowDrag ? 1 : GESTURE_FINGER_COUNT,
@@ -160,8 +158,6 @@ export const SwipeTracker = GObject.registerClass({
             return;
 
         this._enabled = enabled;
-        if (!enabled && this._state === State.SCROLLING)
-            this._interrupt();
         this.notify('enabled');
     }
 
@@ -177,28 +173,7 @@ export const SwipeTracker = GObject.registerClass({
         this.notify('distance');
     }
 
-    _reset() {
-        this._state = State.NONE;
-
-        this._snapPoints = [];
-        this._initialProgress = 0;
-        this._cancelProgress = 0;
-
-        this._progress = 0;
-
-        this._cancelled = false;
-    }
-
-    _interrupt() {
-        this.emit('end', 0, this._cancelProgress);
-        this._panGesture.cancel();
-        this._reset();
-    }
-
     _beginGesture(x, y) {
-        if (this._state === State.SCROLLING)
-            return;
-
         const rect = new Mtk.Rectangle({x, y, width: 1, height: 1});
         let monitor = global.display.get_monitor_index_for_rect(rect);
 
@@ -257,9 +232,6 @@ export const SwipeTracker = GObject.registerClass({
     }
 
     _updatePanGesture(panGesture) {
-        if (this._state !== State.SCROLLING)
-            return;
-
         const deltaVec = panGesture.get_delta_abs();
         const delta = this.orientation === Clutter.Orientation.HORIZONTAL
             ? this._getGestureDirFactor() * deltaVec.get_x()
@@ -282,9 +254,6 @@ export const SwipeTracker = GObject.registerClass({
     }
 
     _getEndProgress(velocity, distance, isTouchpad) {
-        if (this._cancelled)
-            return this._cancelProgress;
-
         const threshold = isTouchpad ? VELOCITY_THRESHOLD_TOUCHPAD : VELOCITY_THRESHOLD_TOUCH;
 
         if (Math.abs(velocity) < threshold)
@@ -314,14 +283,6 @@ export const SwipeTracker = GObject.registerClass({
     }
 
     _endGesture(velocity) {
-        if (this._state !== State.SCROLLING)
-            return;
-
-        if ((this._allowedModes & Main.actionMode) === 0 || !this.enabled) {
-            this._interrupt();
-            return;
-        }
-
         const lastEventType = this._panGesture.get_point_event(-1).type();
         const isTouchpad = lastEventType === Clutter.EventType.TOUCHPAD_SWIPE ||
             lastEventType === Clutter.EventType.SCROLL;
@@ -345,7 +306,6 @@ export const SwipeTracker = GObject.registerClass({
         if (duration > 0)
             duration = Math.clamp(duration, MIN_ANIMATION_DURATION, maxDuration);
 
-        this._reset();
         this.emit('end', duration, endProgress);
     }
 
@@ -359,10 +319,6 @@ export const SwipeTracker = GObject.registerClass({
     }
 
     _cancelPanGesture() {
-        if (this._state !== State.SCROLLING)
-            return;
-
-        this._cancelled = true;
         this._endGesture(0);
     }
 
@@ -393,8 +349,6 @@ export const SwipeTracker = GObject.registerClass({
         this._initialProgress = currentProgress;
         this._progress = currentProgress;
         this._cancelProgress = cancelProgress;
-
-        this._state = State.SCROLLING;
     }
 
     destroy() {
