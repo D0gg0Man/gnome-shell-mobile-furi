@@ -812,6 +812,25 @@ class ControlsManager extends St.Widget {
         this._workspacesDisplay.workspacesGestureEnd(tracker, duration, endProgress, onComplete);
     }
 
+    switchToActiveWorkspace(animate, stoppedCb = () => {}) {
+        const { workspaceManager } = global;
+        const active = workspaceManager.get_active_workspace_index();
+
+        this._searchController.prepareToEnterOverview();
+        this._workspacesDisplay.show();
+
+        this._workspaceAdjustment.remove_transition('value');
+        this._workspaceAdjustment.ease(active, {
+            duration: animate ? 250 : 0,
+            mode: Clutter.AnimationMode.EASE_OUT_CUBIC,
+            onStopped: stoppedCb,
+        });
+    }
+
+    cancelSwitchToActiveWorkspace() {
+        this._workspaceAdjustment.remove_transition('value');
+    }
+
     async runStartupAnimation() {
         this._ignoreShowAppsButtonToggle = true;
 

@@ -19,7 +19,6 @@ import * as PadOsd from './padOsd.js';
 import * as CloseDialog from './closeDialog.js';
 import * as SwitchMonitor from './switchMonitor.js';
 import * as IBusManager from '../misc/ibusManager.js';
-import * as WorkspaceAnimation from './workspaceAnimation.js';
 
 import * as Main from './main.js';
 
@@ -872,9 +871,6 @@ export class WindowManager {
             if ((allowedModes & Main.actionMode) === 0)
                 return Clutter.EVENT_PROPAGATE;
 
-            if (this._workspaceAnimation.canHandleScrollEvent(event))
-                return Clutter.EVENT_PROPAGATE;
-
             const {compositorModifiers} = global.display;
             if ((event.get_state() & compositorModifiers) !== compositorModifiers)
                 return Clutter.EVENT_PROPAGATE;
@@ -935,12 +931,11 @@ export class WindowManager {
 
         global.stage.add_action(topDragGesture);
 
-        this._workspaceAnimation =
-            new WorkspaceAnimation.WorkspaceAnimationController();
-
         this._shellwm.connect('kill-switch-workspace', () => {
-            this._workspaceAnimation.cancelSwitchAnimation();
-            this._switchWorkspaceDone();
+            if (this._inhibitWorkspaceSwitch)
+                return;
+
+            Main.overview.cancelSwitchWorkspace()
         });
     }
 
@@ -1113,7 +1108,7 @@ export class WindowManager {
 
     _shouldAnimate() {
         const overviewOpen = Main.overview.visible && !Main.overview.closing;
-        return !(overviewOpen || this._workspaceAnimation.gestureActive);
+        return !overviewOpen;
     }
 
     _shouldAnimateActor(actor, types) {
@@ -1607,25 +1602,12 @@ export class WindowManager {
     }
 
     _switchWorkspace(shellwm, from, to, direction) {
-        if (!Main.sessionMode.hasWorkspaces || !this._shouldAnimate()) {
+        if (!Main.sessionMode.hasWorkspaces || this._inhibitWorkspaceSwitch) {
             shellwm.completed_switch_workspace();
             return;
         }
-
-        this._switchInProgress = true;
-
-        this._workspaceAnimation.animateSwitch(from, to, direction, () => {
-            this._shellwm.completed_switch_workspace();
-            this._switchInProgress = false;
-        });
-    }
-
-    _switchWorkspaceDone() {
-        if (!this._switchInProgress)
-            return;
-
-        this._shellwm.completed_switch_workspace();
-        this._switchInProgress = false;
+        Main.overview.switchToActiveWorkspace(true, (finished) =>
+            shellwm.completed_switch_workspace());
     }
 
     _showTilePreview(shellwm, window, tileRect, monitorIndex) {
@@ -1836,15 +1818,19 @@ export class WindowManager {
         if (!Main.sessionMode.hasWorkspaces)
             return;
 
-        if (!workspace.active) {
-            // This won't have any effect for "always sticky" windows
-            // (like desktop windows or docks)
+        const transientFor = window.get_transient_for();
+        if (transientFor)
+            window = transientFor;
 
-            this._workspaceAnimation.movingWindow = window;
+        if (!workspace.active) {
+            this._inhibitWorkspaceSwitch = true;
             window.change_workspace(workspace);
 
             global.display.clear_mouse_mode();
             workspace.activate_with_focus(window, global.get_current_time());
+            Main.overview.switchToActiveWorkspace(true, () => {
+                delete this._inhibitWorkspaceSwitch;
+            }, window);
         }
     }
 

@@ -125,7 +125,6 @@
     <file>ui/windowMenu.js</file>
     <file>ui/windowPreview.js</file>
     <file>ui/workspace.js</file>
-    <file>ui/workspaceAnimation.js</file>
     <file>ui/workspacesView.js</file>
     <file>ui/workspaceSwitcherPopup.js</file>
     <file>ui/workspaceThumbnail.js</file>

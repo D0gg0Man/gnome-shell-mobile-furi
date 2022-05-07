@@ -222,8 +222,9 @@ export const WindowPreview = GObject.registerClass({
         this.add_child(this._icon);
         this.add_child(this._closeButton);
 
-        this._overviewAdjustment.connectObject(
-            'notify::value', () => this._updateIconScale(), this);
+        if (this._overviewAdjustment)
+            this._overviewAdjustment.connectObject(
+                'notify::value', () => this._updateIconScale(), this);
         this._updateIconScale();
 
         this.connect('notify::realized', () => {
@@ -236,6 +237,9 @@ export const WindowPreview = GObject.registerClass({
     }
 
     _updateIconScale() {
+        if (!this._overviewAdjustment)
+            return;
+
         const {ControlsState} = OverviewControls;
         const {currentState, initialState, finalState} =
             this._overviewAdjustment.getStateTransitionParams();
