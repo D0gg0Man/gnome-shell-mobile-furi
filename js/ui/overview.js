@@ -367,9 +367,6 @@ export class Overview extends Signals.EventEmitter {
             this._visibleTarget = true;
             this._animationInProgress = true;
 
-            Main.layoutManager.overviewGroup.set_child_above_sibling(
-                this._coverPane, null);
-            this._coverPane.show();
             this._changeShownState(OverviewShownState.SHOWING);
 
             Main.layoutManager.showOverview();
