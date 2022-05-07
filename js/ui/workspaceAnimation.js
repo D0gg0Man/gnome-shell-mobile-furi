@@ -6,7 +6,6 @@ import St from 'gi://St';
 
 import * as Background from './background.js';
 import * as Layout from './layout.js';
-import * as SwipeTracker from './swipeTracker.js';
 import * as Util from '../misc/util.js';
 
 import * as Main from './main.js';
@@ -331,44 +330,12 @@ export const MonitorGroup = GObject.registerClass({
 
         return points2[lower] + (points2[upper] - points2[lower]) * t;
     }
-
-    updateSwipeForMonitor(progress, monitorGroup) {
-        this.progress = this._interpolateProgress(progress, monitorGroup);
-    }
 });
 
 export class WorkspaceAnimationController {
     constructor() {
         this._movingWindow = null;
         this._switchData = null;
-
-        Main.overview.connect('showing', () => {
-            if (this._switchData) {
-                if (this._switchData.gestureActivated)
-                    this._finishWorkspaceSwitch(this._switchData);
-                this._swipeTracker.enabled = false;
-            }
-        });
-        Main.overview.connect('hiding', () => {
-            this._swipeTracker.enabled = true;
-        });
-
-        const swipeTracker = new SwipeTracker.SwipeTracker(global.stage,
-            Clutter.Orientation.HORIZONTAL,
-            Shell.ActionMode.NORMAL,
-            {
-                allowDrag: false,
-                phase: Clutter.EventPhase.CAPTURE,
-                name: 'WorkspaceAnimation swipe tracker',
-            });
-        swipeTracker.connect('begin', this._switchWorkspaceBegin.bind(this));
-        swipeTracker.connect('update', this._switchWorkspaceUpdate.bind(this));
-        swipeTracker.connect('end', this._switchWorkspaceEnd.bind(this));
-        this._swipeTracker = swipeTracker;
-
-        global.display.bind_property('compositor-modifiers',
-            this._swipeTracker, 'scroll-modifiers',
-            GObject.BindingFlags.SYNC_CREATE);
     }
 
     _prepareWorkspaceSwitch(workspaceIndices) {
@@ -418,8 +385,6 @@ export class WorkspaceAnimationController {
     }
 
     animateSwitch(from, to, direction, onComplete) {
-        this._swipeTracker.enabled = false;
-
         let workspaceIndices = [];
 
         switch (direction) {
@@ -462,7 +427,6 @@ export class WorkspaceAnimationController {
                 params.onComplete = () => {
                     this._finishWorkspaceSwitch(this._switchData);
                     onComplete();
-                    this._swipeTracker.enabled = true;
                 };
             }
 
@@ -471,80 +435,7 @@ export class WorkspaceAnimationController {
     }
 
     canHandleScrollEvent(event) {
-        return this._swipeTracker.canHandleScrollEvent(event);
-    }
-
-    _findMonitorGroup(monitorIndex) {
-        return this._switchData.monitors.find(m => m.index === monitorIndex);
-    }
-
-    _switchWorkspaceBegin(tracker, monitor) {
-        if (Meta.prefs_get_workspaces_only_on_primary() &&
-            monitor !== Main.layoutManager.primaryIndex)
-            return;
-
-        const workspaceManager = global.workspace_manager;
-        const horiz = workspaceManager.layout_rows !== -1;
-        tracker.orientation = horiz
-            ? Clutter.Orientation.HORIZONTAL
-            : Clutter.Orientation.VERTICAL;
-
-        if (this._switchData && this._switchData.gestureActivated) {
-            for (const group of this._switchData.monitors)
-                group.remove_all_transitions();
-        } else {
-            this._prepareWorkspaceSwitch();
-        }
-
-        const monitorGroup = this._findMonitorGroup(monitor);
-        const baseDistance = monitorGroup.baseDistance;
-        const progress = monitorGroup.progress;
-
-        const closestWs = monitorGroup.findClosestWorkspace(progress);
-        const cancelProgress = monitorGroup.getWorkspaceProgress(closestWs);
-        const points = monitorGroup.getSnapPoints();
-
-        this._switchData.baseMonitorGroup = monitorGroup;
-
-        tracker.confirmSwipe(baseDistance, points, progress, cancelProgress);
-    }
-
-    _switchWorkspaceUpdate(tracker, progress) {
-        if (!this._switchData)
-            return;
-
-        for (const monitorGroup of this._switchData.monitors)
-            monitorGroup.updateSwipeForMonitor(progress, this._switchData.baseMonitorGroup);
-    }
-
-    _switchWorkspaceEnd(tracker, duration, endProgress) {
-        if (!this._switchData)
-            return;
-
-        const switchData = this._switchData;
-        switchData.gestureActivated = true;
-
-        const newWs = switchData.baseMonitorGroup.findClosestWorkspace(endProgress);
-        const endTime = Clutter.get_current_event_time();
-
-        for (const monitorGroup of this._switchData.monitors) {
-            const progress = monitorGroup.getWorkspaceProgress(newWs);
-
-            const params = {
-                duration,
-                mode: Clutter.AnimationMode.EASE_OUT_CUBIC,
-            };
-
-            if (monitorGroup.index === Main.layoutManager.primaryIndex) {
-                params.onComplete = () => {
-                    if (!newWs.active)
-                        newWs.activate(endTime);
-                    this._finishWorkspaceSwitch(switchData);
-                };
-            }
-
-            monitorGroup.ease_property('progress', progress, params);
-        }
+        return false;
     }
 
     get gestureActive() {
