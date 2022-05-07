@@ -806,29 +806,19 @@ class WorkspacesDisplay extends St.Widget {
         global.window_manager.connectObject('switch-workspace',
             this._activeWorkspaceChanged.bind(this), this);
 
-        this._swipeTracker = new SwipeTracker.SwipeTracker(
-            Main.layoutManager.overviewGroup,
+        this._swipeTracker = new SwipeTracker.SwipeTracker(this,
             Clutter.Orientation.HORIZONTAL,
             Shell.ActionMode.OVERVIEW,
             {
-                allowDrag: false,
                 name: 'WorkspacesView swipe tracker',
             });
         this._swipeTracker.allowLongSwipes = true;
-        this._swipeTracker.connect('begin', this._switchWorkspaceBegin.bind(this));
-        this._swipeTracker.connect('update', this._switchWorkspaceUpdate.bind(this));
-        this._swipeTracker.connect('end', this._switchWorkspaceEnd.bind(this));
-        this.connect('notify::mapped', this._updateSwipeTracker.bind(this));
+        this._swipeTracker.connect('begin', this.workspacesGestureBegin.bind(this));
+        this._swipeTracker.connect('update', this.workspacesGestureUpdate.bind(this));
+        this._swipeTracker.connect('end', this.workspacesGestureEnd.bind(this));
 
         workspaceManager.connectObject(
-            'workspaces-reordered', this._workspacesReordered.bind(this),
-            'notify::layout-rows', this._updateSwipeTracker.bind(this), this);
-
-        this._updateSwipeTracker();
-
-        Main.overview.connectObject(
-            'window-drag-begin', this._windowDragBegin.bind(this),
-            'window-drag-end', this._windowDragEnd.bind(this), this);
+            'workspaces-reordered', this._workspacesReordered.bind(this), this);
 
         this._primaryVisible = true;
         this._primaryIndex = Main.layoutManager.primaryIndex;
@@ -836,30 +826,7 @@ class WorkspacesDisplay extends St.Widget {
 
         this._settings = new Gio.Settings({schema_id: MUTTER_SCHEMA});
 
-        this._inWindowDrag = false;
-        this._leavingOverview = false;
-
         this._gestureActive = false; // touch(pad) gestures
-    }
-
-    _windowDragBegin() {
-        this._inWindowDrag = true;
-        this._updateSwipeTracker();
-    }
-
-    _windowDragEnd() {
-        this._inWindowDrag = false;
-        this._updateSwipeTracker();
-    }
-
-    _updateSwipeTracker() {
-        const { layoutRows } = global.workspace_manager;
-
-        this._swipeTracker.enabled =
-            layoutRows !== -1 &&
-            this.mapped &&
-            !this._inWindowDrag &&
-            !this._leavingOverview;
     }
 
     _workspacesReordered() {
@@ -895,7 +862,7 @@ class WorkspacesDisplay extends St.Widget {
         }
     }
 
-    _switchWorkspaceBegin(tracker, monitor) {
+    workspacesGestureBegin(tracker, monitor) {
         if (this._workspacesOnlyOnPrimary && monitor !== this._primaryIndex)
             return;
 
@@ -931,12 +898,12 @@ class WorkspacesDisplay extends St.Widget {
         this._gestureActive = true;
     }
 
-    _switchWorkspaceUpdate(tracker, progress) {
+    workspacesGestureUpdate(tracker, progress) {
         let adjustment = this._scrollAdjustment;
         adjustment.value = progress * adjustment.page_size;
     }
 
-    _switchWorkspaceEnd(tracker, duration, endProgress) {
+    workspacesGestureEnd(tracker, duration, endProgress, completeCb) {
         let workspaceManager = global.workspace_manager;
         let newWs = workspaceManager.get_workspace_by_index(endProgress);
 
@@ -947,6 +914,8 @@ class WorkspacesDisplay extends St.Widget {
                 if (!newWs.active)
                     newWs.activate(global.get_current_time());
                 this._endTouchGesture();
+
+                completeCb();
             },
         });
     }
@@ -989,9 +958,6 @@ class WorkspacesDisplay extends St.Widget {
     prepareToLeaveOverview() {
         for (let i = 0; i < this._workspacesViews.length; i++)
             this._workspacesViews[i].prepareToLeaveOverview();
-
-        this._leavingOverview = true;
-        this._updateSwipeTracker();
     }
 
     vfunc_hide() {
@@ -1001,8 +967,6 @@ class WorkspacesDisplay extends St.Widget {
         for (let i = 0; i < this._workspacesViews.length; i++)
             this._workspacesViews[i].destroy();
         this._workspacesViews = [];
-
-        this._leavingOverview = false;
 
         super.vfunc_hide();
     }
