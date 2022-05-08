@@ -781,7 +781,7 @@ class ControlsManager extends St.Widget {
         this._stateAdjustment.value = progress;
     }
 
-    overviewGestureEnd(target, duration, onComplete) {
+    overviewGestureEnd(target, duration, onStopped) {
         if (target === ControlsState.HIDDEN)
             this.prepareToLeaveOverview();
 
@@ -792,7 +792,7 @@ class ControlsManager extends St.Widget {
         this._stateAdjustment.ease(target, {
             duration,
             mode: Clutter.AnimationMode.EASE_OUT_CUBIC,
-            onComplete,
+            onStopped,
         });
 
         this._stateAdjustment.gestureInProgress = false;
@@ -808,8 +808,8 @@ class ControlsManager extends St.Widget {
         this._workspacesDisplay.workspacesGestureUpdate(tracker, progress);
     }
 
-    workspacesGestureEnd(tracker, duration, endProgress, onComplete) {
-        this._workspacesDisplay.workspacesGestureEnd(tracker, duration, endProgress, onComplete);
+    workspacesGestureEnd(tracker, duration, endProgress, onStopped) {
+        this._workspacesDisplay.workspacesGestureEnd(tracker, duration, endProgress, onStopped);
     }
 
     switchToActiveWorkspace(animate, stoppedCb = () => {}) {

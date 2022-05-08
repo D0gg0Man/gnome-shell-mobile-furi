@@ -86,7 +86,7 @@ export const SwipeTracker = GObject.registerClass({
     Signals: {
         'begin':  {param_types: [GObject.TYPE_UINT]},
         'update': {param_types: [GObject.TYPE_DOUBLE]},
-        'end':    {param_types: [GObject.TYPE_UINT64, GObject.TYPE_DOUBLE]},
+        'end':    {param_types: [GObject.TYPE_UINT64, GObject.TYPE_DOUBLE, GObject.TYPE_JSOBJECT]},
     },
 }, class SwipeTracker extends GObject.Object {
     _init(actor, orientation, allowedModes, params) {
@@ -174,6 +174,8 @@ export const SwipeTracker = GObject.registerClass({
     }
 
     _beginGesture(x, y) {
+        this._panGesture.set_pickup_on_press(false);
+
         const rect = new Mtk.Rectangle({x, y, width: 1, height: 1});
         let monitor = global.display.get_monitor_index_for_rect(rect);
 
@@ -299,6 +301,10 @@ export const SwipeTracker = GObject.registerClass({
         return [duration, endProgress];
     }
 
+    _endAnimationDoneCb() {
+        this._panGesture.set_pickup_on_press(false);
+    }
+
     _endGesture(velocity) {
         const lastEventType = this._panGesture.get_point_event(-1).type();
         const isTouchpad = lastEventType === Clutter.EventType.TOUCHPAD_SWIPE ||
@@ -325,8 +331,17 @@ export const SwipeTracker = GObject.registerClass({
 
                 const finalDuration = ourDuration > otherDuration ? ourDuration : otherDuration;
 
-                otherTracker.emit('end', finalDuration, otherEndProgress);
-                this.emit('end', finalDuration, ourEndProgress);
+                if (this._panGesture.get_pickup_on_press())
+                    throw new Error("SwipeTracker in 2d gesture already has pickup_on_press");
+
+                if (otherTracker._panGesture.get_pickup_on_press())
+                    throw new Error("otherTracker in 2d gesture already has pickup_on_press");
+
+                this._panGesture.set_pickup_on_press(true);
+                otherTracker._panGesture.set_pickup_on_press(true);
+
+                otherTracker.emit('end', finalDuration, otherEndProgress, this._endAnimationDoneCb.bind(otherTracker));
+                this.emit('end', finalDuration, ourEndProgress, this._endAnimationDoneCb.bind(this));
 
                 delete otherTracker._endVelocity;
                 delete otherTracker._endIsTouchpad;
@@ -337,7 +352,12 @@ export const SwipeTracker = GObject.registerClass({
 
         const [duration, endProgress] = this._getAnimateOutParams(velocity, isTouchpad);
 
-        this.emit('end', duration, endProgress);
+        if (this._panGesture.get_pickup_on_press())
+            throw new Error("SwipeTracker already has pickup_on_press");
+
+        this._panGesture.set_pickup_on_press(true);
+
+        this.emit('end', duration, endProgress, this._endAnimationDoneCb.bind(this));
     }
 
     _endPanGesture(panGesture) {
