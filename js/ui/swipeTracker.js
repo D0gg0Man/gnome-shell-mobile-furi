@@ -276,11 +276,7 @@ export const SwipeTracker = GObject.registerClass({
         return this._snapPoints[index];
     }
 
-    _endGesture(velocity) {
-        const lastEventType = this._panGesture.get_point_event(-1).type();
-        const isTouchpad = lastEventType === Clutter.EventType.TOUCHPAD_SWIPE ||
-            lastEventType === Clutter.EventType.SCROLL;
-
+    _getAnimateOutParams(velocity, isTouchpad) {
         const vertical = this.orientation === Clutter.Orientation.VERTICAL;
         const distance = isTouchpad
             ? vertical ? TOUCHPAD_BASE_HEIGHT : TOUCHPAD_BASE_WIDTH
@@ -299,6 +295,47 @@ export const SwipeTracker = GObject.registerClass({
         let duration = Math.abs((this._progress - endProgress) / velocity * DURATION_MULTIPLIER);
         if (duration > 0)
             duration = Math.clamp(duration, MIN_ANIMATION_DURATION, maxDuration);
+
+        return [duration, endProgress];
+    }
+
+    _endGesture(velocity) {
+        const lastEventType = this._panGesture.get_point_event(-1).type();
+        const isTouchpad = lastEventType === Clutter.EventType.TOUCHPAD_SWIPE ||
+            lastEventType === Clutter.EventType.SCROLL;
+
+        if (this._otherDimensionTracker) {
+            const otherTracker = this._otherDimensionTracker;
+
+            if (otherTracker._panGesture.state === Clutter.GestureState.RECOGNIZING) {
+                this._endVelocity = velocity;
+                this._endIsTouchpad = isTouchpad;
+                return;
+            }
+
+            if (otherTracker._endVelocity !== undefined) {
+                if (Math.abs(velocity) < Math.abs(otherTracker._endVelocity))
+                    velocity = 0;
+                else
+                    otherTracker._endVelocity = 0;
+
+                const [ourDuration, ourEndProgress] = this._getAnimateOutParams(velocity, isTouchpad);
+                const [otherDuration, otherEndProgress] =
+                    otherTracker._getAnimateOutParams(otherTracker._endVelocity, otherTracker._endIsTouchpad);
+
+                const finalDuration = ourDuration > otherDuration ? ourDuration : otherDuration;
+
+                otherTracker.emit('end', finalDuration, otherEndProgress);
+                this.emit('end', finalDuration, ourEndProgress);
+
+                delete otherTracker._endVelocity;
+                delete otherTracker._endIsTouchpad;
+
+                return;
+            }
+        }
+
+        const [duration, endProgress] = this._getAnimateOutParams(velocity, isTouchpad);
 
         this.emit('end', duration, endProgress);
     }
@@ -353,5 +390,22 @@ export const SwipeTracker = GObject.registerClass({
             this._panGesture.actor?.remove_action(this._panGesture);
             delete this._panGesture;
         }
+    }
+
+    make2d(otherSwipeTracker) {
+        if (!(otherSwipeTracker instanceof SwipeTracker))
+            throw new Error('Must pass a SwipeTracker to make2d');
+
+        if (this.orientation === otherSwipeTracker.orientation)
+            throw new Error('Other SwipeTracker must have opposite orientation');
+
+        if (this._otherDimensionTracker || otherSwipeTracker._otherDimensionTracker)
+            throw new Error('Is already 2d');
+
+        this._panGesture.can_not_cancel(otherSwipeTracker._panGesture);
+        otherSwipeTracker._panGesture.can_not_cancel(this._panGesture);
+
+        this._otherDimensionTracker = otherSwipeTracker;
+        otherSwipeTracker._otherDimensionTracker = this;
     }
 });
