@@ -710,7 +710,7 @@ class ControlsManager extends St.Widget {
 
     prepareToEnterOverview() {
         this._searchController.prepareToEnterOverview();
-        this._workspacesDisplay.prepareToEnterOverview();
+        this._workspacesDisplay.show();
     }
 
     prepareToLeaveOverview() {

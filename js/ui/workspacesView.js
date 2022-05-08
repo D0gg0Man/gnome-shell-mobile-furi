@@ -973,8 +973,7 @@ class WorkspacesDisplay extends St.Widget {
             primaryWorkspace.visible = visible;
     }
 
-    prepareToEnterOverview() {
-        this.show();
+    vfunc_show() {
         this._updateWorkspacesViews();
 
         Main.overview.connectObject(
@@ -983,6 +982,8 @@ class WorkspacesDisplay extends St.Widget {
 
         global.stage.connectObject(
             'key-press-event', this._onKeyPressEvent.bind(this), this);
+
+        super.vfunc_show();
     }
 
     prepareToLeaveOverview() {
