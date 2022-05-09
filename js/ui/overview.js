@@ -256,14 +256,44 @@ export class Overview extends Signals.EventEmitter {
 
         this._threeFingerOverviewGesture.make2d(this._threeFingerWorkspacesGesture);
 
+        const singleFingerOverviewGesture = new SwipeTracker.SwipeTracker(global.stage,
+            Clutter.Orientation.VERTICAL,
+            Shell.ActionMode.OVERVIEW,
+            {
+                allowScroll: false,
+                name: 'Single finger overview gesture',
+            });
+        singleFingerOverviewGesture.connect('swipe-begin', this._overviewGestureBegin.bind(this));
+        singleFingerOverviewGesture.connect('swipe-update', this._overviewGestureUpdate.bind(this));
+        singleFingerOverviewGesture.connect('swipe-end', this._overviewGestureEnd.bind(this));
+        this._singleFingerOverviewGesture = singleFingerOverviewGesture;
+
+        const singleFingerWorkspacesGesture = new SwipeTracker.SwipeTracker(global.stage,
+            Clutter.Orientation.HORIZONTAL,
+            Shell.ActionMode.OVERVIEW,
+            {
+                name: 'Single finger workspaces gesture',
+            });
+        singleFingerWorkspacesGesture.allowLongSwipes = true;
+        singleFingerWorkspacesGesture.connect('swipe-begin', this._workspacesGestureBegin.bind(this));
+        singleFingerWorkspacesGesture.connect('swipe-update', this._workspacesGestureUpdate.bind(this));
+        singleFingerWorkspacesGesture.connect('swipe-end', this._workspacesGestureEnd.bind(this));
+        this._singleFingerWorkspacesGesture = singleFingerWorkspacesGesture;
+
+        this._singleFingerOverviewGesture.make2d(this._singleFingerWorkspacesGesture);
+
         const workspaceManager = global.workspace_manager;
 
         workspaceManager.connectObject('notify::layout-rows', () => {
             this._threeFingerWorkspacesGesture.enabled =
                 workspaceManager.layoutRows !== -1;
+            this._singleFingerWorkspacesGesture.enabled =
+                workspaceManager.layoutRows !== -1;
         }, this);
 
         this._threeFingerWorkspacesGesture.enabled =
+            workspaceManager.layoutRows !== -1;
+        this._singleFingerWorkspacesGesture.enabled =
             workspaceManager.layoutRows !== -1;
     }
 
@@ -673,7 +703,6 @@ export class Overview extends Signals.EventEmitter {
         if (!this._syncGrab())
             return;
 
-        this._threeFingerWorkspacesGesture.scroll_modifiers = 0;
         this._threeFingerWorkspacesGesture.allowLongSwipes = true;
     }
 
@@ -721,8 +750,6 @@ export class Overview extends Signals.EventEmitter {
     }
 
     _hideDone() {
-        this._threeFingerWorkspacesGesture.scroll_modifiers =
-            global.display.compositor_modifiers;
         this._threeFingerWorkspacesGesture.allowLongSwipes = false;
 
         this._coverPane.hide();
