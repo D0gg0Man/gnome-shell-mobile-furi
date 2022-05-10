@@ -213,26 +213,6 @@ export const SwipeTracker = GObject.registerClass({
         return this._findClosestPoint(pos);
     }
 
-    _getBounds(pos) {
-        if (this.allowLongSwipes)
-            return [this._snapPoints[0], this._snapPoints[this._snapPoints.length - 1]];
-
-        const closest = this._findClosestPoint(pos);
-
-        let prev, next;
-        if (Math.abs(this._snapPoints[closest] - pos) < EPSILON) {
-            prev = next = closest;
-        } else {
-            prev = this._findPreviousPoint(pos);
-            next = this._findNextPoint(pos);
-        }
-
-        const lowerIndex = Math.max(prev - 1, 0);
-        const upperIndex = Math.min(next + 1, this._snapPoints.length - 1);
-
-        return [this._snapPoints[lowerIndex], this._snapPoints[upperIndex]];
-    }
-
     _updatePanGesture(panGesture) {
         const deltaVec = panGesture.get_delta_abs();
         const delta = this.orientation === Clutter.Orientation.HORIZONTAL
@@ -250,7 +230,14 @@ export const SwipeTracker = GObject.registerClass({
 
         this._progress += delta / distance;
 
-        this._progress = Math.clamp(this._progress, ...this._getBounds(this._initialProgress));
+        const prevPoint = this._findPreviousPoint(this._progress);
+        const nextPoint = this._findNextPoint(this._progress);
+        if (prevPoint < this._peekedMinSnapPoint)
+            this._peekedMinSnapPoint = prevPoint;
+        if (nextPoint > this._peekedMaxSnapPoint)
+            this._peekedMaxSnapPoint = nextPoint;
+
+        this._progress = Math.clamp(this._progress, this._snapPoints[0], this._snapPoints[this._snapPoints.length - 1]);
 
         this.emit('update', this._progress);
     }
@@ -277,7 +264,12 @@ export const SwipeTracker = GObject.registerClass({
         }
 
         pos = pos * Math.sign(velocity) + this._progress;
-        pos = Math.clamp(pos, ...this._getBounds(this._initialProgress));
+        const boundsMin = this.allowLongSwipes
+            ? this._snapPoints[0] : this._snapPoints[this._peekedMinSnapPoint];
+        const boundsMax = this.allowLongSwipes
+            ? this._snapPoints[this._snapPoints.length - 1]
+            : this._snapPoints[this._peekedMaxSnapPoint];
+        pos = Math.clamp(pos, boundsMin, boundsMax);
 
         const index = this._findPointForProjection(pos, velocity);
 
@@ -351,6 +343,9 @@ export const SwipeTracker = GObject.registerClass({
         this._initialProgress = currentProgress;
         this._progress = currentProgress;
         this._cancelProgress = cancelProgress;
+
+        this._peekedMinSnapPoint = this._findPreviousPoint(this._progress);
+        this._peekedMaxSnapPoint = this._findNextPoint(this._progress);
     }
 
     destroy() {
