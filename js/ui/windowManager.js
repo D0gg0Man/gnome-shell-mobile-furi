@@ -1559,8 +1559,13 @@ export class WindowManager {
 
         this._windowMenuManager = new WindowMenu.WindowMenuManager();
 
-        if (Main.sessionMode.hasWorkspaces)
+        if (Main.sessionMode.hasWorkspaces) {
             this.workspaceTracker = new WorkspaceTracker();
+
+            Main.layoutManager.bind_property('is-phone',
+                this.workspaceTracker, 'single-window-workspaces',
+                GObject.BindingFlags.SYNC_CREATE);
+        }
 
         const allowedModes = Shell.ActionMode.NORMAL;
         const topDragGesture = new Shell.EdgeDragGesture({
