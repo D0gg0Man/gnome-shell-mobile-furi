@@ -95,7 +95,7 @@ class ControlsManagerLayout extends Clutter.LayoutManager {
                 thumbnailsHeight + Math.round(spacing * THUMBNAILS_SPACING_ADJUSTMENT_BOTTOM) * expandFraction);
             workspaceBox.set_size(width,
                 height -
-                dashHeight - spacing -
+                (dashHeight > 0 ? dashHeight + spacing : 0) -
                 searchHeight - Math.round(spacing * THUMBNAILS_SPACING_ADJUSTMENT_TOP) -
                 thumbnailsHeight - Math.round(spacing * THUMBNAILS_SPACING_ADJUSTMENT_BOTTOM) * expandFraction);
             break;
@@ -171,16 +171,19 @@ class ControlsManagerLayout extends Clutter.LayoutManager {
         availableHeight -= searchHeight + spacing;
 
         // Dash
-        const maxDashHeight = Math.round(box.get_height() * DASH_MAX_HEIGHT_RATIO);
-        this._dash.setMaxSize(width, maxDashHeight);
+        let dashHeight = 0;
+        if (this._dash.visible) {
+            const maxDashHeight = Math.round(box.get_height() * DASH_MAX_HEIGHT_RATIO);
+            this._dash.setMaxSize(width, maxDashHeight);
 
-        let [, dashHeight] = this._dash.get_preferred_height(width);
-        dashHeight = Math.min(dashHeight, maxDashHeight);
-        childBox.set_origin(0, startY + height - dashHeight);
-        childBox.set_size(width, dashHeight);
-        this._dash.allocate(childBox);
+            [, dashHeight] = this._dash.get_preferred_height(width);
+            dashHeight = Math.min(dashHeight, maxDashHeight);
+            childBox.set_origin(0, startY + height - dashHeight);
+            childBox.set_size(width, dashHeight);
+            this._dash.allocate(childBox);
 
-        availableHeight -= dashHeight + spacing;
+            availableHeight -= dashHeight + spacing;
+        }
 
         // Workspace Thumbnails
         let thumbnailsHeight = 0;
@@ -339,6 +342,9 @@ class ControlsManager extends St.Widget {
         });
 
         this.dash = new Dash.Dash();
+        Main.layoutManager.bind_property('is-phone',
+            this.dash, 'visible',
+            GObject.BindingFlags.SYNC_CREATE | GObject.BindingFlags.INVERT_BOOLEAN);
 
         this._workspaceAdjustment = Main.createWorkspacesAdjustment(this);
 
@@ -364,6 +370,7 @@ class ControlsManager extends St.Widget {
                     onComplete: () => this._updateThumbnailsBox(),
                 });
         }, this);
+        Main.layoutManager.connect('notify::is-phone', () => this._updateThumbnailsBox());
 
         this._workspacesDisplay = new WorkspacesView.WorkspacesDisplay(
             this,
@@ -552,7 +559,9 @@ class ControlsManager extends St.Widget {
         const {searchActive} = this._searchController;
         const [opacity, scale, translationY] = this._getThumbnailsBoxParams();
 
-        const thumbnailsBoxVisible = shouldShow && !searchActive && opacity !== 0;
+        const thumbnailsBoxVisible = !Main.layoutManager.is_phone &&
+            shouldShow && !searchActive && opacity !== 0;
+
         if (thumbnailsBoxVisible) {
             this._thumbnailsBox.opacity = 0;
             this._thumbnailsBox.visible = thumbnailsBoxVisible;
