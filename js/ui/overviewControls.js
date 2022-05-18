@@ -814,16 +814,19 @@ class ControlsManager extends St.Widget {
 
         const startupPromises = [];
 
+        const initialState = Main.layoutManager.is_phone
+            ? ControlsState.APP_GRID : ControlsState.WINDOW_PICKER;
+
         this._stateAdjustment.value = ControlsState.HIDDEN;
         startupPromises.push(new Promise(resolve => {
-            this._stateAdjustment.ease(ControlsState.WINDOW_PICKER, {
+            this._stateAdjustment.ease(initialState, {
                 duration: Overview.ANIMATION_TIME,
                 mode: Clutter.AnimationMode.EASE_OUT_QUAD,
                 onStopped: resolve,
             });
         }));
 
-        this.dash.showAppsButton.checked = false;
+        this.dash.showAppsButton.checked = initialState === ControlsState.APP_GRID;
         this._ignoreShowAppsButtonToggle = false;
 
         // Set the opacity here to avoid a 1-frame flicker
