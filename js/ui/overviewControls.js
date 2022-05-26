@@ -130,7 +130,7 @@ class ControlsManagerLayout extends Clutter.LayoutManager {
             height -
             searchHeight - spacing -
             workspacesBox.get_height() - spacing -
-            dashHeight - spacing);
+            (dashHeight > 0 ? dashHeight + spacing : 0));
 
         return appDisplayBox;
     }
