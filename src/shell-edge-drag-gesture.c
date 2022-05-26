@@ -22,11 +22,11 @@
 #include "shell-edge-drag-gesture.h"
 #include "shell-global.h"
 
-#define EDGE_THRESHOLD 20
+#define EDGE_THRESHOLD 35
 #define BEGIN_THRESHOLD 24
 #define DRAG_DISTANCE 80
 #define CANCEL_THRESHOLD 100
-#define CANCEL_TIMEOUT_MS 200
+#define CANCEL_TIMEOUT_MS 300
 
 struct _ShellEdgeDragGesture
 {
