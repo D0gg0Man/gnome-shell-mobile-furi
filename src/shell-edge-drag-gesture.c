@@ -23,6 +23,7 @@
 #include "shell-global.h"
 
 #define EDGE_THRESHOLD 20
+#define BEGIN_THRESHOLD 24
 #define DRAG_DISTANCE 80
 #define CANCEL_THRESHOLD 100
 #define CANCEL_TIMEOUT_MS 200
@@ -112,7 +113,7 @@ is_near_monitor_edge (ShellEdgeDragGesture *self,
   g_assert_not_reached ();
   return FALSE;
 }
-
+/*
 static gboolean
 exceeds_cancel_threshold (ShellEdgeDragGesture *self,
                           unsigned int          point)
@@ -144,7 +145,7 @@ exceeds_cancel_threshold (ShellEdgeDragGesture *self,
   g_assert_not_reached ();
   return FALSE;
 }
-
+*/
 static gboolean
 passes_distance_needed (ShellEdgeDragGesture *self,
                         unsigned int          sequence)
@@ -183,6 +184,26 @@ passes_distance_needed (ShellEdgeDragGesture *self,
 }
 
 static gboolean
+exceeds_begin_threshold (ShellEdgeDragGesture *self,
+                         unsigned int          point)
+{
+  graphene_point_t begin_coords, latest_coords;
+  float distance;
+
+  clutter_gesture_get_point_begin_coords_abs (CLUTTER_GESTURE (self),
+                                              point,
+                                              &begin_coords);
+
+  clutter_gesture_get_point_coords_abs (CLUTTER_GESTURE (self),
+                                        point,
+                                        &latest_coords);
+
+  distance = graphene_point_distance (&latest_coords, &begin_coords, NULL, NULL);
+
+  return distance >= BEGIN_THRESHOLD;
+}
+
+static gboolean
 shell_edge_drag_gesture_should_handle_sequence (ClutterGesture     *gesture,
                                                 const ClutterEvent *sequence_begin_event)
 {
@@ -199,7 +220,7 @@ on_cancel_timeout (gpointer data)
 {
   ShellEdgeDragGesture *self = data;
 
-  if (is_near_monitor_edge (self, self->cancel_timeout_point))
+  if (clutter_gesture_get_state (CLUTTER_GESTURE (self)) == CLUTTER_GESTURE_STATE_POSSIBLE)
     clutter_gesture_set_state (CLUTTER_GESTURE (self), CLUTTER_GESTURE_STATE_CANCELLED);
 
   self->cancel_timeout_id = 0;
@@ -231,15 +252,15 @@ shell_edge_drag_gesture_point_moved (ClutterGesture *gesture,
                                      unsigned int    point)
 {
   ShellEdgeDragGesture *self = SHELL_EDGE_DRAG_GESTURE (gesture);
-
+/*
   if (exceeds_cancel_threshold (self, point))
     {
       clutter_gesture_set_state (gesture, CLUTTER_GESTURE_STATE_CANCELLED);
       return;
     }
-
+*/
   if (clutter_gesture_get_state (gesture) == CLUTTER_GESTURE_STATE_POSSIBLE &&
-      !is_near_monitor_edge (self, point))
+      exceeds_begin_threshold (self, point))
     clutter_gesture_set_state (gesture, CLUTTER_GESTURE_STATE_RECOGNIZING);
 
   if (clutter_gesture_get_state (gesture) == CLUTTER_GESTURE_STATE_RECOGNIZING)

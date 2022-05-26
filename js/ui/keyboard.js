@@ -1286,6 +1286,7 @@ export class KeyboardManager extends Signals.EventEmitter {
         const bottomDragGesture = new Shell.EdgeDragGesture({
             name: 'OSK show bottom drag',
             side: St.Side.BOTTOM,
+            enabled: false,
         });
         bottomDragGesture.connect('may-recognize', () => {
             return allowedModes & Main.actionMode;
@@ -1325,13 +1326,11 @@ export class KeyboardManager extends Signals.EventEmitter {
             this._keyboard = new Keyboard();
             this._keyboard.connect('visibility-changed', () => {
                 this.emit('visibility-changed');
-                this._bottomDragGesture.enabled = !this._keyboard.visible;
             });
         } else if (!enabled && this._keyboard) {
             this._keyboard.setCursorLocation(null);
             this._keyboard.destroy();
             this._keyboard = null;
-            this._bottomDragGesture.enabled = true;
         }
     }
 

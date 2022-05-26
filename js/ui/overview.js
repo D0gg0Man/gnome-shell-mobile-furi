@@ -164,7 +164,7 @@ export class Overview extends Signals.EventEmitter {
         // Dash elements, or mouseover handlers in the workspaces.
         this._coverPane = new Clutter.Actor({
             opacity: 0,
-            reactive: true,
+        //    reactive: true,
         });
         Main.layoutManager.overviewGroup.add_child(this._coverPane);
         this._coverPane.hide();
@@ -244,7 +244,6 @@ export class Overview extends Signals.EventEmitter {
                 allowDrag: false,
                 name: 'Three finger workspaces gesture',
             });
-        threeFingerWorkspacesGesture.allowLongSwipes = true;
         threeFingerWorkspacesGesture.connect('begin', this._workspacesGestureBegin.bind(this));
         threeFingerWorkspacesGesture.connect('update', this._workspacesGestureUpdate.bind(this));
         threeFingerWorkspacesGesture.connect('end', this._workspacesGestureEnd.bind(this));
@@ -258,7 +257,7 @@ export class Overview extends Signals.EventEmitter {
 
         const singleFingerOverviewGesture = new SwipeTracker.SwipeTracker(global.stage,
             Clutter.Orientation.VERTICAL,
-            Shell.ActionMode.OVERVIEW,
+            Shell.ActionMode.NORMAL | Shell.ActionMode.OVERVIEW,
             {
                 allowScroll: false,
                 name: 'Single finger overview gesture',
@@ -268,17 +267,31 @@ export class Overview extends Signals.EventEmitter {
         singleFingerOverviewGesture.connect('swipe-end', this._overviewGestureEnd.bind(this));
         this._singleFingerOverviewGesture = singleFingerOverviewGesture;
 
+        const allowedModes = Shell.ActionMode.NORMAL | Shell.ActionMode.OVERVIEW;
+        this._singleFingerOverviewEdgeDrag = new Shell.EdgeDragGesture({
+            name: "edge drag overview",
+            side: St.Side.BOTTOM,
+        });
+        this._singleFingerOverviewEdgeDrag.connect('may-recognize', () => {
+            return allowedModes & Main.actionMode;
+        });
+        global.stage.add_action(this._singleFingerOverviewEdgeDrag);
+        this._singleFingerOverviewGesture._panGesture.require_recognize_of(this._singleFingerOverviewEdgeDrag);
+        this._singleFingerOverviewEdgeDrag.can_not_cancel(this._singleFingerOverviewGesture._panGesture);
+
         const singleFingerWorkspacesGesture = new SwipeTracker.SwipeTracker(global.stage,
             Clutter.Orientation.HORIZONTAL,
-            Shell.ActionMode.OVERVIEW,
+            Shell.ActionMode.NORMAL | Shell.ActionMode.OVERVIEW,
             {
                 name: 'Single finger workspaces gesture',
             });
-        singleFingerWorkspacesGesture.allowLongSwipes = true;
         singleFingerWorkspacesGesture.connect('swipe-begin', this._workspacesGestureBegin.bind(this));
         singleFingerWorkspacesGesture.connect('swipe-update', this._workspacesGestureUpdate.bind(this));
         singleFingerWorkspacesGesture.connect('swipe-end', this._workspacesGestureEnd.bind(this));
         this._singleFingerWorkspacesGesture = singleFingerWorkspacesGesture;
+
+        this._singleFingerWorkspacesGesture._panGesture.require_recognize_of(this._singleFingerOverviewEdgeDrag);
+        this._singleFingerOverviewEdgeDrag.can_not_cancel(this._singleFingerWorkspacesGesture._panGesture);
 
         this._singleFingerOverviewGesture.make2d(this._singleFingerWorkspacesGesture);
 
@@ -305,6 +318,12 @@ export class Overview extends Signals.EventEmitter {
             throw new Error('Invalid overview shown transition from ' +
                 `${this._shownState} to ${state}`);
         }
+
+        if (state === OverviewShownState.SHOWN)
+            this._singleFingerOverviewEdgeDrag.enabled = false;
+
+        if (state === OverviewShownState.HIDING)
+            this._singleFingerOverviewEdgeDrag.enabled = true;
 
         if (this._shownState === OverviewShownState.HIDDEN)
             global.compositor.disable_unredirect();
@@ -723,6 +742,7 @@ export class Overview extends Signals.EventEmitter {
             return;
 
         this._threeFingerWorkspacesGesture.allowLongSwipes = true;
+        this._singleFingerWorkspacesGesture.allowLongSwipes = true;
     }
 
     // hide:
@@ -768,6 +788,8 @@ export class Overview extends Signals.EventEmitter {
 
     _hideDone() {
         this._threeFingerWorkspacesGesture.allowLongSwipes = false;
+        this._singleFingerWorkspacesGesture.allowLongSwipes = false;
+
 
         this._coverPane.hide();
 
