@@ -221,8 +221,7 @@ class WorkspacesView extends WorkspacesViewBase {
         const spacing = (availableSpace - workspaceSize * 0.4) * (1 - fitMode);
         const {scaleFactor} = St.ThemeContext.get_for_stage(global.stage);
 
-        return Math.clamp(spacing, WORKSPACE_MIN_SPACING * scaleFactor,
-            WORKSPACE_MAX_SPACING * scaleFactor);
+        return 12;
     }
 
     _getWorkspaceModeForOverviewState(state) {
@@ -266,17 +265,7 @@ class WorkspacesView extends WorkspacesViewBase {
     }
 
     _getFitModeForState(state) {
-        const {ControlsState} = OverviewControls;
-
-        switch (state) {
-        case ControlsState.HIDDEN:
-        case ControlsState.WINDOW_PICKER:
-            return FitMode.SINGLE;
-        case ControlsState.APP_GRID:
-            return FitMode.ALL;
-        default:
-            return FitMode.SINGLE;
-        }
+        return FitMode.SINGLE;
     }
 
     _getInitialBoxes(box) {
@@ -344,11 +333,11 @@ class WorkspacesView extends WorkspacesViewBase {
         fitSingleBox =
             this._getFirstFitSingleWorkspaceBox(fitSingleBox, fitSingleSpacing, vertical);
 
-        const fitAllSpacing =
+      /*  const fitAllSpacing =
             this._getSpacing(fitAllBox, FitMode.ALL, vertical);
         fitAllBox =
             this._getFirstFitAllWorkspaceBox(fitAllBox, fitAllSpacing, vertical);
-
+*/
         // Account for RTL locales by reversing the list
         const workspaces = this._workspaces.slice();
         if (rtl)
@@ -356,16 +345,16 @@ class WorkspacesView extends WorkspacesViewBase {
 
         const [fitSingleX1, fitSingleY1] = fitSingleBox.get_origin();
         const [fitSingleWidth, fitSingleHeight] = fitSingleBox.get_size();
-        const [fitAllX1, fitAllY1] = fitAllBox.get_origin();
-        const [fitAllWidth, fitAllHeight] = fitAllBox.get_size();
+  //      const [fitAllX1, fitAllY1] = fitAllBox.get_origin();
+    //    const [fitAllWidth, fitAllHeight] = fitAllBox.get_size();
 
         workspaces.forEach(child => {
-            if (fitMode === FitMode.SINGLE)
+        //    if (fitMode === FitMode.SINGLE)
                 box = fitSingleBox;
-            else if (fitMode === FitMode.ALL)
-                box = fitAllBox;
-            else
-                box = fitSingleBox.interpolate(fitAllBox, fitMode);
+          //  else if (fitMode === FitMode.ALL)
+            //    box = fitAllBox;
+          //  else
+            //    box = fitSingleBox.interpolate(fitAllBox, fitMode);
 
             child.allocate_align_fill(box, 0.5, 0.5, false, false);
 
@@ -373,16 +362,16 @@ class WorkspacesView extends WorkspacesViewBase {
                 fitSingleBox.set_origin(
                     fitSingleX1,
                     fitSingleBox.y1 + fitSingleHeight + fitSingleSpacing);
-                fitAllBox.set_origin(
-                    fitAllX1,
-                    fitAllBox.y1 + fitAllHeight + fitAllSpacing);
+           //     fitAllBox.set_origin(
+             //       fitAllX1,
+               //     fitAllBox.y1 + fitAllHeight + fitAllSpacing);
             } else {
                 fitSingleBox.set_origin(
                     fitSingleBox.x1 + fitSingleWidth + fitSingleSpacing,
                     fitSingleY1);
-                fitAllBox.set_origin(
-                    fitAllBox.x1 + fitAllWidth + fitAllSpacing,
-                    fitAllY1);
+            //    fitAllBox.set_origin(
+              //      fitAllBox.x1 + fitAllWidth + fitAllSpacing,
+                //    fitAllY1);
             }
         });
     }

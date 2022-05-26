@@ -505,15 +505,7 @@ class ControlsManager extends St.Widget {
     }
 
     _getFitModeForState(state) {
-        switch (state) {
-        case ControlsState.HIDDEN:
-        case ControlsState.WINDOW_PICKER:
-            return WorkspacesView.FitMode.SINGLE;
-        case ControlsState.APP_GRID:
-            return WorkspacesView.FitMode.ALL;
-        default:
-            return WorkspacesView.FitMode.SINGLE;
-        }
+        return WorkspacesView.FitMode.SINGLE;
     }
 
     _getThumbnailsBoxParams() {
