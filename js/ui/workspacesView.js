@@ -85,8 +85,11 @@ export const FitMode = {
     ALL: 1,
 };
 
-export const WorkspacesView = GObject.registerClass(
-class WorkspacesView extends WorkspacesViewBase {
+export const WorkspacesView = GObject.registerClass({
+    Signals: {
+        'workspace-size-changed':  { param_types: [GObject.TYPE_DOUBLE] },
+    },
+}, class WorkspacesView extends WorkspacesViewBase {
     _init(monitorIndex, controls, scrollAdjustment, fitModeAdjustment, overviewAdjustment) {
         let workspaceManager = global.workspace_manager;
 
@@ -378,6 +381,8 @@ class WorkspacesView extends WorkspacesViewBase {
                     fitAllY1);
             }
         });
+
+        this.emit('workspace-size-changed', box.get_width());
     }
 
     getActiveWorkspace() {
@@ -859,6 +864,7 @@ class WorkspacesDisplay extends St.Widget {
         tracker.confirmSwipe(distance, points, progress, Math.round(progress));
 
         this._gestureActive = true;
+        this._activeTracker = tracker;
     }
 
     workspacesGestureUpdate(tracker, progress) {
@@ -869,6 +875,8 @@ class WorkspacesDisplay extends St.Widget {
     workspacesGestureEnd(tracker, duration, endProgress, completeCb) {
         let workspaceManager = global.workspace_manager;
         let newWs = workspaceManager.get_workspace_by_index(endProgress);
+
+        this._activeTracker = null;
 
         this._scrollAdjustment.ease(endProgress, {
             mode: Clutter.AnimationMode.EASE_OUT_CUBIC,
@@ -956,6 +964,10 @@ class WorkspacesDisplay extends St.Widget {
 
                 view.visible = this._primaryVisible;
                 this.bind_property('opacity', view, 'opacity', GObject.BindingFlags.SYNC_CREATE);
+                view.connect('workspace-size-changed', (v, newWidth) => {
+                    if (this._activeTracker)
+                        this._activeTracker.distance = newWidth;
+                });
                 this.add_child(view);
             } else {
                 view = new SecondaryMonitorDisplay(i,
