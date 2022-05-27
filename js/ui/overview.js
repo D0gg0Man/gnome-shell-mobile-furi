@@ -459,7 +459,7 @@ export class Overview extends Signals.EventEmitter {
         if (progress === 0)
             return;
 
-        this._overview.controls.overviewGestureProgress(progress);
+        this._overview.controls.overviewGestureProgress(tracker, progress);
     }
 
     _overviewGestureEnd(tracker, duration, endProgress, endCb) {
