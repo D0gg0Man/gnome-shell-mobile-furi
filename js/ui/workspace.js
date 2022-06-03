@@ -1049,6 +1049,11 @@ class Workspace extends St.Widget {
             new WorkspaceBackground(monitorIndex, layoutManager.stateAdjustment);
         this.add_child(this._background);
 
+        if (metaWorkspace && metaWorkspace._appOpeningOverlay) {
+            metaWorkspace._appOpeningOverlay.hide();
+            this.add_child(new Clutter.Clone({ source: metaWorkspace._appOpeningOverlay }));
+        }
+
         // Window previews
         this._container = new Clutter.Actor({
             reactive: true,
@@ -1311,10 +1316,16 @@ class Workspace extends St.Widget {
         }
 
         this._windows = [];
+
+        if (this.metaWorkspace._appOpeningOverlay)
+            this.metaWorkspace._appOpeningOverlay.maybeShow();
     }
 
     _doneLeavingOverview() {
         this._container.layout_manager.layout_frozen = false;
+
+        if (this.metaWorkspace._appOpeningOverlay)
+            this.metaWorkspace._appOpeningOverlay.maybeShow();
     }
 
     _doneShowingOverview() {
