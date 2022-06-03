@@ -59,6 +59,7 @@ export const WindowPreview = GObject.registerClass({
             accessible_role: Atk.Role.PUSH_BUTTON,
             offscreen_redirect: Clutter.OffscreenRedirect.AUTOMATIC_FOR_OPACITY,
             windowContainer,
+            style_class: 'window-preview',
         });
 
         windowContainer.connect('notify::scale-x',
