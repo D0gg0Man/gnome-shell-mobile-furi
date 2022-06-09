@@ -1,3 +1,4 @@
+import * as Main from './main.js';
 import * as MessageTray from './messageTray.js';
 import Shell from 'gi://Shell';
 import * as ParentalControlsManager from '../misc/parentalControlsManager.js';
@@ -14,6 +15,11 @@ class AppFavorites extends Signals.EventEmitter {
             this.emit('changed');
         });
 
+        Main.layoutManager.connect('notify::is-phone', () => {
+            this.reload();
+            this.emit('changed');
+        });
+
         this.FAVORITE_APPS_KEY = 'favorite-apps';
         this._favorites = {};
         global.settings.connect(`changed::${this.FAVORITE_APPS_KEY}`, this._onFavsChanged.bind(this));
@@ -26,6 +32,9 @@ class AppFavorites extends Signals.EventEmitter {
     }
 
     reload() {
+        if (Main.layoutManager.isPhone)
+            return;
+
         let ids = global.settings.get_strv(this.FAVORITE_APPS_KEY);
         let appSys = Shell.AppSystem.get_default();
         let apps = ids.map(id => appSys.lookup_app(id))

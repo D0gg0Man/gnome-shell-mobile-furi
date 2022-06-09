@@ -1524,8 +1524,12 @@ class AppDisplay extends BaseAppView {
             } catch {
                 return false;
             }
-            return !this._appFavorites.isFavorite(appInfo.get_id()) &&
+            const isInDash =
+                this._appFavorites.isFavorite(appInfo.get_id());
+            const parentalControlsAllowed =
                 this._parentalControlsManager.shouldShowApp(appInfo);
+
+            return !isInDash && parentalControlsAllowed;
         });
 
         let apps = this._appInfoList.map(app => app.get_id());
