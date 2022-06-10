@@ -773,7 +773,7 @@ export const WorkspaceLayout = GObject.registerClass({
 
     _syncOverlay(preview) {
         const active = this._metaWorkspace?.active ?? true;
-        preview.overlayEnabled = active && this._stateAdjustment.value === 1;
+        preview.overlayHidden = !active || this._stateAdjustment.value !== 1;
     }
 
     /**
