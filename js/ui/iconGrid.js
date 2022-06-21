@@ -622,17 +622,20 @@ export const IconGridLayout = GObject.registerClass({
             hSpacing = this.columnSpacing;
             break;
         case Clutter.ActorAlign.FILL:
-            hSpacing = this.columnSpacing + emptyHSpace / (nColumns - 1);
+            hSpacing = this.columnSpacing + emptyHSpace / (nColumns + 1);
 
             // Maybe constraint horizontal spacing
             if (this.maxColumnSpacing !== -1 && hSpacing > this.maxColumnSpacing) {
                 const extraHSpacing =
-                    (this.maxColumnSpacing - this.columnSpacing) * (nColumns - 1);
+                    (this.maxColumnSpacing - this.columnSpacing) * (nColumns + 1);
 
                 hSpacing = this.maxColumnSpacing;
                 leftEmptySpace +=
                     Math.max((emptyHSpace - extraHSpacing) / 2, 0);
             }
+
+leftEmptySpace += hSpacing;
+
             break;
         }
 
