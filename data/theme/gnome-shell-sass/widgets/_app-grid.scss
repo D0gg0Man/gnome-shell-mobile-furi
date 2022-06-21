@@ -1,7 +1,7 @@
 /* App Grid */
 
 $app_icon_size: 96px;
-$app_folder_size: 720px;
+$app_folder_size: 640px;
 
 // app icons
 .icon-grid {
@@ -67,6 +67,11 @@ $app_folder_size: 720px;
   width: $app_folder_size;
   height: $app_folder_size;
 
+  &.mobile {
+    width: 360px;
+    height: 430px;
+  }
+
   border-radius: $modal_radius * 4;
   background-color: $system_overlay_bg_color;
   color: $system_fg_color;
@@ -80,7 +85,7 @@ $app_folder_size: 720px;
   }
 
   & .folder-name-container {
-    padding: $base_padding * 4 $base_padding * 6;
+    padding: 12px 42px;
     padding-bottom: 0;
 
     & .folder-name-label,
@@ -90,7 +95,6 @@ $app_folder_size: 720px;
 
     & .folder-name-entry {
       @extend %system_entry;
-      width: 12em;
     }
   }
 
