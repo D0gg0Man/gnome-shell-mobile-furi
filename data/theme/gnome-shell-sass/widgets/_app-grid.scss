@@ -36,6 +36,7 @@ $app_folder_size: 720px;
       > StBoxLayout {
         spacing: 2px;
       }
+      StLabel { @extend %caption; }
     }
     border-radius: $base_border_radius * 3;
     color: $system_fg_color;
