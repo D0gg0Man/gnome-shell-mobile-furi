@@ -18,7 +18,7 @@ import * as WorkspacesView from './workspacesView.js';
 
 import {STARTUP_ANIMATION_TIME} from './layout.js';
 
-export const SMALL_WORKSPACE_RATIO = 0.15;
+export const SMALL_WORKSPACE_RATIO = 0.25;
 const DASH_MAX_HEIGHT_RATIO = 0.16;
 const VERTICAL_SPACING_RATIO = 0.02;
 const THUMBNAILS_SPACING_ADJUSTMENT_TOP = 0.6;
