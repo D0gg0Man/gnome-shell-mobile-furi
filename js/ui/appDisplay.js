@@ -1014,6 +1014,10 @@ const phoneGridModes = [
     }
 
     _canAccept(source) {
+        if (source instanceof DashIcon &&
+            !this._appFavorites.isFavorite(source.app.get_id()))
+            return false;
+
         return source instanceof AppViewItem;
     }
 
@@ -2435,6 +2439,10 @@ export const FolderIcon = GObject.registerClass({
         if (this._folder.get_strv('apps').includes(source.id))
             return false;
 
+        if (source instanceof imports.ui.dash.DashIcon &&
+            !AppFavorites.getAppFavorites().isFavorite(source.app.get_id()))
+            return false;
+
         return true;
     }
 
@@ -3180,6 +3188,10 @@ export const AppIcon = GObject.registerClass({
     _canAccept(source) {
         let view = _getViewFromIcon(source);
 
+        if (source instanceof DashIcon &&
+            !AppFavorites.getAppFavorites().isFavorite(source.app.get_id()))
+            return false;
+
         return source !== this &&
                (source instanceof this.constructor) &&
                (view instanceof AppDisplay);
@@ -3229,5 +3241,31 @@ class SystemActionIcon extends Search.GridSearchResult {
     activate() {
         SystemActions.getDefault().activateAction(this.metaInfo['id']);
         Main.overview.hide();
+    }
+});
+
+export const DashIcon = GObject.registerClass(
+class DashIcon extends AppIcon {
+    _init(app) {
+        super._init(app, {
+            setSizeManually: true,
+            showLabel: false,
+            popupMenuSide: St.Side.BOTTOM,
+        });
+    }
+
+    // Disable scale-n-fade methods used during DND by parent
+    scaleAndFade() {
+    }
+
+    undoScaleAndFade() {
+    }
+
+    handleDragOver() {
+        return DND.DragMotionResult.CONTINUE;
+    }
+
+    acceptDrop() {
+        return false;
     }
 });

@@ -18,32 +18,6 @@ const DASH_ITEM_LABEL_SHOW_TIME = 150;
 const DASH_ITEM_LABEL_HIDE_TIME = 100;
 const DASH_ITEM_HOVER_TIMEOUT = 300;
 
-export const DashIcon = GObject.registerClass(
-class DashIcon extends AppDisplay.AppIcon {
-    _init(app) {
-        super._init(app, {
-            setSizeManually: true,
-            showLabel: false,
-            popupMenuSide: St.Side.BOTTOM,
-        });
-    }
-
-    // Disable scale-n-fade methods used during DND by parent
-    scaleAndFade() {
-    }
-
-    undoScaleAndFade() {
-    }
-
-    handleDragOver() {
-        return DND.DragMotionResult.CONTINUE;
-    }
-
-    acceptDrop() {
-        return false;
-    }
-});
-
 // A container like StBin, but taking the child's scale into account
 // when requesting a size
 export const DashItemContainer = GObject.registerClass(
@@ -508,7 +482,7 @@ export const Dash = GObject.registerClass({
 
     _createAppItem(app) {
         let item = new DashItemContainer();
-        let appIcon = new DashIcon(app);
+        let appIcon = new AppDisplay.DashIcon(app);
 
         appIcon.connect('menu-state-changed', (o, opened) => {
             this._itemMenuStateChanged(item, opened);
