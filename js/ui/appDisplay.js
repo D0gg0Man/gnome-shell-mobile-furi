@@ -2432,10 +2432,6 @@ export const FolderIcon = GObject.registerClass({
         if (!(source instanceof AppIcon))
             return false;
 
-        let view = _getViewFromIcon(source);
-        if (!view || !(view instanceof AppDisplay))
-            return false;
-
         if (this._folder.get_strv('apps').includes(source.id))
             return false;
 
@@ -3186,7 +3182,7 @@ export const AppIcon = GObject.registerClass({
     }
 
     _canAccept(source) {
-        let view = _getViewFromIcon(source);
+        const view = _getViewFromIcon(this);
 
         if (source instanceof DashIcon &&
             !AppFavorites.getAppFavorites().isFavorite(source.app.get_id()))
