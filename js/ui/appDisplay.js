@@ -599,6 +599,9 @@ var BaseAppView = GObject.registerClass({
         this._box.add_child(scrollContainer);
         this._box.add_child(this._pageIndicators);
 
+        this._parentalControlsManager = ParentalControlsManager.getDefault();
+        this._appFavorites = AppFavorites.getAppFavorites();
+
         // Swipe
         this._swipeTracker = new SwipeTracker.SwipeTracker(this._scrollView,
             Clutter.Orientation.HORIZONTAL,
@@ -615,23 +618,6 @@ var BaseAppView = GObject.registerClass({
 
         this._items = new Map();
         this._orderedItems = [];
-
-        // Filter the apps through the user’s parental controls.
-        this._parentalControlsManager = ParentalControlsManager.getDefault();
-        this._parentalControlsManager.connectObject('app-filter-changed',
-            () => this._redisplay(), this);
-
-        // Don't duplicate favorites
-        this._appFavorites = AppFavorites.getAppFavorites();
-        this._appFavorites.connectObject('changed', () => {
-log("DASH CHANGE");
-            if (this._dragMonitor) {
-                this._redisplayAfterDrag = true;
-                return;
-            }
-
-            this._redisplay();
-        }, this);
 
         // Drag n' Drop
         this._lastOvershootCoord = -1;
@@ -1541,6 +1527,22 @@ log("installed change redisp");
                 return GLib.SOURCE_REMOVE;
             });
         });
+
+        // Filter the apps through the user’s parental controls.
+        this._parentalControlsManager.connectObject('app-filter-changed',
+            () => this._redisplay(), this);
+
+        // Don't duplicate favorites
+        this._appFavorites.connectObject('changed', () => {
+log("DASH CHANGE");
+            if (this._dragMonitor) {
+                this._redisplayAfterDrag = true;
+                return;
+            }
+
+            this._redisplay();
+        }, this);
+
     }
 
     _onDestroy() {
