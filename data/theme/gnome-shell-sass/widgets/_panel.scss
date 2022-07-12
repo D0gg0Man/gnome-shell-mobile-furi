@@ -7,13 +7,12 @@ $recording_indicator_color: $red_4;
 $transparent_panel_fg_color: $light_1;    // always white for transparent lock screens
 $system_panel_fg_color: $system_fg_color; // always light for lockscreen, overview
 
-$panel_height: 2.2em;
 $panel_transition_duration: 250ms; // same as the overview transition duration
 
 #panel {
   background-color: $panel_bg_color;
   font-weight: bold;
-  height: $panel_height;
+  height: 2.2em;
   @extend %numeric;
   transition-duration: $panel_transition_duration;
 
@@ -153,6 +152,29 @@ $panel_transition_duration: 250ms; // same as the overview transition duration
 
   // important privacy related indicators
   .privacy-indicator { color: $privacy_indicator_color; }
+}
+
+#uiGroup.mobile #panel {
+  height: 2.2em;
+
+  .panel-button {
+    border: none;
+
+    -natural-hpadding: $base_padding;
+    -minimum-hpadding: $base_padding;
+
+    &.clock-display {
+      .clock {
+        border: none;
+      }
+    }
+
+    .system-status-icon {
+      icon-size: 16px;
+      padding: 0;
+      margin: 0 $base_margin;
+    }
+  }
 }
 
 // Clock

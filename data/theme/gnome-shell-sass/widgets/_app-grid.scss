@@ -52,7 +52,7 @@ $app_folder_size: 720px;
 
 .app-folder-dialog-container {
   // pad the top with panel height so the folder doesn't overlap the panel on smaller resolutions
-  padding-top: $panel_height;
+  padding-top: 2.2em;
 }
 
 // Expanded app folder dialog
