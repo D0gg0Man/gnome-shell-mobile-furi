@@ -1081,7 +1081,8 @@ export const MessageTray = GObject.registerClass({
                            this._notificationState === State.SHOWN &&
                            this._notificationTimeoutId === 0 &&
                            this._notification.urgency !== Urgency.CRITICAL &&
-                           !this._pointerInNotification) || this._notificationExpired;
+                           !this._pointerInNotification &&
++                          !this._banner.interactedWithTouchGesture) || this._notificationExpired;
             let mustClose = this._notificationRemoved || !hasNotifications || expired;
 
             if (mustClose) {

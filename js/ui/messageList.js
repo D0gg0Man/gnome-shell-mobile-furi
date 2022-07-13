@@ -522,6 +522,19 @@ export const Message = GObject.registerClass({
         });
         contentBox.add_child(this._bodyBin);
 
+        this._gestureWasStarted = false;
+
+        this._closeGesture = new Clutter.PanGesture({
+            pan_axis: Clutter.PanAxis.X,
+            max_n_points: 1,
+        });
+        this._closeGesture.connect('may-recognize', () => this.canClose());
+        this._closeGesture.connect('recognize', this._panBegin.bind(this));
+        this._closeGesture.connect('pan-update', this._panUpdate.bind(this));
+        this._closeGesture.connect('end', this._panEnd.bind(this));
+        this._closeGesture.connect('cancel', this._panCancel.bind(this));
+        this.add_action(this._closeGesture);
+
         this._header.closeButton.connect('clicked', this.close.bind(this));
         this._header.closeButton.visible = this.canClose();
 
@@ -688,6 +701,55 @@ export const Message = GObject.registerClass({
             }
         }
         return super.vfunc_key_press_event(event);
+    }
+
+    _panBegin(gesture) {
+        this._gestureWasStarted = true;
+
+        this.remove_transition('translation-x');
+        this.remove_transition('opacity');
+
+        this._panWidth = this.get_transformed_extents().size.width;
+    }
+
+    _panUpdate(gesture) {
+        const [latestDeltaVec] = gesture.get_delta();
+
+        this.translation_x += latestDeltaVec.get_x();
+        this.opacity = 255 * (1 - Math.min(Math.abs(this.translation_x / (this._panWidth * 0.7)), 1));
+    }
+
+    _panEnd(gesture) {
+        const velocityX = gesture.get_velocity().get_x();
+
+        const panDirection = this.translation_x > 0 ? this._panWidth : -this._panWidth;
+        const remainingWidth = Math.abs(panDirection - this.translation_x);
+        const velocity = Math.abs(velocityX);
+
+        if (velocity > 0.9 || (remainingWidth < Math.abs(panDirection * 0.5) && velocity > 0.5) || this.opacity === 0) {
+            this.ease({
+                translation_x: panDirection,
+                opacity: 0,
+                duration: Math.clamp(velocity / remainingWidth, 100, 350),
+                mode: Clutter.AnimationMode.LINEAR,
+                onComplete: () => this.close(),
+            });
+        } else {
+            this.ease({
+                translation_x: 0,
+                opacity: 255,
+                duration: Math.clamp((1 - (remainingWidth / panDirection)) * 250, 100, 350),
+                mode: Clutter.AnimationMode.EASE_OUT_QUAD,
+            });
+        }
+    }
+
+    _panCancel(gesture) {
+
+    }
+
+    get interactedWithTouchGesture() {
+        return this._gestureWasStarted;
     }
 });
 
