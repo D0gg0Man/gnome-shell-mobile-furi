@@ -90,7 +90,7 @@ class ControlsManagerLayout extends Clutter.LayoutManager {
             const appGridStateBox = new Clutter.ActorBox();
 
             hiddenStateBox.set_origin(...this._workAreaBox.get_origin());
-            hiddenStateBox.set_size(...this._workAreaBox.get_size());
+            hiddenStateBox.set_size(this._workAreaBox.get_width(), this._workAreaBox.get_height() + Main.layoutManager.bottomPanelBox.height);
 
             appGridStateBox.set_origin(0, startY + searchHeight + spacing);
             appGridStateBox.set_size(
@@ -111,7 +111,7 @@ class ControlsManagerLayout extends Clutter.LayoutManager {
             switch (state) {
             case ControlsState.HIDDEN:
                 workspaceBox.set_origin(...this._workAreaBox.get_origin());
-                workspaceBox.set_size(...this._workAreaBox.get_size());
+                workspaceBox.set_size(this._workAreaBox.get_width(), this._workAreaBox.get_height() + Main.layoutManager.bottomPanelBox.height);
                 break;
             case ControlsState.WINDOW_PICKER:
                 workspaceBox.set_origin(0,
