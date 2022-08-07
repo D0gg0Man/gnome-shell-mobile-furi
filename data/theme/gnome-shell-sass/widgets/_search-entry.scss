@@ -3,13 +3,37 @@
   border-radius: $forced_circular_radius;
   margin-top: $base_padding * 2;
   margin-bottom: $base_padding;
-  width: 24em;
+  width: 250px;
+  height: 22px;
+
+background-color: transparentize(#cccccc, 0.7);
+.hint-text {
+    color: #eeeeee;
+}
 
   @extend %lockscreen_entry;
 
   .search-entry-icon {
+    color: #eeeeee;
     icon-size: $scalable_icon_size;
     margin-top: 2px; // center vertically
-    padding: 0 $base_margin;
+    padding: 0 4px;
+
+    &.search-icon { margin-left: 6px; }
+    &.clear-icon { margin-right: 4px; }
   }
 }
+
+#uiGroup.mobile .search-entry {
+width: 250px;
+
+}
+
+.controls-manager.empty .search-entry {
+  height: 38px;
+}
+
+.controls-manager.empty.search-active .search-entry {
+  height: 22px;
+}
+

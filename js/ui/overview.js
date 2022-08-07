@@ -287,6 +287,14 @@ export class Overview extends Signals.EventEmitter {
         this._singleFingerOverviewGesture._panGesture.require_recognize_of(this._singleFingerOverviewEdgeDrag);
         this._singleFingerOverviewEdgeDrag.can_not_cancel(this._singleFingerOverviewGesture._panGesture);
 
+        Main.wm.workspaceTracker.connect('notify::zero-open-windows', () => {
+            this._threeFingerOverviewGesture.enabled = !Main.wm.workspaceTracker.zeroOpenWindows;
+            this._singleFingerOverviewGesture.enabled = !Main.wm.workspaceTracker.zeroOpenWindows;
+        });
+
+        this._threeFingerOverviewGesture.enabled = !Main.wm.workspaceTracker.zeroOpenWindows;
+        this._singleFingerOverviewGesture.enabled = !Main.wm.workspaceTracker.zeroOpenWindows;
+
         const singleFingerWorkspacesGesture = new SwipeTracker.SwipeTracker(global.stage,
             Clutter.Orientation.HORIZONTAL,
             Shell.ActionMode.NORMAL | Shell.ActionMode.OVERVIEW,
@@ -799,6 +807,7 @@ export class Overview extends Signals.EventEmitter {
         this._visible = false;
         this._animationInProgress = false;
 
+
         // Handle any calls to show* while we were hiding
         if (this._shown) {
             this._changeShownState(OverviewShownState.HIDDEN);
@@ -811,6 +820,11 @@ export class Overview extends Signals.EventEmitter {
         Main.panel.style = null;
 
         this._syncGrab();
+
+        // disallow hiding and show again, needed for when the screen is turned :/
+        if (Main.wm.workspaceTracker.zeroOpenWindows) {
+            this.show(2)
+        }
     }
 
     toggle() {
