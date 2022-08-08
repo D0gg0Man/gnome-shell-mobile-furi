@@ -225,6 +225,9 @@ class WorkspacesView extends WorkspacesViewBase {
     }
 
     _getWorkspaceModeForOverviewState(state) {
+        if (Main.layoutManager.is_phone)
+            return 0;
+
         const {ControlsState} = OverviewControls;
 
         switch (state) {
