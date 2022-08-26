@@ -35,6 +35,12 @@
   }
 }
 
+#uiGroup.mobile {
+  .search-section-content {
+    background-color: transparentize(#cccccc, 0.85);
+  }
+}
+
 %search_section_content_item {
   @include tile_button($bg:$system_overlay_bg_color);
   border-radius: $base_border_radius * 1.65;
@@ -52,6 +58,12 @@
 
 .grid-search-results {
   spacing: $base_padding * 5;
+}
+
+#uiGroup.mobile {
+  .grid-search-results {
+    spacing: 8px;
+  }
 }
 
 // Search results with icons
@@ -73,6 +85,21 @@
     .list-search-provider-details {
       width: 120px;
       color: $system_fg_color;
+    }
+  }
+}
+
+#uiGroup.mobile {
+  .search-provider-icon {
+    padding-top: 0;
+    padding-bottom: 0;
+
+    .list-search-provider-details {
+      margin-bottom: 8px;
+
+      .list-search-provider-title {
+        font-weight: bold;
+      }
     }
   }
 }
@@ -107,5 +134,11 @@
     @if $contrast == 'high' {
       color: $system_fg_color;
     }
+  }
+}
+
+#uiGroup.mobile {
+  .list-search-result {
+    text-shadow: 0px 1px 3px 1px rgba(0,0,0,0.4);
   }
 }

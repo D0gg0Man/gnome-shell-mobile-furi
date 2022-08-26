@@ -292,6 +292,7 @@ class ListSearchResults extends SearchResultsBase {
         this._container = new St.BoxLayout({
             style_class: 'search-section-content',
             x_expand: true,
+            vertical: true,
         });
         this.providerInfo = new ProviderInfo(provider);
         this.providerInfo.connect('key-focus-in', this._keyFocusIn.bind(this));
@@ -928,11 +929,12 @@ class ProviderInfo extends St.Button {
         this.provider = provider;
         super._init({
             style_class: 'search-provider-icon',
-            reactive: true,
-            can_focus: true,
+            reactive: false,
+            can_focus: false,
             accessible_name: provider.appInfo.get_name(),
-            track_hover: true,
+            track_hover: false,
             y_align: Clutter.ActorAlign.START,
+            x_align: Clutter.ActorAlign.START,
         });
 
         this._content = new St.BoxLayout({
@@ -954,6 +956,7 @@ class ProviderInfo extends St.Button {
         });
 
         const nameLabel = new St.Label({
+            style_class: 'list-search-provider-title',
             text: provider.appInfo.get_name(),
             x_align: Clutter.ActorAlign.START,
             y_align: Clutter.ActorAlign.CENTER,
@@ -963,10 +966,9 @@ class ProviderInfo extends St.Button {
         this._moreLabel = new St.Label({x_align: Clutter.ActorAlign.START});
 
         detailsBox.add_child(nameLabel);
-        detailsBox.add_child(this._moreLabel);
+        //detailsBox.add_child(this._moreLabel);
 
-
-        this._content.add_child(icon);
+        //this._content.add_child(icon);
         this._content.add_child(detailsBox);
     }
 
