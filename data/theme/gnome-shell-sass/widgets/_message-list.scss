@@ -3,20 +3,15 @@
 
 // main list
 .message-list {
-  width: 29em;
-  border: solid $borders_color;
+  margin-top: 24px;
 
   &:ltr {
     StScrollBar { margin-right: 0; }
-    margin-right: $base_margin;
-    padding-right: $base_padding;
     border-right-width: 1px;
   }
 
   &:rtl {
     StScrollBar { margin-left: 0; }
-    margin-left: $base_margin;
-    padding-left: $base_padding;
     border-left-width: 1px;
   }
 
@@ -148,6 +143,7 @@
       @extend %notification_button;
       border-radius: $forced_circular_radius; // make circular
       color: $fg_color;
+      padding: 4px !important;
     }
 
     // increase padding to expand button to make it larger

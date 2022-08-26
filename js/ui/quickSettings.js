@@ -9,6 +9,7 @@ import Meta from 'gi://Meta';
 import Pango from 'gi://Pango';
 import St from 'gi://St';
 
+import * as Calendar from './calendar.js';
 import * as Main from './main.js';
 import * as PopupMenu from './popupMenu.js';
 import {Slider} from './slider.js';
@@ -770,6 +771,9 @@ export const QuickSettingsMenu = class extends PopupMenu.PopupMenu {
         });
         this.box.add_child(this._grid);
         this._grid.add_child(placeholder);
+
+        this._messageList = new Calendar.CalendarMessageList();
+        this.box.add_child(this._messageList);
 
         const yConstraint = new Clutter.BindConstraint({
             coordinate: Clutter.BindCoordinate.Y,

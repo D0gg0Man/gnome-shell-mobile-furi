@@ -788,9 +788,6 @@ class CalendarMessageList extends St.Widget {
             y_expand: true,
         });
 
-        this._placeholder = new Placeholder();
-        this.add_child(this._placeholder);
-
         let box = new St.BoxLayout({
             orientation: Clutter.Orientation.VERTICAL,
             x_expand: true,
@@ -804,6 +801,7 @@ class CalendarMessageList extends St.Widget {
             x_expand: true, y_expand: true,
             child: this._messageView,
         });
+        this._scrollView.set_policy(St.PolicyType.NEVER, St.PolicyType.EXTERNAL);
 
         const panGesture = new Clutter.PanGesture();
         panGesture.connect('may-recognize', this._panMayRecognize.bind(this));
@@ -812,37 +810,10 @@ class CalendarMessageList extends St.Widget {
 
         box.add_child(this._scrollView);
 
-        let hbox = new St.BoxLayout({style_class: 'message-list-controls'});
-        box.add_child(hbox);
-
-        this._clearButton = new St.Button({
-            style_class: 'message-list-clear-button button',
-            label: _('Clear'),
-            can_focus: true,
-            x_expand: true,
-            x_align: Clutter.ActorAlign.START,
-            accessible_name: C_('action', 'Clear all notifications'),
-        });
-        this._clearButton.connect('clicked', () => {
-            this._messageView.clear();
-        });
-        hbox.add_child(this._clearButton);
-
-        this._placeholder.bind_property('visible',
-            this._clearButton, 'visible',
-            GObject.BindingFlags.INVERT_BOOLEAN);
-
         this._messageView.connectObject(
             'message-focused', (_s, messageActor) => {
                 ensureActorVisibleInScrollView(this._scrollView, messageActor);
             }, this);
-
-        this._messageView.bind_property('empty',
-            this._placeholder, 'visible',
-            GObject.BindingFlags.SYNC_CREATE);
-        this._messageView.bind_property('can-clear',
-            this._clearButton, 'reactive',
-            GObject.BindingFlags.SYNC_CREATE);
     }
 
     maybeCollapseMessageGroupForEvent(event) {
