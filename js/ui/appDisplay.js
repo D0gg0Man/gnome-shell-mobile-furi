@@ -2983,7 +2983,7 @@ export const AppIcon = GObject.registerClass({
         this.icon = new IconGrid.BaseIcon(app.get_name(), iconParams);
         this._iconContainer.add_child(this.icon);
 
-        this._dot = new St.Widget({
+        /*this._dot = new St.Widget({
             style_class: 'app-grid-running-dot',
             layout_manager: new Clutter.BinLayout(),
             x_expand: true,
@@ -2993,7 +2993,7 @@ export const AppIcon = GObject.registerClass({
         });
         this._dot.connect('style-changed', () => this._updateDotStyle());
         this._iconContainer.add_child(this._dot);
-
+*/
         this.label_actor = this.icon.label;
 
         this.connect('popup-menu', this._onKeyboardPopupMenu.bind(this));
@@ -3036,10 +3036,10 @@ export const AppIcon = GObject.registerClass({
     }
 
     _updateRunningStyle() {
-        if (this.app.state !== Shell.AppState.STOPPED)
+     /*   if (this.app.state !== Shell.AppState.STOPPED)
             this._dot.show();
         else
-            this._dot.hide();
+            this._dot.hide();*/
     }
 
     vfunc_clicked(button) {
