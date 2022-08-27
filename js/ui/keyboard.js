@@ -1458,6 +1458,10 @@ export const Keyboard = GObject.registerClass({
             this.translation_y = this.height;
         });
 
+        Main.overview.connect('showing', () => {
+            this.close(true);
+        });
+
         this.connect('destroy', this._onDestroy.bind(this));
     }
 
