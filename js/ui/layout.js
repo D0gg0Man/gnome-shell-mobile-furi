@@ -218,7 +218,7 @@ export const LayoutManager = GObject.registerClass({
         this._pendingLoadBackground = false;
 
         // Set up stage hierarchy to group all UI actors under one container.
-        this.uiGroup = new UiActor({name: 'uiGroup'});
+        this.uiGroup = new UiActor({name: 'uiGroup', reactive: true});
         this.uiGroup.set_no_layout(true);
 
         global.stage.add_child(this.uiGroup);

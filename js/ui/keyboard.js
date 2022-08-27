@@ -1541,7 +1541,120 @@ export const Keyboard = GObject.registerClass({
             this.close(true);
         });
 
+        this._panGesture = new Clutter.PanGesture({
+            pan_axis: Clutter.PanAxis.Y,
+            max_n_points: 1,
+            // increase the necessary amount of panning a bit so it doesn't
+            // happen accidentally while typing
+            begin_threshold: 24,
+        });
+        this._panGesture.connect('may-recognize', this._panMayRecognize.bind(this));
+        this._panGesture.connect('recognize', this._panBegin.bind(this));
+        this._panGesture.connect('pan-update', this._panUpdate.bind(this));
+        this._panGesture.connect('end', this._panEnd.bind(this));
+        this._panGesture.connect('cancel', this._panEnd.bind(this));
+        this._panGesture.enabled = false;
+        Main.uiGroup.add_action(this._panGesture); // don't add to stage so that Metagesture tracker doesn't complain
+
         this.connect('destroy', this._onDestroy.bind(this));
+    }
+
+    _panMayRecognize(gesture) {
+        const beginCoords = gesture.get_begin_centroid_abs();
+        if (!this.get_transformed_extents().contains_point(beginCoords))
+            return true;
+
+        const coords = gesture.get_centroid_abs();
+        const delta = coords.y - beginCoords.y;
+
+        return delta > 0;
+    }
+
+    _panBegin(gesture) {
+        this.remove_transition('translation-y');
+
+        const windowActor = this._focusWindow?.get_compositor_private();
+        windowActor?.remove_transition('y');
+
+        this._keyboardBeginY = this.get_transformed_extents().origin.y;
+        const y = gesture.get_begin_centroid_abs().y;
+
+        if (windowActor)
+            this._panHeight = this._focusWindowStartY - windowActor.y;
+        this._panBeginY = y;
+        this._panCurY = y;
+    }
+
+    _panUpdate(gesture) {
+        const [latestDeltaVec] = gesture.get_delta();
+        const deltaY = latestDeltaVec.get_y();
+
+        if (this._panCurY < this._keyboardBeginY) {
+            this._panCurY += deltaY;
+            return;
+        }
+        this._panCurY += deltaY;
+
+        let newTranslation = this.translation_y + deltaY;
+        if (newTranslation < 0)
+            newTranslation = 0;
+
+        this.translation_y = newTranslation;
+
+        const panHeight = this.get_transformed_extents().size.height;
+
+        const windowActor = this._focusWindow?.get_compositor_private();
+
+        if (windowActor)
+            windowActor.y = this._focusWindowStartY - (panHeight - newTranslation);
+    }
+
+    _panEnd(gesture) {
+        const velocityY = gesture.get_velocity().get_y();
+        const panHeight = this.get_transformed_extents().size.height;
+
+        const remainingHeight = panHeight - this.translation_y;
+
+        const windowActor = this._focusWindow?.get_compositor_private();
+
+        if (this._panCurY >= this._keyboardBeginY && (velocityY > 0.9 || (remainingHeight < panHeight / 2 && velocityY >= 0))) {
+            this.ease({
+                translation_y: panHeight,
+                duration: Math.clamp(remainingHeight / Math.abs(velocityY), 160, 450),
+                mode: Clutter.AnimationMode.EASE_OUT_BACK,
+                onStopped: () => this.close(),
+            });
+
+            if (windowActor) {
+                windowActor.ease({
+                    y: this._focusWindowStartY,
+                    duration: KEYBOARD_ANIMATION_TIME,
+                    mode: Clutter.AnimationMode.EASE_OUT_QUAD,
+                    onStopped: () => {
+                        windowActor.y = this._focusWindowStartY;
+                        this._windowSlideAnimationComplete(this._focusWindow, this._focusWindowStartY);
+                    },
+                });
+            }
+        } else {
+            this.ease({
+                translation_y: 0,
+                duration: Math.clamp((panHeight - remainingHeight) / Math.abs(velocityY), 100, 250),
+                mode: Clutter.AnimationMode.EASE_OUT_EXPO,
+            });
+
+            if (windowActor) {
+                windowActor.ease({
+                    y: this._focusWindowStartY - panHeight,
+                    duration: KEYBOARD_ANIMATION_TIME,
+                    mode: Clutter.AnimationMode.EASE_OUT_QUAD,
+                    onStopped: () => {
+                        windowActor.y = this._focusWindowStartY - panHeight;
+                     //   this._windowSlideAnimationComplete(window, finalY);
+                    },
+                });
+            }
+        }
     }
 
     get visible() {
@@ -2159,6 +2272,8 @@ export const Keyboard = GObject.registerClass({
 
         this._setEmojiActive(false);
         this._setActiveLevel('default');
+
+        this._panGesture.enabled = true;
     }
 
     close(immediate = false) {
@@ -2193,6 +2308,8 @@ export const Keyboard = GObject.registerClass({
         this._animateHide();
         this.setCursorLocation(null);
         this._disableAllModifiers();
+
+        this._panGesture.enabled = false;
     }
 
     _animateShow() {
