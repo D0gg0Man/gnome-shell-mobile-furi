@@ -640,7 +640,7 @@ export const ThumbnailsBox = GObject.registerClass({
         });
         this.add_action(clickGesture);
 
-        Main.overview.connectObject(
+     /*   Main.overview.connectObject(
             'showing', () => this._createThumbnails(),
             'hidden', () => this._destroyThumbnails(),
             'item-drag-begin', () => this._onDragBegin(),
@@ -649,6 +649,7 @@ export const ThumbnailsBox = GObject.registerClass({
             'window-drag-begin', () => this._onDragBegin(),
             'window-drag-end', () => this._onDragEnd(),
             'window-drag-cancelled', () => this._onDragCancelled(), this);
+*/
 
         this._settings = new Gio.Settings({schema_id: MUTTER_SCHEMA});
         this._settings.connect('changed::dynamic-workspaces',
