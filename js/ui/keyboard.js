@@ -1818,6 +1818,24 @@ export const Keyboard = GObject.registerClass({
             this);
         global.stage.connectObject('notify::key-focus',
             this._onKeyFocusChanged.bind(this), this);
+
+        this._bottomPanelBox = new St.Bin({
+            name: 'bottomPanelBox',
+            reactive: true,
+            pivot_point: new Graphene.Point({ x: 0, y: 1 }),
+        });
+
+        this._bottomPanelBox.add_style_class_name('dark-mode-enabled');
+
+        this._bottomPanelBox.child = new St.Widget({
+            name: 'bottomPanelLine',
+            x_expand: true,
+            x_align: Clutter.ActorAlign.CENTER,
+            y_align: Clutter.ActorAlign.CENTER,
+            pivot_point: new Graphene.Point({ x: 0.5, y: 0.5 }),
+        });
+
+        this.add_child(this._bottomPanelBox);
     }
 
     _onContentHintsChanged(controller, contentHint) {
@@ -2365,6 +2383,11 @@ export const Keyboard = GObject.registerClass({
     _open() {
         if (!this._keyboardRequested)
             return;
+
+        if (this._bottomPanelBox) {
+            this._bottomPanelBox.child.visible =
+                !Main.overview.visible && Main.sessionMode.hasBottomPanel;
+        }
 
         this._animateShow();
 
