@@ -2271,6 +2271,7 @@ export const Keyboard = GObject.registerClass({
     }
 
     setSuggestionsVisible(visible) {
+        this._suggestions.visible = visible;
         this._suggestions?.setVisible(visible);
     }
 
