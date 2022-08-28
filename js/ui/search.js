@@ -582,9 +582,10 @@ export const SearchResultsView = GObject.registerClass({
 
         this._scrollView = new St.ScrollView({
             overlay_scrollbars: true,
-            style_class: 'search-display vfade',
+            style_class: 'search-display',
             x_expand: true,
             y_expand: true,
+            vscrollbar_policy: St.PolicyType.EXTERNAL,
             child: this._content,
         });
 
