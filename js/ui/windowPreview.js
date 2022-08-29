@@ -108,6 +108,7 @@ export const WindowPreview = GObject.registerClass({
 
         this._updateAttachedDialogs();
 
+/*
         this._panGesture = new WindowPreviewCloseGesture({
             pan_axis: Clutter.PanAxis.Y,
             max_n_points: 1,
@@ -118,7 +119,7 @@ export const WindowPreview = GObject.registerClass({
         this._panGesture.connect('end', this._panEnd.bind(this));
         this._panGesture.connect('cancel', this._panCancel.bind(this));
         this.add_action(this._panGesture);
-
+*/
   //      Main.overview._workspacesSwipeTracker.require_failure_of(this._panGesture);
 //        Main.overview._overviewSwipeTracker.require_failure_of(this._panGesture);
 

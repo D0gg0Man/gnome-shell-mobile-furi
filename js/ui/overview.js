@@ -78,7 +78,7 @@ class OverviewActor extends St.BoxLayout {
     }
 });
 
-const OverviewShownState = {
+export const OverviewShownState = {
     HIDDEN: 'HIDDEN',
     HIDING: 'HIDING',
     SHOWING: 'SHOWING',

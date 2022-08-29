@@ -9,6 +9,7 @@ import St from 'gi://St';
 import * as Background from './background.js';
 import * as DND from './dnd.js';
 import * as Main from './main.js';
+import * as Overview from './overview.js';
 import * as OverviewControls from './overviewControls.js';
 import * as Params from '../misc/params.js';
 
@@ -1096,6 +1097,7 @@ class Workspace extends St.Widget {
             style_class: 'window-picker',
             pivot_point: new Graphene.Point({x: 0.5, y: 0.5}),
             layout_manager: new Clutter.BinLayout(),
+            reactive: true,
         });
 
         const layoutManager = new WorkspaceLayout(metaWorkspace, monitorIndex,
@@ -1172,6 +1174,64 @@ class Workspace extends St.Widget {
         // Create clones for windows that should be
         // visible in the Overview
         global.get_window_actors().map(a => this._doAddWindow(a.meta_window));
+
+        this._panGesture = new Clutter.PanGesture({
+            pan_axis: Clutter.PanAxis.Y,
+            max_n_points: 1,
+        });
+        this._panGesture.connect('may-recognize', this._panMayRecognize.bind(this));
+        this._panGesture.connect('recognize', this._panBegin.bind(this));
+        this._panGesture.connect('pan-update', this._panUpdate.bind(this));
+        this._panGesture.connect('end', this._panEnd.bind(this));
+        this._panGesture.connect('cancel', this._panEnd.bind(this));
+        this.add_action(this._panGesture);
+    }
+
+    _panMayRecognize(gesture) {
+        if (Main.overview._shownState !== Overview.OverviewShownState.SHOWN)
+            return false;
+
+        const delta = gesture.get_centroid().y - gesture.get_begin_centroid().y;
+        return delta < 0;
+    }
+
+    _panBegin(gesture) {
+        this.remove_transition('translation-y');
+        this.remove_transition('opacity');
+
+        this._panHeight = this.get_transformed_extents().size.height;
+    }
+
+    _panUpdate(gesture) {
+        const [latestDeltaVec] = gesture.get_delta();
+
+        this.translation_y += latestDeltaVec.get_y();
+        if (this.translation_y > 0)
+            this.translation_y = 0;
+
+        this.opacity = 255 * (1 - Math.min(Math.abs(this.translation_y / this._panHeight), 1));
+    }
+
+    _panEnd(gesture) {
+        const velocityY = gesture.get_velocity().get_y();
+        const remainingHeight = this._panHeight - Math.abs(this.translation_y);
+
+        if (velocityY < -0.9 || (remainingHeight < this._panHeight / 2 && velocityY < -0.5) || remainingHeight <= 0) {
+            this.ease({
+                translation_y: -this._panHeight,
+                opacity: 0,
+                duration: Math.clamp(Math.abs(velocityY) / remainingHeight, 100, 350),
+                mode: Clutter.AnimationMode.LINEAR,
+                onComplete: () => this._windows.forEach((w) => w._deleteAll()),
+            });
+        } else {
+            this.ease({
+                translation_y: 0,
+                opacity: 255,
+                duration: Math.clamp((1 - (remainingHeight / this._panHeight)) * 250, 100, 350),
+                mode: Clutter.AnimationMode.EASE_OUT_QUAD,
+            });
+        }
     }
 
     _shouldLeaveOverview() {
