@@ -53,7 +53,7 @@ const PowerToggle = GObject.registerClass({
 
         this.connect('clicked', () => {
             const app = Shell.AppSystem.get_default().lookup_app('gnome-power-panel.desktop');
-            Main.overview.hide();
+          //  Main.overview.hide();
             Main.panel.closeQuickSettings();
             app.activate();
         });
@@ -149,7 +149,7 @@ class SettingsItem extends QuickSettingsItem {
         this.accessible_name = this._settingsApp?.get_name() ?? null;
 
         this.connect('clicked', () => {
-            Main.overview.hide();
+     //       Main.overview.hide();
             Main.panel.closeQuickSettings();
             this._settingsApp.activate();
         });
