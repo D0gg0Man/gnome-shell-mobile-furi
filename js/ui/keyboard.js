@@ -1993,6 +1993,7 @@ export const Keyboard = GObject.registerClass({
         this._animateShow();
 
         this._setEmojiActive(false);
+        this._setActiveLevel('default');
     }
 
     close(immediate = false) {
