@@ -437,7 +437,7 @@ log("WS: nope, updates are blocked");
 }
 
 
-        if (workspace._appStartingUp) {
+        if (workspace._startupSequenceTimeoutId) {
 log("WS: nope, has a startup sequence");
             return;
 }
@@ -593,6 +593,13 @@ log("WS: nope, its occupied");
         }
 
         window._laterDone = true;
+
+        /* Little hack: Since startup sequences tend to never finish due to various bugs, pretend they finished
+         * when a window gets opened on the workspace */
+        if (workspace._startupSequenceTimeoutId) {
+            GLib.source_remove(workspace._startupSequenceTimeoutId);
+            delete workspace._startupSequenceTimeoutId;
+        }
 
         let windowData = this._windowData.get(window);
         if (!windowData) {
@@ -865,7 +872,7 @@ log("WS: we have 0, removing");
          * reserved already, use it.
          */
         if (this._workspaces.length === 1 &&
-            !this._workspaces[0]._appStartingUp &&
+            !this._workspaces[0]._startupSequenceTimeoutId &&
             !this._workspaces[0]._splashscreenGraceTimeoutId &&
             !this._workspaces[0]._newTilingWorkspaceTimeoutId &&
             !this._workspaceHasOwnWindows(this._workspaces[0])) {
@@ -922,7 +929,7 @@ log("WS: removed " + index);
         if (!this._workspaces[index])
             throw new Error();
 
-        if (this._workspaces[index]._appStartingUp)
+        if (this._workspaces[index]._startupSequenceTimeoutId)
             throw new Error();
 
         if (this._workspaces[index]._splashscreenGraceTimeoutId)
@@ -1008,10 +1015,17 @@ log("WS: startup sequence changed " + startupSequence + " ws " + startupSequence
                     delete workspace._newTilingWorkspaceTimeoutId;
                 }
 
-                workspace._appStartingUp = true;
-            } else if (workspace._appStartingUp) {
-                log("WS: STARTUP: startup sequence got completed or removed, app might have started");
-                delete workspace._appStartingUp;
+                /* Startup sequences can take veeery long to time out, so we use our own here */
+                if (!workspace._startupSequenceTimeoutId) {
+                    workspace._startupSequenceTimeoutId = GLib.timeout_add(
+                        GLib.PRIORITY_DEFAULT, 10000, () => {
+                            this._maybeRemoveWorkspace(workspace);
+                            return GLib.SOURCE_REMOVE;
+                        });
+                }
+            } else if (workspace._startupSequenceTimeoutId) {
+                GLib.source_remove(workspace._startupSequenceTimeoutId);
+                delete workspace._startupSequenceTimeoutId;
                 this._maybeRemoveWorkspace(workspace);
             }
         });
