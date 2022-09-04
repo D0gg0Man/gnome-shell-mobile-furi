@@ -182,6 +182,31 @@ class AppStartupAnimation extends St.Widget {
 
         this._workspace = workspace;
 
+        this._bottomPanelBox = new St.Bin({
+            name: 'bottomPanelBox',
+            reactive: true,
+            pivot_point: new Graphene.Point({ x: 0.5, y: 0.5 }),
+        });
+        this._bottomPanelBox.add_constraint(new Clutter.AlignConstraint({
+            source: this,
+            align_axis: Clutter.AlignAxis.X_AXIS,
+            factor: 0.5,
+        }));
+        this._bottomPanelBox.add_constraint(new Clutter.AlignConstraint({
+            source: this,
+            align_axis: Clutter.AlignAxis.Y_AXIS,
+            factor: 1,
+        }));
+
+        this._bottomPanelBox.child = new St.Widget({
+            name: 'bottomPanelLine',
+            x_expand: true,
+            x_align: Clutter.ActorAlign.CENTER,
+            y_align: Clutter.ActorAlign.CENTER,
+            pivot_point: new Graphene.Point({ x: 0.5, y: 0.5 }),
+        });
+        this.add_child(this._bottomPanelBox);
+
         this._settings = new Gio.Settings({
             schema_id: 'org.gnome.desktop.interface',
         });
@@ -189,10 +214,13 @@ class AppStartupAnimation extends St.Widget {
         const updateColorScheme = () => {
             const colorScheme = this._settings.get_string('color-scheme');
             const darkMode = colorScheme === 'prefer-dark';
-            if (colorScheme === 'prefer-dark')
+            if (colorScheme === 'prefer-dark') {
                 this.add_style_class_name('dark-mode-enabled');
-            else
+                this._bottomPanelBox.add_style_class_name('dark-mode-enabled');
+            } else {
                 this.remove_style_class_name('dark-mode-enabled');
+                this._bottomPanelBox.remove_style_class_name('dark-mode-enabled');
+            }
         }
 
         this._settings.connect('changed::color-scheme',
@@ -225,6 +253,9 @@ class AppStartupAnimation extends St.Widget {
 
         this.connect('destroy', () => {
             global.window_manager.disconnect(wmId);
+
+            if (this._animatedIn && !this._animatedOut)
+                Main.layoutManager.uninhibitShowBottomPanel();
         });
     }
 
@@ -272,6 +303,16 @@ class AppStartupAnimation extends St.Widget {
             },
         });
 
+        this._bottomPanelBox.scale_x = 0;
+        this._bottomPanelBox.scale_y = 0;
+        this._bottomPanelBox.ease({
+            scale_x: 1,
+            scale_y: 1,
+            mode: Clutter.AnimationMode.EASE_IN_OUT_QUAD,
+            duration: 400,
+        });
+
+        Main.layoutManager.inhibitShowBottomPanel();
         this._animatedIn = true;
     }
 
@@ -294,6 +335,7 @@ class AppStartupAnimation extends St.Widget {
 
         this._animatedOut = true;
 
+        Main.layoutManager.uninhibitShowBottomPanel();
         this.ease({
             opacity: 0,
             duration: 350,

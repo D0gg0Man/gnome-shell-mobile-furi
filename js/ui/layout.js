@@ -278,6 +278,8 @@ export const LayoutManager = GObject.registerClass({
             this.bottomPanelBox.height = this.is_phone ? -1 : 0;
         });
 
+        this._bottomPanelInhibitCount = 0;
+
         this._settings = new Gio.Settings({
             schema_id: 'org.gnome.desktop.interface',
         });
@@ -404,8 +406,24 @@ export const LayoutManager = GObject.registerClass({
         }));
     }
 
+    inhibitShowBottomPanel() {
+        this._bottomPanelInhibitCount++;
+
+        this.bottomPanelBox.opacity = 0;
+    }
+
+    uninhibitShowBottomPanel() {
+        this._bottomPanelInhibitCount--;
+
+        if (this._bottomPanelInhibitCount === 0)
+            this.maybeShowBottomPanel();
+    }
+
     maybeShowBottomPanel() {
+        const activeWorkspace = global.workspace_manager.get_active_workspace();
+
         if (Main.overview.visible ||
+            this._bottomPanelInhibitCount > 0 ||
             !Main.sessionMode.hasBottomPanel)
             return;
 
@@ -429,6 +447,7 @@ export const LayoutManager = GObject.registerClass({
             else
                 this.maybeShowBottomPanel();
         });
+        global.window_manager.connect('switch-workspace', this.maybeShowBottomPanel.bind(this));
     }
 
     showOverview() {
