@@ -1125,6 +1125,8 @@ export const MessageTray = GObject.registerClass({
         this._banner.can_focus = false;
         this._banner._header.expandButton.visible = false;
         this._banner.add_style_class_name('notification-banner');
+        this._banner.connectObject(
+            'hide-message', () => this._hideNotification(false), this);
 
         this._bannerBin.add_child(this._banner);
 

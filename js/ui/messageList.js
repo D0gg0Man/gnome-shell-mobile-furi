@@ -445,6 +445,7 @@ export const Message = GObject.registerClass({
         'close': {
             flags: GObject.SignalFlags.RUN_LAST,
         },
+        'hide-message': {},
         'expanded': {},
         'unexpanded': {},
     },
@@ -534,6 +535,17 @@ export const Message = GObject.registerClass({
         this._closeGesture.connect('end', this._panEnd.bind(this));
         this._closeGesture.connect('cancel', this._panCancel.bind(this));
         this.add_action(this._closeGesture);
+
+        this._hideGesture = new Clutter.PanGesture({
+            pan_axis: Clutter.PanAxis.Y,
+            max_n_points: 1,
+        });
+        this._hideGesture.connect('may-recognize', () => this.canHide());
+        this._hideGesture.connect('recognize', this._hidePanBegin.bind(this));
+        this._hideGesture.connect('pan-update', this._hidePanUpdate.bind(this));
+        this._hideGesture.connect('end', this._hidePanEnd.bind(this));
+        this._hideGesture.connect('cancel', this._panCancel.bind(this));
+        this.add_action(this._hideGesture);
 
         this._header.closeButton.connect('clicked', this.close.bind(this));
         this._header.closeButton.visible = this.canClose();
@@ -689,6 +701,10 @@ export const Message = GObject.registerClass({
         return false;
     }
 
+    canHide() {
+        return false;
+    }
+
     vfunc_key_press_event(event) {
         let keysym = event.get_key_symbol();
 
@@ -748,6 +764,46 @@ export const Message = GObject.registerClass({
 
     }
 
+    _hidePanBegin(gesture) {
+        this._gestureWasStarted = true;
+
+        this.remove_transition('translation-y');
+       // this.remove_transition('opacity');
+
+        this._panHeight = this.get_transformed_extents().size.height;
+    }
+
+    _hidePanUpdate(gesture) {
+        const [latestDeltaVec] = gesture.get_delta();
+
+        if (this.translation_y + latestDeltaVec.get_y() > 0)
+          this.translation_y = 0;
+        else
+          this.translation_y += latestDeltaVec.get_y();
+    }
+
+    _hidePanEnd(gesture) {
+        const velocityY = gesture.get_velocity().get_y();
+
+        const remainingHeight = this._panHeight - Math.abs(this.translation_y);
+        const velocity = Math.abs(velocityY);
+
+        if (velocity > 0.55 || (remainingHeight < this._panHeight * 0.25 && velocity > 0.3)) {
+            this.ease({
+                translation_y: -this._panHeight,
+                duration: Math.clamp(velocity / remainingHeight, 100, 350),
+                mode: Clutter.AnimationMode.LINEAR,
+                onComplete: () => this.emit('hide-message'),
+            });
+        } else {
+            this.ease({
+                translation_y: 0,
+                duration: Math.clamp((1 - (remainingHeight / this._panHeight)) * 250, 100, 350),
+                mode: Clutter.AnimationMode.EASE_OUT_QUAD,
+            });
+        }
+    }
+
     get interactedWithTouchGesture() {
         return this._gestureWasStarted;
     }
@@ -802,6 +858,10 @@ class NotificationMessage extends Message {
 
     canClose() {
         return true;
+    }
+
+    canHide() {
+        return this.has_style_class_name('notification-banner');
     }
 
     _addAction(action) {
