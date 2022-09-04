@@ -1099,6 +1099,9 @@ class Workspace extends St.Widget {
         this._background =
             new WorkspaceBackground(monitorIndex, layoutManager.stateAdjustment);
 
+        if (Main.wm.workspaceTracker.singleWindowWorkspaces)
+            this._background.add_style_class_name('empty');
+
         if (Main.layoutManager.bottomPanelBox.height > 0) {
             this._bottomPanelBox = new St.Bin({
                 name: 'bottomPanelBox',
@@ -1608,6 +1611,9 @@ class Workspace extends St.Widget {
         else
             clone.setStackAbove(this._windows[this._windows.length - 1]);
 
+        if (Main.wm.workspaceTracker.singleWindowWorkspaces && this._windows.length === 0)
+            this._background.remove_style_class_name('empty');
+
         if (this._bottomPanelBox && this._windows.length === 0)
             this._bottomPanelBox.show();
 
@@ -1628,6 +1634,9 @@ class Workspace extends St.Widget {
             return null;
 
         this._container.layout_manager.removeWindow(this._windows[index]);
+
+        if (Main.wm.workspaceTracker.singleWindowWorkspaces && this._windows.length === 1)
+            this._background.add_style_class_name('empty');
 
         if (this._bottomPanelBox && this._windows.length === 1)
             this._bottomPanelBox.hide();
