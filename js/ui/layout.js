@@ -274,6 +274,9 @@ export const LayoutManager = GObject.registerClass({
             reactive: true,
             opacity: Main.sessionMode.hasBottomPanel ? 255 : 0,
         });
+        this.connect('notify::is-phone', () => {
+            this.bottomPanelBox.height = this.is_phone ? -1 : 0;
+        });
 
         this._settings = new Gio.Settings({
             schema_id: 'org.gnome.desktop.interface',
