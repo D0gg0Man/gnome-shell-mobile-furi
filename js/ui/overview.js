@@ -288,6 +288,7 @@ export class Overview extends Signals.EventEmitter {
         this._singleFingerOverviewEdgeDrag.can_not_cancel(this._singleFingerOverviewGesture._panGesture);
 
         Main.wm.workspaceTracker.connect('notify::zero-open-windows', () => {
+log("OVERVIEW: got notify zero open: " + Main.wm.workspaceTracker.zeroOpenWindows);
             this._threeFingerOverviewGesture.enabled = !Main.wm.workspaceTracker.zeroOpenWindows;
             this._singleFingerOverviewGesture.enabled = !Main.wm.workspaceTracker.zeroOpenWindows;
         });
