@@ -14,7 +14,7 @@ const PAGE_SWITCH_TIME = 300;
 
 /** @enum {number} */
 const IconSize = {
-    LARGE: 96,
+//    LARGE: 96,
     MEDIUM: 64,
     MEDIUM_SMALL: 48,
     SMALL: 32,
@@ -340,7 +340,7 @@ export const IconGridLayout = GObject.registerClass({
 
         this._iconSize = this.fixedIconSize !== -1
             ? this.fixedIconSize
-            : IconSize.LARGE;
+            : IconSize.MEDIUM;
 
         this._pageSizeChanged = false;
         this._pageHeight = 0;
