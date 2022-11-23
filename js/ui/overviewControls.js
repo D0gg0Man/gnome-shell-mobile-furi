@@ -844,7 +844,6 @@ class ControlsManager extends St.Widget {
     }
 
     prepareToEnterOverview() {
-        this._searchController.prepareToEnterOverview();
         this._workspacesDisplay.show();
     }
 
@@ -967,7 +966,6 @@ class ControlsManager extends St.Widget {
     }
 
     workspacesGestureBegin(tracker, monitor) {
-        this._searchController.prepareToEnterOverview();
         this._workspacesDisplay.show();
 
         this._emptyStateMaybeChanged(true);
@@ -987,7 +985,6 @@ class ControlsManager extends St.Widget {
         const { workspaceManager } = global;
         const active = workspaceManager.get_active_workspace_index();
 
-        this._searchController.prepareToEnterOverview();
         this._workspacesDisplay.show();
 
         this._workspaceAdjustment.remove_transition('value');

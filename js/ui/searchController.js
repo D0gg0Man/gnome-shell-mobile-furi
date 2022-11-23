@@ -110,11 +110,6 @@ export const SearchController = GObject.registerClass({
         });
     }
 
-    prepareToEnterOverview() {
-        this.reset();
-        this._setSearchActive(false);
-    }
-
     prepareToLeaveOverview() {
         this._setSearchActive(false);
     }
