@@ -994,6 +994,10 @@ log("WS: we have 0, removing");
         return newWorkspace;
     }
 
+    getStartupAnimationForWorkspace(workspace) {
+        return workspace._appOpeningOverlay;
+    }
+
     _workspaceAdded(workspaceManager, index) {
         const newWorkspace = workspaceManager.get_workspace_by_index(index);
 log("WS: added " + index);

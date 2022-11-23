@@ -797,7 +797,13 @@ export class Overview extends Signals.EventEmitter {
         this._overview.animateFromOverview(() => this._hideDone());
     }
 
-    _hideDone() {
+    async _hideDone() {
+        const workspaceStartupAnimation =
+            Main.wm.workspaceTracker.getStartupAnimationForWorkspace(global.workspace_manager.get_active_workspace());
+
+        if (workspaceStartupAnimation)
+            await workspaceStartupAnimation.waitAnimateInFinished();
+
         this._threeFingerWorkspacesGesture.allowLongSwipes = false;
         this._singleFingerWorkspacesGesture.allowLongSwipes = false;
 
