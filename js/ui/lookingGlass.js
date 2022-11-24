@@ -45,6 +45,12 @@ const AUTO_COMPLETE_GLOBAL_KEYWORDS = _getAutoCompleteGlobalKeywords();
 
 const LG_ANIMATION_TIME = 500;
 
+const SHELL_RUNTIME_DEBUG_FLAGS = {
+    'MetaContext unsafe-mode': 'global.context.unsafe_mode',
+    'MetaContext debug-control': 'global.context.get_debug_control().exported',
+    'Invert is-phone value': 'Main.layoutManager.forceInvertIsPhone',
+};
+
 const CLUTTER_DEBUG_FLAG_CATEGORIES = new Map([
     // Paint debugging can easily result in a non-responsive session
     ['DebugFlag', {argPos: 0, exclude: ['PAINT']}],
@@ -1223,41 +1229,23 @@ class MutterTopicDebugFlag extends DebugFlag {
     }
 });
 
-const UnsafeModeDebugFlag = GObject.registerClass(
-class UnsafeModeDebugFlag extends DebugFlag {
-    _init() {
-        super._init('unsafe-mode');
+const ShellRuntimeDebugFlag = GObject.registerClass(
+class ShellRuntimeDebugFlag extends DebugFlag {
+    _init(label, propertyString) {
+        super._init(label);
+        this._propertyString = propertyString;
     }
 
     _isEnabled() {
-        return global.context.unsafe_mode;
+        return eval(this._propertyString);
     }
 
     _enable() {
-        global.context.unsafe_mode = true;
+        eval(`${this._propertyString} = true`);
     }
 
     _disable() {
-        global.context.unsafe_mode = false;
-    }
-});
-
-const DebugControlExportedDebugFlag = GObject.registerClass(
-class DebugControlExportedDebugFlag extends DebugFlag {
-    _init() {
-        super._init('debug-control');
-    }
-
-    _isEnabled() {
-        return global.context.get_debug_control().exported;
-    }
-
-    _enable() {
-        global.context.get_debug_control().exported = true;
-    }
-
-    _disable() {
-        global.context.get_debug_control().exported = false;
+        eval(`${this._propertyString} = false`);
     }
 });
 
@@ -1269,6 +1257,11 @@ class DebugFlags extends St.BoxLayout {
             orientation: Clutter.Orientation.VERTICAL,
             x_align: Clutter.ActorAlign.CENTER,
         });
+
+        // Shell runtime debug flags
+        this._addHeader('Shell runtime flags');
+        for (const [label, property] of Object.entries(SHELL_RUNTIME_DEBUG_FLAGS))
+            this.add_child(new ShellRuntimeDebugFlag(label, property));
 
         // Clutter debug flags
         for (const [categoryName, props] of CLUTTER_DEBUG_FLAG_CATEGORIES.entries()) {
@@ -1289,13 +1282,6 @@ class DebugFlags extends St.BoxLayout {
         this._addHeader('MetaDebugTopic');
         for (const flagName of this._getFlagNames(Meta.DebugTopic))
             this.add_child(new MutterTopicDebugFlag(flagName));
-
-        // General / Context
-        this._addHeader('General');
-        // MetaContext::unsafe-mode
-        this.add_child(new UnsafeModeDebugFlag());
-        // DebugControl::exported
-        this.add_child(new DebugControlExportedDebugFlag());
     }
 
     _addHeader(title) {
