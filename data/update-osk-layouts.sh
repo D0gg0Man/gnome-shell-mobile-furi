@@ -12,13 +12,13 @@ TMP_GRESOURCE_FILE=".$GRESOURCE_FILE.tmp"
 cd `dirname $0`
 
 # Ensure work/dest dirs
-rm -rf $WORKDIR
+#rm -rf $WORKDIR
 mkdir -p $WORKDIR
 mkdir -p "osk-layouts"
 
 # Download stuff on the work dir
 pushd $WORKDIR
-gio copy $CLDR_LAYOUTS_TARBALL .
+#gio copy $CLDR_LAYOUTS_TARBALL .
 unzip keyboards.zip
 popd
 
