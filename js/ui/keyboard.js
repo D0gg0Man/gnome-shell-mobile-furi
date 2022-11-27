@@ -2058,7 +2058,6 @@ export const Keyboard = GObject.registerClass({
             delete this._currentPage._destroyID;
         }
 
-        this._disableAllModifiers();
         this._currentPage = currentPage;
         this._currentPage._destroyID = this._currentPage.connect('destroy', () => {
             this._currentPage = null;
