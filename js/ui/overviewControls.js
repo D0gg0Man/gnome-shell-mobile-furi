@@ -154,9 +154,7 @@ class ControlsManagerLayout extends Clutter.LayoutManager {
 
             switch (state) {
             case ControlsState.HIDDEN:
-                return hiddenStateBox;
             case ControlsState.WINDOW_PICKER:
-                return hiddenStateBox.interpolate(appGridStateBox, 0.5);
             case ControlsState.APP_GRID:
                 return appGridStateBox;
             }
