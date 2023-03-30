@@ -129,6 +129,12 @@ export const PinUnlockKeyboard = GObject.registerClass({
 });
 
 export const AuthPrompt = GObject.registerClass({
+    Properties: {
+        'user-info-visible': GObject.ParamSpec.boolean(
+            'user-info-visible', 'user-info-visible', 'user-info-visible',
+            GObject.ParamFlags.READWRITE,
+            true),
+    },
     Signals: {
         'cancelled': {},
         'failed': {},
@@ -152,6 +158,7 @@ export const AuthPrompt = GObject.registerClass({
         this._mode = mode;
         this._defaultButtonWellActor = null;
         this._cancelledRetries = 0;
+        this._userInfoVisible = true;
 
         let reauthenticationOnly;
         if (this._mode === AuthPromptMode.UNLOCK_ONLY)
@@ -174,6 +181,7 @@ export const AuthPrompt = GObject.registerClass({
         this.connect('destroy', this._onDestroy.bind(this));
 
         this._userWell = new St.Bin({
+            visible: this._userInfoVisible,
             x_expand: true,
             y_expand: true,
         });
@@ -823,5 +831,15 @@ export const AuthPrompt = GObject.registerClass({
         }
 
         this.reset();
+    }
+
+    set user_info_visible(visible) {
+        if (this._userInfoVisible === visible)
+            return;
+
+        this._userInfoVisible = visible;
+        this._userWell.visible = this._userInfoVisible;
+
+        this.notify('user-info-visible');
     }
 });

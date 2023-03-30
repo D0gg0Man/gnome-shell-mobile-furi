@@ -759,6 +759,7 @@ export const UnlockDialog = GObject.registerClass({
                 this._pinUnlockKeyboard.show();
                 this._authPrompt.y_align = Clutter.ActorAlign.END;
                 this._authPrompt.y_expand = false;
+                this._authPrompt.user_info_visible = false;
             } else {
                 this._authPrompt.y_align = Clutter.ActorAlign.CENTER;
                 this._pinUnlockKeyboard.hide();
