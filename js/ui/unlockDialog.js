@@ -911,7 +911,9 @@ export const UnlockDialog = GObject.registerClass({
     }
 
     _updateUserSwitchVisibility() {
-        this._otherUserButton.visible = this._userManager.can_switch() &&
+        this._otherUserButton.visible =
+            !Main.layoutManager.is_phone &&
+            this._userManager.can_switch() &&
             this._userManager.has_multiple_users &&
             this._screenSaverSettings.get_boolean('user-switch-enabled') &&
             !this._lockdownSettings.get_boolean('disable-user-switching');
