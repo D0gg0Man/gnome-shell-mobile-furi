@@ -3,6 +3,7 @@ import GObject from 'gi://GObject';
 import St from 'gi://St';
 
 import * as Main from './main.js';
+import * as LayoutManager from './layout.js';
 
 export const PopupAnimation = {
     NONE:  0,
@@ -191,6 +192,9 @@ export const BoxPointer = GObject.registerClass({
     }
 
     _adjustAllocationForArrow(isWidth, minSize, natSize) {
+        if (this._isFullscreen)
+            return [minSize, natSize];
+
         let themeNode = this.get_theme_node();
         let borderWidth = themeNode.get_length('-arrow-border-width');
         minSize += borderWidth * 2;
@@ -227,7 +231,7 @@ export const BoxPointer = GObject.registerClass({
     }
 
     vfunc_allocate(box) {
-        if (this._sourceActor && this._sourceActor.mapped) {
+        if (!this._isFullscreen && this._sourceActor && this._sourceActor.mapped) {
             this._reposition(box);
             this._updateFlip(box);
         }
@@ -236,7 +240,7 @@ export const BoxPointer = GObject.registerClass({
 
         let themeNode = this.get_theme_node();
         let borderWidth = themeNode.get_length('-arrow-border-width');
-        let rise = themeNode.get_length('-arrow-rise');
+        let rise = this._isFullscreen ? 0 : themeNode.get_length('-arrow-rise');
         let childBox = new Clutter.ActorBox();
         let [availWidth, availHeight] = themeNode.get_content_box(box).get_size();
 
@@ -268,6 +272,9 @@ export const BoxPointer = GObject.registerClass({
     }
 
     _drawBorder(area) {
+        if (this._isFullscreen)
+            return;
+
         let themeNode = this.get_theme_node();
 
         if (this._arrowActor) {
@@ -678,5 +685,24 @@ export const BoxPointer = GObject.registerClass({
 
     getArrowHeight() {
         return this.get_theme_node().get_length('-arrow-rise');
+    }
+
+    setFullscreen(fullscreen) {
+        if (fullscreen) {
+            this._fullscreenContraint = new LayoutManager.MonitorConstraint({
+                primary: true,
+            });
+
+            this.add_constraint(this._fullscreenContraint);
+
+            this._isFullscreen = true;
+        } else if (this._isFullscreen) {
+            this.remove_constraint(this._fullscreenContraint);
+
+            delete this._fullscreenContraint;
+            this._isFullscreen = false;
+        }
+
+        this.queue_relayout();
     }
 });
