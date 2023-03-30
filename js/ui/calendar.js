@@ -805,6 +805,12 @@ class CalendarMessageList extends St.Widget {
             x_expand: true, y_expand: true,
             child: this._messageView,
         });
+
+        const panGesture = new Clutter.PanGesture();
+        panGesture.connect('may-recognize', this._panMayRecognize.bind(this));
+        panGesture.connect('pan-update', this._onPanUpdate.bind(this));
+        this._scrollView.add_action(panGesture);
+
         box.add_child(this._scrollView);
 
         let hbox = new St.BoxLayout({style_class: 'message-list-controls'});
@@ -862,5 +868,32 @@ class CalendarMessageList extends St.Widget {
             this._messageView.collapse();
 
         return Clutter.EVENT_PROPAGATE;
+    }
+
+    _panMayRecognize(gesture) {
+        const beginCoords = gesture.get_begin_centroid_abs();
+        if (!this.get_transformed_extents().contains_point(beginCoords))
+            return true;
+
+        const coords = gesture.get_centroid_abs();
+        const delta = coords.y - beginCoords.y;
+        const adj = this._scrollView.vadjustment;
+
+        // When panning upwards while the adjustment is at the end (scrolled
+        // all the way to bottom) let other gestures win.
+        if (delta < 0 && adj.value === (adj.upper - adj.page_size))
+            return false;
+
+        if (delta > 0 && adj.value === adj.lower)
+            return false;
+
+        return true;
+    }
+
+    _onPanUpdate(gesture) {
+        const [latestDeltaVec] = gesture.get_delta();
+
+        let adjustment = this._scrollView.vadjustment;
+        adjustment.value -= (latestDeltaVec.get_y() / this.height) * adjustment.page_size;
     }
 });
