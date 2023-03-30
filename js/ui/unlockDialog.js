@@ -729,12 +729,40 @@ export const UnlockDialog = GObject.registerClass({
 
     _ensureAuthPrompt() {
         if (!this._authPrompt) {
+            this._pinUnlockKeyboard = new AuthPrompt.PinUnlockKeyboard();
+            this._pinUnlockKeyboard.y_align = Clutter.ActorAlign.CENTER;
+            this._pinUnlockKeyboard.x_align = Clutter.ActorAlign.CENTER;
+
             this._authPrompt = new AuthPrompt.AuthPrompt(this._gdmClient,
                 AuthPrompt.AuthPromptMode.UNLOCK_ONLY);
             this._authPrompt.connect('failed', this._fail.bind(this));
             this._authPrompt.connect('cancelled', this._fail.bind(this));
             this._authPrompt.connect('reset', this._onReset.bind(this));
+
+            this._pinUnlockKeyboard.connect('char', (k, char) => {
+                this._authPrompt.addCharacter(char);
+
+                if (this._authPrompt._entry.clutter_text.buffer.get_length() === 6)
+                    this._authPrompt._entry.clutter_text.activate();
+            });
+            this._pinUnlockKeyboard.connect('delete-last', () => {
+                this._authPrompt.deleteLastCharacter();
+            });
+            this._pinUnlockKeyboard.connect('delete-all', () => {
+                this._authPrompt.clear();
+            });
+
             this._promptBox.add_child(this._authPrompt);
+            this._promptBox.add_child(this._pinUnlockKeyboard);
+
+            if (Main.layoutManager.isPhone) {
+                this._pinUnlockKeyboard.show();
+                this._authPrompt.y_align = Clutter.ActorAlign.END;
+                this._authPrompt.y_expand = false;
+            } else {
+                this._authPrompt.y_align = Clutter.ActorAlign.CENTER;
+                this._pinUnlockKeyboard.hide();
+            }
         }
 
         const {verificationStatus} = this._authPrompt;
@@ -758,6 +786,11 @@ export const UnlockDialog = GObject.registerClass({
         if (this._authPrompt) {
             this._authPrompt.destroy();
             this._authPrompt = null;
+        }
+
+        if (this._pinUnlockKeyboard) {
+            this._pinUnlockKeyboard.destroy();
+            this._pinUnlockKeyboard = null;
         }
     }
 

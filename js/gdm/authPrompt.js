@@ -44,6 +44,90 @@ export const BeginRequestType = {
     REUSE_USERNAME: 2,
 };
 
+export const PinUnlockKeyboard = GObject.registerClass({
+    Signals: {
+        'char': { param_types: [GObject.TYPE_STRING] },
+        'delete-last': {},
+        'delete-all': {},
+        'show-full-keyboard': {},
+    },
+}, class PinUnlockKeyboard extends St.Widget {
+    _init(gdmClient, mode) {
+        super._init({
+            style_class: 'pin-unlock-keyboard',
+        });
+
+        this.layout_manager = new Clutter.GridLayout({
+            orientation: Clutter.Orientation.HORIZONTAL,
+            column_homogeneous: true,
+            row_homogeneous: true,
+        });
+
+        this._createGrid();
+    }
+
+    _createGrid() {
+        let number = 1;
+
+        for (let row = 0; row < 4; row++) {
+            for (let col = 0; col < 3; col++) {
+                let label;
+
+                const button = new St.Button({
+                    style_class: 'pin-button-container',
+                    x_expand: true,
+                    y_expand: true,
+                });
+
+                const isSpecialKey = number === 10 || number === 12;
+                const numericKeyval = number === 11 ? 0 : number;
+
+                if (isSpecialKey) {
+                    label = new St.Icon({
+                        x_align: Clutter.ActorAlign.CENTER,
+                        y_align: Clutter.ActorAlign.CENTER,
+                        icon_name: number === 10 ? 'input-keyboard-symbolic' : 'edit-clear-symbolic',
+                        style_class: 'pin-button icon',
+                    });
+
+                    if (number === 10) {
+                        button.connect('clicked',
+                            () => this.emit('show-full-keyboard'));
+                    } else {
+                        button.connect('clicked',
+                            () => this.emit('delete-last'));
+
+                        const longPressGesture = new Clutter.LongPressGesture();
+                        longPressGesture.connect('recognize',
+                            () => this.emit('delete-all'));
+
+                        button.add_action(longPressGesture);
+                    }
+                } else {
+                    label = new St.Label({
+                        x_align: Clutter.ActorAlign.CENTER,
+                        y_align: Clutter.ActorAlign.CENTER,
+                        text: `${numericKeyval}`,
+                        style_class: 'pin-button number',
+                    });
+
+                    label.clutter_text.x_align = Clutter.ActorAlign.CENTER;
+                    label.clutter_text.y_align = Clutter.ActorAlign.CENTER;
+
+                    button.connect('clicked',
+                        () => this.emit('char', `${numericKeyval}`));
+                }
+
+                button.child = label;
+
+                this.layout_manager.attach(button, col, row, 1, 1);
+
+                number++;
+            }
+        }
+    }
+});
+
 export const AuthPrompt = GObject.registerClass({
     Signals: {
         'cancelled': {},
@@ -689,6 +773,11 @@ export const AuthPrompt = GObject.registerClass({
 
         this._entry.grab_key_focus();
         this._entry.clutter_text.insert_unichar(unichar);
+    }
+
+    deleteLastCharacter() {
+        const len = this._entry.clutter_text.buffer.get_length();
+        this._entry.clutter_text.delete_text(len - 1, len);
     }
 
     begin(params) {
