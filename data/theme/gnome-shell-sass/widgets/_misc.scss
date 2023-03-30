@@ -81,3 +81,22 @@
     transition-duration: 0ms;
   }
 }
+
+.emergency-call-button {
+  background-color: rgba(255,255,255,0.3);
+  border-radius: 99px;
+  font-size: 10pt;
+  font-weight: bold;
+  padding: 14px 18px;
+  margin-top: 22px;
+  margin-bottom: 22px;
+
+  &:active {
+    background-color: rgba(255,255,255,0.6);
+  }
+
+  &.unavailable {
+    background-color: rgba(255,255,255,0.09);
+    color: $insensitive_fg_color;
+  }
+}

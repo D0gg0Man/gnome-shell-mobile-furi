@@ -755,14 +755,30 @@ export const UnlockDialog = GObject.registerClass({
             this._promptBox.add_child(this._authPrompt);
             this._promptBox.add_child(this._pinUnlockKeyboard);
 
+            this._emergencyButton = new St.Button({
+                style_class: 'emergency-call-button',
+                label: 'Emergency',
+                x_align: Clutter.ActorAlign.CENTER,
+            });
+            const callsApp = Shell.AppSystem.get_default().lookup_app('org.gnome.Calls.desktop');
+            if (!callsApp)
+                this._emergencyButton.add_style_class_name('unavailable');
+            this._emergencyButton.connect('clicked', () => {
+                if (callsApp)
+                    callsApp.activate_full(-1, 0);
+            });
+            this._promptBox.add_child(this._emergencyButton);
+
             if (Main.layoutManager.isPhone) {
                 this._pinUnlockKeyboard.show();
+                this._emergencyButton.show();
                 this._authPrompt.y_align = Clutter.ActorAlign.END;
                 this._authPrompt.y_expand = false;
                 this._authPrompt.user_info_visible = false;
             } else {
                 this._authPrompt.y_align = Clutter.ActorAlign.CENTER;
                 this._pinUnlockKeyboard.hide();
+                this._emergencyButton.hide();
             }
         }
 
@@ -792,6 +808,11 @@ export const UnlockDialog = GObject.registerClass({
         if (this._pinUnlockKeyboard) {
             this._pinUnlockKeyboard.destroy();
             this._pinUnlockKeyboard = null;
+        }
+
+        if (this._emergencyButton) {
+            this._emergencyButton.destroy();
+            this._emergencyButton = null;
         }
     }
 
