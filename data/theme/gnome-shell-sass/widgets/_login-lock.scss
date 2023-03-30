@@ -48,6 +48,10 @@ $_gdm_dialog_width: 21em;
     padding: to_em(16px);
   }
 
+  &.switch-user-button {
+    margin: 24px;
+  }
+
   &.cancel-button {
     padding: $base_padding * 1.5;
   }

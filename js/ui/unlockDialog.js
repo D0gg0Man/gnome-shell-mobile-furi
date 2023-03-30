@@ -430,12 +430,11 @@ class UnlockDialogClock extends St.BoxLayout {
 
 const UnlockDialogLayout = GObject.registerClass(
 class UnlockDialogLayout extends Clutter.LayoutManager {
-    _init(stack, notifications, switchUserButton) {
+    _init(stack, notifications) {
         super._init();
 
         this._stack = stack;
         this._notifications = notifications;
-        this._switchUserButton = switchUserButton;
     }
 
     vfunc_get_preferred_width(container, forHeight) {
@@ -486,24 +485,6 @@ class UnlockDialogLayout extends Clutter.LayoutManager {
         actorBox.y2 = stackY + stackHeight;
 
         this._stack.allocate(actorBox);
-
-        // Switch User button
-        if (this._switchUserButton.visible) {
-            let [, , natWidth, natHeight] =
-                this._switchUserButton.get_preferred_size();
-
-            const textDirection = this._switchUserButton.get_text_direction();
-            if (textDirection === Clutter.TextDirection.RTL)
-                actorBox.x1 = box.x1 + natWidth;
-            else
-                actorBox.x1 = box.x2 - (natWidth * 2);
-
-            actorBox.y1 = box.y2 - (natHeight * 2);
-            actorBox.x2 = actorBox.x1 + natWidth;
-            actorBox.y2 = actorBox.y1 + natHeight;
-
-            this._switchUserButton.allocate(actorBox);
-        }
     }
 });
 
@@ -652,8 +633,8 @@ export const UnlockDialog = GObject.registerClass({
         mainBox.add_child(this._otherUserButton);
         mainBox.layout_manager = new UnlockDialogLayout(
             this._stack,
-            this._notificationsBox,
-            this._otherUserButton);
+            this._notificationsBox);
+
         this.add_child(mainBox);
 
         this._idleMonitor = global.backend.get_core_idle_monitor();
