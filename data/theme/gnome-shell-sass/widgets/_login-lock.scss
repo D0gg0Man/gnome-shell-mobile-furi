@@ -18,6 +18,10 @@ $_gdm_dialog_width: 25em;
   }
 }
 
+#uiGroup.mobile .login-dialog-prompt-layout {
+  width: 22em;
+}
+
 // GDM Login Dialog
 // uses dark grey system styles
 .login-dialog {
