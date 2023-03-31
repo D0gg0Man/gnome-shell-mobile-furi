@@ -579,6 +579,8 @@ export const UnlockDialog = GObject.registerClass({
 
         // Authentication & Clock stack
         this._stack = new Shell.Stack();
+        this._stack.x_expand = true;
+        this._stack.y_expand = true;
 
         this._promptBox = new St.BoxLayout({
             orientation: Clutter.Orientation.VERTICAL,
