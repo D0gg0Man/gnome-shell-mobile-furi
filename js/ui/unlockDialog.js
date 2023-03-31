@@ -751,6 +751,9 @@ export const UnlockDialog = GObject.registerClass({
             this._pinUnlockKeyboard.connect('delete-all', () => {
                 this._authPrompt.clear();
             });
+            this._pinUnlockKeyboard.connect('show-full-keyboard', () => {
+                this._authPrompt.mayShowEntry = true;
+            });
 
             this._promptBox.add_child(this._authPrompt);
             this._promptBox.add_child(this._pinUnlockKeyboard);
@@ -775,6 +778,7 @@ export const UnlockDialog = GObject.registerClass({
                 this._authPrompt.y_align = Clutter.ActorAlign.END;
                 this._authPrompt.y_expand = false;
                 this._authPrompt.user_info_visible = false;
+                this._authPrompt.mayShowEntry = false;
             } else {
                 this._authPrompt.y_align = Clutter.ActorAlign.CENTER;
                 this._pinUnlockKeyboard.hide();
