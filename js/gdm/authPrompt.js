@@ -128,6 +128,37 @@ export const PinUnlockKeyboard = GObject.registerClass({
     }
 });
 
+export const PinEntryIndicator = GObject.registerClass({
+}, class PinEntryIndicator extends St.BoxLayout {
+    _init(nDigits) {
+        super._init({
+            style_class: 'pin-entry-indicator',
+            vertical: false,
+        });
+
+        this._totalNDigits = nDigits;
+
+        for (let i = 0; i < nDigits; i++) {
+            const digitWidget = new St.Widget({
+                style_class: 'digit',
+            });
+
+            this.add_child(digitWidget);
+        }
+    }
+
+    setActiveDigits(nDigits) {
+        for (let i = 0; i < this._totalNDigits; i++) {
+            const digit = this.get_child_at_index(i);
+
+            if (i < nDigits)
+                digit.add_style_class_name('filled');
+            else
+                digit.remove_style_class_name('filled');
+        }
+    }
+});
+
 export const AuthPrompt = GObject.registerClass({
     Properties: {
         'user-info-visible': GObject.ParamSpec.boolean(

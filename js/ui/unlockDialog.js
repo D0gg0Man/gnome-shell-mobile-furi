@@ -729,6 +729,12 @@ export const UnlockDialog = GObject.registerClass({
 
     _ensureAuthPrompt() {
         if (!this._authPrompt) {
+            const pinEntryIndicator = new AuthPrompt.PinEntryIndicator(6);
+            pinEntryIndicator.y_expand = true;
+            pinEntryIndicator.y_align = Clutter.ActorAlign.END;
+            pinEntryIndicator.x_align = Clutter.ActorAlign.CENTER;
+            this._pinEntryIndicator = pinEntryIndicator;
+
             this._pinUnlockKeyboard = new AuthPrompt.PinUnlockKeyboard();
             this._pinUnlockKeyboard.y_align = Clutter.ActorAlign.CENTER;
             this._pinUnlockKeyboard.x_align = Clutter.ActorAlign.CENTER;
@@ -742,19 +748,37 @@ export const UnlockDialog = GObject.registerClass({
             this._pinUnlockKeyboard.connect('char', (k, char) => {
                 this._authPrompt.addCharacter(char);
 
+                pinEntryIndicator.setActiveDigits(this._authPrompt._entry.clutter_text.buffer.get_length());
+
                 if (this._authPrompt._entry.clutter_text.buffer.get_length() === 6)
                     this._authPrompt._entry.clutter_text.activate();
             });
             this._pinUnlockKeyboard.connect('delete-last', () => {
                 this._authPrompt.deleteLastCharacter();
+
+                pinEntryIndicator.setActiveDigits(this._authPrompt._entry.clutter_text.buffer.get_length());
             });
             this._pinUnlockKeyboard.connect('delete-all', () => {
                 this._authPrompt.clear();
+                pinEntryIndicator.setActiveDigits(0);
             });
             this._pinUnlockKeyboard.connect('show-full-keyboard', () => {
                 this._authPrompt.mayShowEntry = true;
             });
 
+            this._pinUnlockKeyboard.connect('show-full-keyboard', () => {
+                if (pinEntryIndicator.visible) {
+                    this._authPrompt.mayShowEntry = true;
+                    pinEntryIndicator.hide();
+                    this._authPrompt.y_expand = true;
+                } else {
+                    this._authPrompt.mayShowEntry = false;
+                    pinEntryIndicator.show();
+                    this._authPrompt.y_expand = false;
+                }
+            });
+
+            this._promptBox.add_child(pinEntryIndicator);
             this._promptBox.add_child(this._authPrompt);
             this._promptBox.add_child(this._pinUnlockKeyboard);
 
@@ -775,6 +799,7 @@ export const UnlockDialog = GObject.registerClass({
             if (Main.layoutManager.isPhone) {
                 this._pinUnlockKeyboard.show();
                 this._emergencyButton.show();
+                pinEntryIndicator.show();
                 this._authPrompt.y_align = Clutter.ActorAlign.END;
                 this._authPrompt.y_expand = false;
                 this._authPrompt.user_info_visible = false;
@@ -783,6 +808,7 @@ export const UnlockDialog = GObject.registerClass({
                 this._authPrompt.y_align = Clutter.ActorAlign.CENTER;
                 this._pinUnlockKeyboard.hide();
                 this._emergencyButton.hide();
+                pinEntryIndicator.hide();
             }
         }
 
@@ -812,6 +838,11 @@ export const UnlockDialog = GObject.registerClass({
         if (this._pinUnlockKeyboard) {
             this._pinUnlockKeyboard.destroy();
             this._pinUnlockKeyboard = null;
+        }
+
+        if (this._pinEntryIndicator) {
+            this._pinEntryIndicator.destroy();
+            this._pinEntryIndicator = null;
         }
 
         if (this._emergencyButton) {
