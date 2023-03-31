@@ -15,6 +15,7 @@ import * as Main from './main.js';
 import * as MessageTray from './messageTray.js';
 import * as SwipeTracker from './swipeTracker.js';
 import {formatDateWithCFormatString} from '../misc/dateUtils.js';
+import * as Util from '../misc/util.js';
 import * as AuthPrompt from '../gdm/authPrompt.js';
 import {AuthPromptStatus} from '../gdm/authPrompt.js';
 import {MprisSource} from './mpris.js';
@@ -741,9 +742,13 @@ export const UnlockDialog = GObject.registerClass({
 
             this._authPrompt = new AuthPrompt.AuthPrompt(this._gdmClient,
                 AuthPrompt.AuthPromptMode.UNLOCK_ONLY);
-            this._authPrompt.connect('failed', this._fail.bind(this));
+           // this._authPrompt.connect('failed', this._fail.bind(this));
             this._authPrompt.connect('cancelled', this._fail.bind(this));
             this._authPrompt.connect('reset', this._onReset.bind(this));
+            this._authPrompt.connect('failed', () => {
+                Util.wiggle(pinEntryIndicator);
+                pinEntryIndicator.setActiveDigits(0);
+            });
 
             this._pinUnlockKeyboard.connect('char', (k, char) => {
                 this._authPrompt.addCharacter(char);

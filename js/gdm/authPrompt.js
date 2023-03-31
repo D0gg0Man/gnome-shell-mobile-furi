@@ -536,8 +536,10 @@ export const AuthPrompt = GObject.registerClass({
         if (!canRetry)
             this.verificationStatus = AuthPromptStatus.VERIFICATION_FAILED;
 
-        if (wasQueryingService)
+        if (wasQueryingService) {
+            this.emit('failed');
             wiggle(this._entry);
+        }
     }
 
     _onVerificationComplete() {
