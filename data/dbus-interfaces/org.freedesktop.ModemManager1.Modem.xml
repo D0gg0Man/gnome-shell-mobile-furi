@@ -1,5 +1,7 @@
 <node>
   <interface name="org.freedesktop.ModemManager1.Modem">
     <property name="SignalQuality" type="(ub)" access="read"/>
+    <property name="AccessTechnologies" type="u" access="read"/>
+    <property name="State" type="i" access="read"/>
   </interface>
 </node>
