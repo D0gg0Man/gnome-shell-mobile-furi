@@ -159,6 +159,7 @@ export const AuthPrompt = GObject.registerClass({
         this._defaultButtonWellActor = null;
         this._cancelledRetries = 0;
         this._userInfoVisible = true;
+        this._mayShowEntry = true;
 
         let reauthenticationOnly;
         if (this._mode === AuthPromptMode.UNLOCK_ONLY)
@@ -297,7 +298,8 @@ export const AuthPrompt = GObject.registerClass({
 
         this._entry = this._passwordEntry;
         this._mainBox.add_child(this._entry);
-        this._entry.grab_key_focus();
+        if (this._entry.visible)
+            this._entry.grab_key_focus();
         this._inactiveEntry = this._textEntry;
 
         this._timedLoginIndicator = new St.Bin({
@@ -404,6 +406,7 @@ export const AuthPrompt = GObject.registerClass({
             this._entry.clutterText.set({text, cursorPosition, selectionBound});
         }
 
+        this._entry.visible = false;
         this._capsLockWarningLabel.visible = secret;
     }
 
@@ -604,8 +607,11 @@ export const AuthPrompt = GObject.registerClass({
         this._entry.hint_text = question;
 
         this._authList.hide();
-        this._entry.show();
-        this._entry.grab_key_focus();
+        this._entryShouldShow = true;
+        if (this._mayShowEntry)
+            this._entry.show();
+        if (this._entry.visible)
+            this._entry.grab_key_focus();
     }
 
     _fadeInChoiceList() {
@@ -630,6 +636,7 @@ export const AuthPrompt = GObject.registerClass({
             this._authList.addItem(key, text);
         }
 
+        this._entryShouldShow = false;
         this._entry.hide();
         if (this._message.text === '')
             this._message.hide();
@@ -698,7 +705,8 @@ export const AuthPrompt = GObject.registerClass({
         authWidget.reactive = sensitive;
 
         if (sensitive) {
-            authWidget.grab_key_focus();
+            if (this._entry.visible)
+                authWidget.grab_key_focus();
         } else {
             this.grab_key_focus();
 
@@ -776,10 +784,8 @@ export const AuthPrompt = GObject.registerClass({
     }
 
     addCharacter(unichar) {
-        if (!this._entry.visible)
-            return;
-
-        this._entry.grab_key_focus();
+        if (this._entry.visible)
+            this._entry.grab_key_focus();
         this._entry.clutter_text.insert_unichar(unichar);
     }
 
@@ -841,5 +847,18 @@ export const AuthPrompt = GObject.registerClass({
         this._userWell.visible = this._userInfoVisible;
 
         this.notify('user-info-visible');
+    }
+
+    set mayShowEntry(mayShow) {
+        this._mayShowEntry = mayShow;
+
+        if (mayShow && this._entryShouldShow) {
+            this._entry.show();
+            this._entry.grab_key_focus();
+        }
+
+        if (!mayShow) {
+            this._entry.hide();
+        }
     }
 });
