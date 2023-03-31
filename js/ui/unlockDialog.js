@@ -430,19 +430,19 @@ class UnlockDialogClock extends St.BoxLayout {
 
 const UnlockDialogLayout = GObject.registerClass(
 class UnlockDialogLayout extends Clutter.LayoutManager {
-    _init(stack, notifications) {
+    _init(clock, notifications) {
         super._init();
 
-        this._stack = stack;
+        this._clock = clock;
         this._notifications = notifications;
     }
 
     vfunc_get_preferred_width(container, forHeight) {
-        return this._stack.get_preferred_width(forHeight);
+        return this._clock.get_preferred_width(forHeight);
     }
 
     vfunc_get_preferred_height(container, forWidth) {
-        return this._stack.get_preferred_height(forWidth);
+        return this._clock.get_preferred_height(forWidth);
     }
 
     vfunc_allocate(container, box) {
@@ -451,13 +451,18 @@ class UnlockDialogLayout extends Clutter.LayoutManager {
         let tenthOfHeight = height / 10.0;
         let thirdOfHeight = height / 3.0;
 
-        let [, , stackWidth, stackHeight] =
-            this._stack.get_preferred_size();
+        let [, , clockWidth, clockHeight] =
+            this._clock.get_preferred_size();
+
+        if (this._clock.needs_expand(Clutter.Orientation.HORIZONTAL))
+            clockWidth = width;
+        if (this._clock.needs_expand(Clutter.Orientation.VERTICAL))
+            clockHeight = height;
 
         let [, , notificationsWidth, notificationsHeight] =
             this._notifications.get_preferred_size();
 
-        let columnWidth = Math.max(stackWidth, notificationsWidth);
+        let columnWidth = Math.max(clockWidth, notificationsWidth);
 
         let columnX1 = Math.floor((width - columnWidth) / 2.0);
         let actorBox = new Clutter.ActorBox();
@@ -465,7 +470,7 @@ class UnlockDialogLayout extends Clutter.LayoutManager {
         // Notifications
         let maxNotificationsHeight = Math.min(
             notificationsHeight,
-            height - tenthOfHeight - stackHeight);
+            height - tenthOfHeight - clockHeight);
 
         actorBox.x1 = columnX1;
         actorBox.y1 = height - maxNotificationsHeight;
@@ -475,16 +480,16 @@ class UnlockDialogLayout extends Clutter.LayoutManager {
         this._notifications.allocate(actorBox);
 
         // Authentication Box
-        let stackY = Math.min(
+        let clockY = Math.min(
             thirdOfHeight,
-            height - stackHeight - maxNotificationsHeight);
+            height - clockHeight - maxNotificationsHeight);
 
         actorBox.x1 = columnX1;
-        actorBox.y1 = stackY;
+        actorBox.y1 = clockY;
         actorBox.x2 = columnX1 + columnWidth;
-        actorBox.y2 = stackY + stackHeight;
+        actorBox.y2 = clockY + clockHeight;
 
-        this._stack.allocate(actorBox);
+        this._clock.allocate(actorBox);
     }
 });
 
@@ -582,18 +587,27 @@ export const UnlockDialog = GObject.registerClass({
         this._promptBox.hide();
         this._stack.add_child(this._promptBox);
 
+        // Notifications
+        this._notificationsBox = new NotificationsBox();
+        this._notificationsBox.connect('wake-up-screen', () => this.emit('wake-up-screen'));
+
+        this._clockNotificationsBox = new St.Widget();
         this._clock = new Clock();
-        this._clock.set_pivot_point(0.5, 0.5);
-        this._stack.add_child(this._clock);
+        this._clock.x_expand = true;
+        this._clockNotificationsBox.set_pivot_point(0.5, 0.5);
+        this._clockNotificationsBox.add_child(this._clock);
+        this._clockNotificationsBox.add_child(this._notificationsBox);
+        this._stack.add_child(this._clockNotificationsBox);
         this._showClock();
+
+        this._clockNotificationsBox.layout_manager = new UnlockDialogLayout(
+            this._clock,
+            this._notificationsBox);
 
         this.allowCancel = false;
 
         Main.ctrlAltTabManager.addGroup(this, _('Unlock Window'), 'dialog-password-symbolic');
 
-        // Notifications
-        this._notificationsBox = new NotificationsBox();
-        this._notificationsBox.connect('wake-up-screen', () => this.emit('wake-up-screen'));
 
         // Switch User button
         this._otherUserButton = new St.Button({
@@ -626,14 +640,10 @@ export const UnlockDialog = GObject.registerClass({
         this._updateUserSwitchVisibility();
 
         // Main Box
-        let mainBox = new St.Widget();
+        let mainBox = new St.BoxLayout();
         mainBox.add_constraint(new Layout.MonitorConstraint({primary: true}));
         mainBox.add_child(this._stack);
-        mainBox.add_child(this._notificationsBox);
         mainBox.add_child(this._otherUserButton);
-        mainBox.layout_manager = new UnlockDialogLayout(
-            this._stack,
-            this._notificationsBox);
 
         this.add_child(mainBox);
 
@@ -750,10 +760,10 @@ export const UnlockDialog = GObject.registerClass({
     }
 
     _showClock() {
-        if (this._activePage === this._clock)
+        if (this._activePage === this._clockNotificationsBox)
             return;
 
-        this._activePage = this._clock;
+        this._activePage = this._clockNotificationsBox;
 
         this._clickGesture.enabled = true;
 
@@ -782,7 +792,7 @@ export const UnlockDialog = GObject.registerClass({
 
     _setTransitionProgress(progress) {
         this._promptBox.visible = progress > 0;
-        this._clock.visible = progress < 1;
+        this._clockNotificationsBox.visible = progress < 1;
 
         this._otherUserButton.set({
             reactive: progress > 0,
@@ -798,7 +808,7 @@ export const UnlockDialog = GObject.registerClass({
             translation_y: FADE_OUT_TRANSLATION * (1 - progress) * scaleFactor,
         });
 
-        this._clock.set({
+        this._clockNotificationsBox.set({
             opacity: 255 * (1 - progress),
             scale_x: FADE_OUT_SCALE + (1 - FADE_OUT_SCALE) * (1 - progress),
             scale_y: FADE_OUT_SCALE + (1 - FADE_OUT_SCALE) * (1 - progress),
@@ -855,15 +865,15 @@ export const UnlockDialog = GObject.registerClass({
     _swipeEnd(tracker, duration, endProgress, endCb) {
         this._activePage = endProgress
             ? this._promptBox
-            : this._clock;
+            : this._clockNotificationsBox;
 
-        this._clickGesture.enabled = this._activePage === this._clock;
+        this._clickGesture.enabled = this._activePage === this._clockNotificationsBox;
 
         this._adjustment.ease(endProgress, {
             mode: Clutter.AnimationMode.EASE_OUT_CUBIC,
             duration,
             onStopped: () => {
-                if (this._activePage === this._clock)
+                if (this._activePage === this._clockNotificationsBox)
                     this._maybeDestroyAuthPrompt();
 
                 endCb();
