@@ -213,8 +213,8 @@ export const AuthPrompt = GObject.registerClass({
             y_align: Clutter.ActorAlign.START,
             x_align: Clutter.ActorAlign.CENTER,
         });
-        this._message.clutter_text.line_wrap = true;
-        this._message.clutter_text.ellipsize = Pango.EllipsizeMode.NONE;
+     //   this._message.clutter_text.line_wrap = true;
+   //     this._message.clutter_text.ellipsize = Pango.EllipsizeMode.NONE;
         this.add_child(this._message);
     }
 
