@@ -223,29 +223,28 @@ export const AuthPrompt = GObject.registerClass({
 
         this._initInputRow();
 
-        let capsLockPlaceholder = new St.Label();
-        this.add_child(capsLockPlaceholder);
+       // let capsLockPlaceholder = new St.Label();
+      //  this.add_child(capsLockPlaceholder);
 
         this._capsLockWarningLabel = new ShellEntry.CapsLockWarning({
             x_expand: true,
             x_align: Clutter.ActorAlign.CENTER,
+            visible: false,
         });
         this.add_child(this._capsLockWarningLabel);
 
-        this._capsLockWarningLabel.bind_property('visible',
+      /*  this._capsLockWarningLabel.bind_property('visible',
             capsLockPlaceholder, 'visible',
             GObject.BindingFlags.SYNC_CREATE | GObject.BindingFlags.INVERT_BOOLEAN);
-
+*/
         this._message = new St.Label({
             opacity: 0,
             styleClass: 'login-dialog-message',
-            y_expand: true,
-            x_expand: true,
             y_align: Clutter.ActorAlign.START,
             x_align: Clutter.ActorAlign.CENTER,
         });
      //   this._message.clutter_text.line_wrap = true;
-   //     this._message.clutter_text.ellipsize = Pango.EllipsizeMode.NONE;
+        this._message.clutter_text.ellipsize = Pango.EllipsizeMode.END;
         this.add_child(this._message);
     }
 
