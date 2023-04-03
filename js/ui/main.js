@@ -193,7 +193,15 @@ export async function start() {
         bus => bus.unwatch_name(watchId),
         bus => bus.unwatch_name(watchId));
 
+
+    const swatchId = Gio.DBus.session.watch_name('org.gnome.Shell.SensorDaemon',
+        Gio.BusNameWatcherFlags.AUTO_START,
+        bus => bus.unwatch_name(swatchId),
+        bus => bus.unwatch_name(swatchId));
+
     _sessionUpdated();
+
+
 }
 
 /** @private */

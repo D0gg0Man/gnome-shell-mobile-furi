@@ -1,0 +1,17 @@
+<node>
+  <interface name="net.hadess.SensorProxy">
+    <property name="HasAccelerometer" type="b" access="read"/>
+    <property name="AccelerometerOrientation" type="s" access="read"/>
+    <property name="HasAmbientLight" type="b" access="read"/>
+    <property name="LightLevelUnit" type="s" access="read"/>
+    <property name="LightLevel" type="d" access="read"/>
+    <property name="HasProximity" type="b" access="read"/>
+    <property name='ProximityNear' type='b' access='read'/>
+    <method name="ClaimAccelerometer"/>
+    <method name="ReleaseAccelerometer"/>
+    <method name="ClaimLight"/>
+    <method name="ReleaseLight"/>
+    <method name="ClaimProximity"/>
+    <method name="ReleaseProximity"/>
+  </interface>
+</node>

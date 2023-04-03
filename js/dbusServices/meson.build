@@ -6,6 +6,7 @@ launcherconf.set('libdir', libdir)
 dbus_services = {
   'org.gnome.Shell.Extensions': 'extensions',
   'org.gnome.Shell.Notifications': 'notifications',
+  'org.gnome.Shell.SensorDaemon': 'sensorDaemon',
   'org.gnome.Shell.Screencast': 'screencast',
   'org.gnome.ScreenSaver': 'screensaver',
 }
