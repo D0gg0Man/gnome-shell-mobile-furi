@@ -170,7 +170,8 @@ export class ScreenShield extends Signals.EventEmitter {
             if (this._lockscreenOverlayStack.length === 0)
                 return false;
 
-            this._prepareLockscreenOverlay();
+//            this._prepareLockscreenOverlay();
+            return this._lockscreenOverlayStack[this._lockscreenOverlayStack.length - 1].activeData != undefined;
         }
 
         return true;
@@ -307,9 +308,11 @@ log("SURFACEOVERLAY: destroyyyyyy");
 
         // If we're locked and the screen is off, wake the screen. This will
         // in turn show the lockscreen overlay.
-        if (this._becameActiveId !== 0)
-            this._wakeUpScreen();
-        else
+        if (this._becameActiveId !== 0) {
+            this._prepareLockscreenOverlay().catch()
+                .then(() => this._showSurfaceOverlayView(true, false))
+                .finally(() => this._wakeUpScreen());
+        } else
             this._prepareLockscreenOverlay().catch().then(() => this._showSurfaceOverlayView(true));
     }
 
@@ -558,12 +561,14 @@ log("LOCKSCREENOVERLAY: preparing length " + this._lockscreenOverlayStack.length
         if (!this.active)
             return; // already woken up, or not yet asleep
 
+/*
         if (this._isLocked) {
             try {
                 await this._prepareLockscreenOverlay();
                 this._showSurfaceOverlayView(true, false);
             } catch {}
         }
+*/
 
         this.emit('wake-up-screen');
     }
