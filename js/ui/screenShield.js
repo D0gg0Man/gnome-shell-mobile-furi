@@ -12,6 +12,7 @@ import * as Signals from '../misc/signals.js';
 import * as GnomeSession from '../misc/gnomeSession.js';
 import * as OVirt from '../gdm/oVirt.js';
 import * as LoginManager from '../misc/loginManager.js';
+import * as LayoutManager from './layout.js';
 import * as Lightbox from './lightbox.js';
 import * as Main from './main.js';
 import * as Overview from './overview.js';
@@ -46,6 +47,7 @@ export class ScreenShield extends Signals.EventEmitter {
         super();
 
         this.actor = Main.layoutManager.screenShieldGroup;
+        this.actor.reactive = true;
 
         this._lockScreenState = MessageTray.State.HIDDEN;
         this._lockScreenGroup = new St.Widget({
@@ -67,7 +69,6 @@ export class ScreenShield extends Signals.EventEmitter {
         });
 
         this.actor.add_child(this._lockScreenGroup);
-        this.actor.add_child(this._lockDialogGroup);
 
         this._screenSaverDBus = new ShellDBus.ScreenSaverDBus(this);
 
@@ -96,6 +97,39 @@ export class ScreenShield extends Signals.EventEmitter {
         this._isLocked = false;
         this._activationTime = 0;
 
+        this._windowTracker = Shell.WindowTracker.get_default();
+        this._windowTracker.connect('tracked-windows-changed', this._appStateChanged.bind(this));
+
+        global.display.connect('window-created', () => GLib.idle_add(0, () => this._appStateChanged()));
+
+        this._lockscreenOverlayStack = [];
+        this._lockscreenOverlayGroup = new Clutter.Actor({
+            background_color: Clutter.color_from_string("black")[1],
+});
+        this._lockscreenOverlayGroup.add_constraint(new LayoutManager.MonitorConstraint({
+            primary: true,
+        }));
+
+        this._lockDialogGroup.connect('notify::translation-x', () => {
+            this._lockscreenOverlayGroup.translation_x = this._lockDialogGroup.translation_x + Main.layoutManager.primaryMonitor.width;
+        });
+        this.actor.add_child(this._lockscreenOverlayGroup);
+        this.actor.add_child(this._lockDialogGroup);
+
+        this._showingOverlayGroup = false;
+
+        this._panGesture = new Clutter.PanGesture({
+            pan_axis: Clutter.PanAxis.X,
+            max_n_points: 1,
+            name: 'lockscreen window pan gesture',
+        });
+        this._panGesture.connect('may-recognize', this._panMayRecognize.bind(this));
+        this._panGesture.connect('recognize', this._panBegin.bind(this));
+        this._panGesture.connect('pan-update', this._panUpdate.bind(this));
+        this._panGesture.connect('end', this._panEnd.bind(this));
+        this._panGesture.connect('cancel', this._panCancel.bind(this));
+        this.actor.add_action(this._panGesture);
+
         Main.wm.addKeybinding(
             'power-button',
             new Gio.Settings({schema_id: 'org.gnome.shell.keybindings'}),
@@ -120,12 +154,248 @@ export class ScreenShield extends Signals.EventEmitter {
         Main.powerManager.powerButtonEvent(event);
     }
 
+    _panMayRecognize(gesture) {
+        if (this._showingOverlayGroup) {
+            const beginX = gesture.get_begin_centroid().x;
+            return beginX < Main.layoutManager.primaryMonitor.x + 30;
+        } else {
+            if (this._lockscreenOverlayStack.length === 0)
+                return false;
+
+            this._prepareLockscreenOverlay();
+        }
+
+        return true;
+    }
+
+    _panBegin(gesture) {
+        this._panWidth = Main.layoutManager.primaryMonitor.width;
+    }
+
+    _panUpdate(gesture) {
+        const [latestDeltaVec] = gesture.get_delta();
+
+        this._lockDialogGroup.translation_x += latestDeltaVec.get_x();
+        if (this._lockDialogGroup.translation_x > 0)
+            this._lockDialogGroup.translation_x = 0;
+    }
+
+    _panEnd(gesture) {
+        const velocityX = gesture.get_velocity().get_x();
+
+        if (this._showingOverlayGroup) {
+            const remainingWidth = this._panWidth - (this._panWidth + this._lockDialogGroup.translation_x);
+            const gestureSuccess =
+                velocityX > 0.9 || (remainingWidth < this._panWidth * 0.75 && velocityX >= 0);
+
+            if (gestureSuccess) {
+                this._lockDialogGroup.ease({
+                    translation_x: 0,
+                    duration: Math.clamp(remainingWidth / Math.abs(velocityX), 160, 450),
+                    mode: Clutter.AnimationMode.EASE_OUT_EXPO,
+                    onComplete: () => {
+                        this._showingOverlayGroup = false;
+//                        overlay.emit_closed();
+                    },
+                });
+            } else {
+                this._lockDialogGroup.ease({
+                    translation_x: -this._panWidth,
+                    duration: Math.clamp((this._panWidth - remainingWidth) / Math.abs(velocityX), 100, 250),
+                    mode: Clutter.AnimationMode.EASE_OUT_QUINT,
+                });
+            }
+        } else {
+            const remainingWidth = this._panWidth + this._lockDialogGroup.translation_x;
+            const gestureSuccess =
+                velocityX < -0.9 || (remainingWidth < this._panWidth * 0.75 && velocityX <= 0);
+
+            if (gestureSuccess) {
+                this._lockDialogGroup.ease({
+                    translation_x: -this._panWidth,
+                    duration: Math.clamp(remainingWidth / Math.abs(velocityX), 160, 450),
+                    mode: Clutter.AnimationMode.EASE_OUT_EXPO,
+                    onComplete: () => {
+                        this._showingOverlayGroup = true;
+                    },
+                });
+            } else {
+                this._lockDialogGroup.ease({
+                    translation_x: 0,
+                    duration: Math.clamp((this._panWidth - remainingWidth) / Math.abs(velocityX), 100, 250),
+                    mode: Clutter.AnimationMode.EASE_OUT_QUINT,
+                });
+            }
+        }
+    }
+
+    _panCancel(gesture) {
+        if (this._showingOverlayGroup)
+            this._lockDialogGroup.translation_x = -this._panWidth;
+        else
+            this._lockDialogGroup.translation_x = 0;
+    }
+
     async _getLoginSession() {
         this._loginSession = await this._loginManager.getCurrentSessionProxy();
         this._loginSession.connectSignal('Lock',
             () => this.lock(false));
         this._loginSession.connectSignal('Unlock',
             () => this.deactivate(false));
+    }
+
+    _showSurfaceOverlayView(show, animate = true) {
+        this._lockDialogGroup.ease({
+            translation_x: show ? -Main.layoutManager.primaryMonitor.width : 0,
+            duration: animate ? 350 : 0,
+            mode: Clutter.AnimationMode.EASE_OUT_EXPO,
+            onComplete: () => {
+                this._showingOverlayGroup = show;
+            },
+        });
+    }
+
+    _lockscreenOverlayCreated(overlay) {
+        this._lockscreenOverlayStack.push(overlay);
+
+        overlay.surface.connect('destroy', () => {
+            if (overlay.activeData) {
+                // let's not reparent during destroy
+                delete overlay.surface._origParent;
+                delete overlay.activeData;
+
+                //this._deactivateLockscreenOverlay(overlay);
+            }
+
+            this._lockscreenOverlayStack.splice(this._lockscreenOverlayStack.indexOf(overlay), 1);
+
+            if (this._showingOverlayGroup)
+                this._showSurfaceOverlayView(false);
+        });
+
+/*
+        overlay.connect('disallowed', () => {
+            if (overlay.activeData)
+                this._deactivateLockscreenOverlay(overlay);
+
+            this._lockscreenOverlayStack.splice(this._lockscreenOverlayStack.indexOf(overlay), 1);
+
+            if (this._showingOverlayGroup) {
+                this._lockDialogGroup.ease({
+                    translation_x: 0,
+                    duration: 350,
+                    mode: Clutter.AnimationMode.EASE_OUT_EXPO,
+                    onComplete: () => {
+                        this._showingOverlayGroup = false;
+                    },
+                });
+            }
+        });
+*/
+        log("OVERLAY created: locked " + this._isLocked + " screen off " + (this._becameActiveId !== 0));
+
+        if (!this._isLocked)
+            return;
+
+        // If we're locked and the screen is off, wake the screen. This will
+        // in turn show the lockscreen overlay.
+        if (this._becameActiveId !== 0)
+            this._wakeUpScreen();
+        else
+            this._prepareLockscreenOverlay().catch().then(() => this._showSurfaceOverlayView(true));
+    }
+
+    _removeLockscreenOverlay(surface) {
+
+    }
+
+    _reparentToOriginalParent(surface) {
+        if (!surface._origParent)
+            throw new Error('This is an important one');
+
+        this._lockscreenOverlayGroup.remove_child(surface);
+        surface._origParent.add_child(surface);
+        delete surface._origParent;
+    }
+
+    _reparentToOverlayGroup(surface) {
+        if (surface._origParent)
+            throw new Error('This is an important one');
+
+        if (surface.get_parent() === this._lockscreenOverlayGroup)
+            throw new Error('This is an important one');
+
+        const origParent = surface.get_parent();
+        surface._origParent = origParent;
+
+        origParent.remove_child(surface);
+        this._lockscreenOverlayGroup.add_child(surface);
+    }
+
+    _prepareLockscreenOverlay() {
+        if (this._lockscreenOverlayStack.length === 0)
+            return Promise.reject();
+
+        const overlay = this._lockscreenOverlayStack[this._lockscreenOverlayStack.length - 1];
+        if (overlay.activeData)
+            return Promise.resolve();
+
+        return new Promise((resolve, reject) => {
+            let disallowedId, readyId;
+/*
+            disallowedId = overlay.connect('disallowed', () => {
+                overlay.disconnect(readyId);
+                overlay.disconnect(disallowedId);
+
+                reject();
+            });
+
+            readyId = overlay.connect('ready', () => {
+                overlay.disconnect(readyId);
+                overlay.disconnect(disallowedId);
+
+                const reqAuthId = overlay.connect('request-authenticate', () => {
+                    this._showSurfaceOverlayView(false);
+                });
+
+                const reqCloseId = overlay.connect('close', async () => {
+                    await this._showSurfaceOverlayView(false);
+                    overlay.emit_closed();
+                });
+*/
+                this._reparentToOverlayGroup(overlay.surface);
+                overlay.activeData = {
+                    connections: [/*reqAuthId, reqCloseId*/],
+                    wasVisible: overlay.surface.visible,
+                }
+
+                overlay.surface.visible = true;
+
+                // Don't ask me why, but this is the only thing that works to make the window appear focused lol
+                GLib.timeout_add(0, 500, () => {
+                    this._dialog._promptBox.visible = false;
+                    this._dialog._promptBox.visible = true;
+                    this._dialog._notificationsBox.visible = false;
+                    this._dialog._notificationsBox.visible = true;
+                    return GLib.SOURCE_REMOVE;
+                });
+
+                resolve();
+//            });
+
+//            overlay.emit_begin_show('left');
+        });
+    }
+
+    _deactivateLockscreenOverlay(overlay) {
+        if (!overlay.activeData)
+            throw new Error('This is an important one');
+
+//        overlay.activeData.connections.forEach(c => overlay.disconnect(c));
+        this._reparentToOriginalParent(overlay.surface);
+        overlay.surface.visible = overlay.activeData.wasVisible;
+
+        delete overlay.activeData;
     }
 
     _setActive(active) {
@@ -227,9 +497,16 @@ export class ScreenShield extends Signals.EventEmitter {
         this._setActive(true);
     }
 
-    _wakeUpScreen() {
+    async _wakeUpScreen() {
         if (!this.active)
             return; // already woken up, or not yet asleep
+
+        if (this._isLocked) {
+            try {
+                await this._prepareLockscreenOverlay();
+                this._showSurfaceOverlayView(true, false);
+            } catch {}
+        }
 
         this.emit('wake-up-screen');
     }
@@ -295,6 +572,13 @@ export class ScreenShield extends Signals.EventEmitter {
             Main.popModal(this._grab);
             this._grab = null;
             this._isModal = false;
+        }
+
+        for (const overlay of this._lockscreenOverlayStack) {
+            if (overlay.activeData) {
+                this._deactivateLockscreenOverlay(overlay);
+//                overlay.emit_authenticated();
+            }
         }
 
         this._lockDialogGroup.ease({
