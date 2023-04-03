@@ -398,6 +398,35 @@ export class ScreenShield extends Signals.EventEmitter {
         delete overlay.activeData;
     }
 
+    _appStateChanged() {
+        const windows = global.get_window_actors();
+
+        for (const window of windows) {
+            const app = this._windowTracker.get_window_app(window.metaWindow);
+
+            if (app && app.id === 'org.gnome.Calls.desktop') {
+                const window = app.get_windows()[0];
+                if (!window)
+                    return;
+
+                const actor = window.get_compositor_private();
+                if (!actor)
+                    return;
+
+                if (this._lockscreenOverlayStack.findIndex((o) => o.surface === actor) !== -1)
+                    return;
+
+                const fakeOverlay = {
+                    surface: actor,
+                }
+
+                log("LOCKSCREEN: putting a calls window on top of unlockDialog");
+
+                this._lockscreenOverlayCreated(fakeOverlay);
+            }
+        }
+    }
+
     _setActive(active) {
         let prevIsActive = this._isActive;
         this._isActive = active;
