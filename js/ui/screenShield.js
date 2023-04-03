@@ -1,4 +1,5 @@
 import AccountsService from 'gi://AccountsService';
+import Cogl from 'gi://Cogl';
 import Clutter from 'gi://Clutter';
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
@@ -48,6 +49,7 @@ export class ScreenShield extends Signals.EventEmitter {
 
         this.actor = Main.layoutManager.screenShieldGroup;
         this.actor.reactive = true;
+        this.actor.style="background-color: #191919;";
 
         this._lockScreenState = MessageTray.State.HIDDEN;
         this._lockScreenGroup = new St.Widget({
@@ -100,19 +102,25 @@ export class ScreenShield extends Signals.EventEmitter {
         this._windowTracker = Shell.WindowTracker.get_default();
         this._windowTracker.connect('tracked-windows-changed', this._appStateChanged.bind(this));
 
-        global.display.connect('window-created', () => GLib.idle_add(0, () => this._appStateChanged()));
+        global.display.connect('window-created', () => GLib.idle_add(0, () => {
+            this._appStateChanged();
+
+            return GLib.SOURCE_REMOVE;
+        }));
 
         this._lockscreenOverlayStack = [];
         this._lockscreenOverlayGroup = new Clutter.Actor({
-            background_color: Clutter.color_from_string("black")[1],
-});
+
+        });
         this._lockscreenOverlayGroup.add_constraint(new LayoutManager.MonitorConstraint({
             primary: true,
+            work_area: true,
         }));
-
         this._lockDialogGroup.connect('notify::translation-x', () => {
             this._lockscreenOverlayGroup.translation_x = this._lockDialogGroup.translation_x + Main.layoutManager.primaryMonitor.width;
         });
+        this._lockscreenOverlayGroup.translation_x = this._lockDialogGroup.translation_x + Main.layoutManager.primaryMonitor.width;
+
         this.actor.add_child(this._lockscreenOverlayGroup);
         this.actor.add_child(this._lockDialogGroup);
 
@@ -259,9 +267,9 @@ export class ScreenShield extends Signals.EventEmitter {
         this._lockscreenOverlayStack.push(overlay);
 
         overlay.surface.connect('destroy', () => {
+log("SURFACEOVERLAY: destroyyyyyy");
             if (overlay.activeData) {
                 // let's not reparent during destroy
-                delete overlay.surface._origParent;
                 delete overlay.activeData;
 
                 //this._deactivateLockscreenOverlay(overlay);
@@ -309,30 +317,35 @@ export class ScreenShield extends Signals.EventEmitter {
 
     }
 
-    _reparentToOriginalParent(surface) {
-        if (!surface._origParent)
+    _reparentToOriginalParent(overlay) {
+        if (!overlay.activeData.origParent)
             throw new Error('This is an important one');
 
-        this._lockscreenOverlayGroup.remove_child(surface);
-        surface._origParent.add_child(surface);
-        delete surface._origParent;
+        this._lockscreenOverlayGroup.remove_child(overlay.surface);
+        overlay.activeData.origParent.add_child(overlay.surface);
+
+        overlay.activeData.origParent.disconnect(overlay.activeData.origParentDestroyId);
     }
 
-    _reparentToOverlayGroup(surface) {
-        if (surface._origParent)
+    _reparentToOverlayGroup(overlay) {
+        if (overlay.activeData.origParent)
             throw new Error('This is an important one');
 
-        if (surface.get_parent() === this._lockscreenOverlayGroup)
+        if (overlay.surface.get_parent() === this._lockscreenOverlayGroup)
             throw new Error('This is an important one');
 
-        const origParent = surface.get_parent();
-        surface._origParent = origParent;
+        overlay.activeData.origParent = overlay.surface.get_parent();
+        overlay.activeData.origParentDestroyId = overlay.activeData.origParent.connect('destroy', () => {
+            log("SURFACEOVERLAY: orig parent destroyyyyyy");
+            overlay.surface.destroy();
+        });
 
-        origParent.remove_child(surface);
-        this._lockscreenOverlayGroup.add_child(surface);
+        overlay.activeData.origParent.remove_child(overlay.surface);
+        this._lockscreenOverlayGroup.add_child(overlay.surface);
     }
 
     _prepareLockscreenOverlay() {
+log("LOCKSCREENOVERLAY: preparing length " + this._lockscreenOverlayStack.length);
         if (this._lockscreenOverlayStack.length === 0)
             return Promise.reject();
 
@@ -363,20 +376,31 @@ export class ScreenShield extends Signals.EventEmitter {
                     overlay.emit_closed();
                 });
 */
-                this._reparentToOverlayGroup(overlay.surface);
+
                 overlay.activeData = {
                     connections: [/*reqAuthId, reqCloseId*/],
-                    wasVisible: overlay.surface.visible,
                 }
+                this._reparentToOverlayGroup(overlay);
 
-                overlay.surface.visible = true;
-
+              /*   const vert = overlay.window.can_maximize_vertically();
+                const horiz = overlay.window.can_maximize_horizontally();
+                if (vert && horiz)
+                    overlay.window.maximize(Meta.MaximizeFlags.BOTH);
+                else if (vert) {
+                    overlay.window.maximize(Meta.MaximizeFlags.VERTICAL);
+                } else if (horiz) {
+                    overlay.window.maximize(Meta.MaximizeFlags.HORIZONTAL);
+                }
+*/
                 // Don't ask me why, but this is the only thing that works to make the window appear focused lol
-                GLib.timeout_add(0, 500, () => {
-                    this._dialog._promptBox.visible = false;
+                GLib.timeout_add(0, 400, () => {
+           /*         this._dialog._promptBox.visible = false;
                     this._dialog._promptBox.visible = true;
                     this._dialog._notificationsBox.visible = false;
                     this._dialog._notificationsBox.visible = true;
+*/
+                    overlay.window.get_workspace().activate_with_focus(overlay.window, global.get_current_time());
+
                     return GLib.SOURCE_REMOVE;
                 });
 
@@ -392,8 +416,7 @@ export class ScreenShield extends Signals.EventEmitter {
             throw new Error('This is an important one');
 
 //        overlay.activeData.connections.forEach(c => overlay.disconnect(c));
-        this._reparentToOriginalParent(overlay.surface);
-        overlay.surface.visible = overlay.activeData.wasVisible;
+        this._reparentToOriginalParent(overlay);
 
         delete overlay.activeData;
     }
@@ -413,14 +436,19 @@ export class ScreenShield extends Signals.EventEmitter {
                 if (!actor)
                     return;
 
-                if (this._lockscreenOverlayStack.findIndex((o) => o.surface === actor) !== -1)
+                const surfaceContainer = actor.get_first_child();
+//                const surfaceContainer = actor;
+                if (!surfaceContainer)
+                    return;
+                log("SURFACEOVERLAY: putting a calls window on top of unlockDialog, container: " + surfaceContainer);
+
+                if (this._lockscreenOverlayStack.findIndex((o) => o.surface === surfaceContainer) !== -1)
                     return;
 
                 const fakeOverlay = {
-                    surface: actor,
+                    surface: surfaceContainer,
+                    window,
                 }
-
-                log("LOCKSCREEN: putting a calls window on top of unlockDialog");
 
                 this._lockscreenOverlayCreated(fakeOverlay);
             }
