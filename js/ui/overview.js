@@ -595,10 +595,10 @@ log("OVERVIEW: got notify zero open: " + Main.wm.workspaceTracker.zeroOpenWindow
         this.emit('item-drag-cancelled', source);
     }
 
-    endItemDrag(source) {
+    endItemDrag(source, target) {
         if (!this._inItemDrag)
             return;
-        this.emit('item-drag-end', source);
+        this.emit('item-drag-end', source, target);
         this._inItemDrag = false;
     }
 

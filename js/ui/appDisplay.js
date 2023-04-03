@@ -20,6 +20,7 @@ import * as ParentalControlsManager from '../misc/parentalControlsManager.js';
 import * as PopupMenu from './popupMenu.js';
 import * as Search from './search.js';
 import * as SwipeTracker from './swipeTracker.js';
+import * as Workspace from './workspace.js';
 import * as SystemActions from '../misc/systemActions.js';
 
 import * as Main from './main.js';
@@ -1045,13 +1046,13 @@ if (!this.mapped)
         this.emit('view-loaded');
     }
 
-    _clearPlaceholders(source) {
+    _clearPlaceholders(source, target) {
         /* DND sadly has no droppedSomewhereElse() thing */
         if (this._placeholders.has(source)) {
             const pl = this._placeholders.get(source);
             this._placeholders.delete(source);
 
-            if (this._dragCancelled) {
+            if (this._dragCancelled || (target instanceof Workspace.Workspace)) {
                 delete this._dragCancelled;
 
                 if (pl === source) {
@@ -1075,7 +1076,7 @@ log(this + " removing placeholder");
         }
     }
 
-    _onDragEnd(overview, source) {
+    _onDragEnd(overview, source, target) {
         if (this._dragMonitor) {
             DND.removeDragMonitor(this._dragMonitor);
             this._dragMonitor = null;
@@ -1087,7 +1088,7 @@ log(this + " removing placeholder");
 
     //    log(this + " _onDragEnd, n placeholders " + this._placeholders.size);
 
-        this._clearPlaceholders(source);
+        this._clearPlaceholders(source, target);
 
         if (this._redisplayAfterDrag) {
             this._updateFoldersIdle = GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
@@ -2133,10 +2134,10 @@ global.stage.set_key_focus(null); // hack to fix annoying moves when something h
         Main.overview.cancelledItemDrag(this);
     }
 
-    _onDragEnd() {
+    _onDragEnd(draggable, endTime, target) {
         this._dragging = false;
         this.undoScaleAndFade();
-        Main.overview.endItemDrag(this);
+        Main.overview.endItemDrag(this, target);
     }
 
     scaleIn() {
