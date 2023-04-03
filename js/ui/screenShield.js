@@ -458,6 +458,11 @@ log("LOCKSCREENOVERLAY: preparing length " + this._lockscreenOverlayStack.length
         }
     }
 
+    _showEmergencyCalls() {
+        if (this._lockscreenOverlayStack.length > 0)
+            this._prepareLockscreenOverlay().catch().then(() => this._showSurfaceOverlayView(true));
+    }
+
     _setActive(active) {
         let prevIsActive = this._isActive;
         this._isActive = active;
@@ -535,6 +540,9 @@ log("LOCKSCREENOVERLAY: preparing length " + this._lockscreenOverlayStack.length
                 this.deactivate(true);
                 return false;
             }
+
+            this._dialog.connect('show-emergency-calls',
+                this._showEmergencyCalls.bind(this));
 
             this._wakeUpScreenId = this._dialog.connect(
                 'wake-up-screen', this._wakeUpScreen.bind(this));

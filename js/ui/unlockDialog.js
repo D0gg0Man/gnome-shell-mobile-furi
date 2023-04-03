@@ -497,6 +497,7 @@ class UnlockDialogLayout extends Clutter.LayoutManager {
 export const UnlockDialog = GObject.registerClass({
     Signals: {
         'wake-up-screen': {},
+        'show-emergency-calls': {},
     },
 }, class UnlockDialog extends St.Widget {
     _init(parentActor) {
@@ -796,8 +797,10 @@ export const UnlockDialog = GObject.registerClass({
             if (!callsApp)
                 this._emergencyButton.add_style_class_name('unavailable');
             this._emergencyButton.connect('clicked', () => {
-                if (callsApp)
+                if (callsApp) {
                     callsApp.activate_full(-1, 0);
+                    this.emit('show-emergency-calls');
+                }
             });
             this._promptBox.add_child(this._emergencyButton);
 
