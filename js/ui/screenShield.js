@@ -518,7 +518,7 @@ export class ScreenShield extends Signals.EventEmitter {
     }
 
     _lockScreenShown() {
-        this._lockDialogGroup.translation_y = 0;
+        this.actor.translation_y = 0;
         this._lockScreenState = MessageTray.State.SHOWN;
 
         this._dialog.grab_key_focus();
@@ -578,7 +578,7 @@ export class ScreenShield extends Signals.EventEmitter {
             // gnome-session will reset the idle counter, and
             // gnome-settings-daemon will stop blanking the screen
 
-            this._lockDialogGroup.ease({
+            this.actor.ease({
                 translation_y: -global.stage.height,
                 duration: animate ? SHIELD_SLIDE_UP_TIME : 0,
                 mode: Clutter.AnimationMode.EASE_OUT_QUAD,
@@ -610,7 +610,7 @@ export class ScreenShield extends Signals.EventEmitter {
             }
         }
 
-        this._lockDialogGroup.ease({
+        this.actor.ease({
             translation_y: -global.stage.height,
             duration: animate ? SHIELD_SLIDE_UP_TIME : 0,
             mode: Clutter.AnimationMode.EASE_OUT_QUAD,
@@ -666,11 +666,11 @@ export class ScreenShield extends Signals.EventEmitter {
             this._lockScreenGroup.show();
             this._lockScreenState = MessageTray.State.SHOWING;
 
-            this._lockDialogGroup.translation_y = -global.screen_height;
-            this._lockDialogGroup.remove_all_transitions();
+            this.actor.translation_y = -global.screen_height;
+            this.actor.remove_all_transitions();
 
             if (animate) {
-                this._lockDialogGroup.ease({
+                this.actor.ease({
                     translation_y: 0,
                     duration: animate ? Overview.ANIMATION_TIME : 1,
                     mode: Clutter.AnimationMode.EASE_OUT_QUAD,
