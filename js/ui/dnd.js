@@ -442,7 +442,7 @@ class _Draggable extends Signals.EventEmitter {
                     }
 
                     global.display.set_cursor(Meta.Cursor.DEFAULT);
-                    this.emit('drag-end', event.get_time(), true);
+                    this.emit('drag-end', event.get_time(), target);
                     this._dragComplete();
                     return;
                 }
@@ -536,7 +536,7 @@ class _Draggable extends Signals.EventEmitter {
             this._dragActor?.destroy();
         }
 
-        this.emit('drag-end', eventTime, false);
+        this.emit('drag-end', eventTime, null);
         this._finishAnimation();
     }
 
@@ -598,7 +598,7 @@ class _Draggable extends Signals.EventEmitter {
         if (!this._dragActor) {
             global.display.set_cursor(Meta.Cursor.DEFAULT);
             this._dragComplete();
-            this.emit('drag-end', eventTime, false);
+            this.emit('drag-end', eventTime, null);
             if (!this._dragOrigParent && this._dragActor)
                 this._dragActor.destroy();
 
