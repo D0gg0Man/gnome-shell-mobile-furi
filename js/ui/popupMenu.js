@@ -708,6 +708,7 @@ export class PopupMenuBase extends Signals.EventEmitter {
         this._settingsActions = { };
 
         this._sensitive = true;
+        this._modal = true;
 
         Main.sessionMode.connectObject('updated', () => this._sessionUpdated(), this);
     }
@@ -739,6 +740,32 @@ export class PopupMenuBase extends Signals.EventEmitter {
 
     set sensitive(sensitive) {
         this.setSensitive(sensitive);
+    }
+
+    get modal() {
+        return this._modal;
+    }
+
+    set modal(modal) {
+        if (this._modal === modal)
+            return;
+
+        this._modal = modal;
+
+        // If menu gets set from !modal -> modal while already open, we simply emit
+        // ::open-state-changed again and let the PopupMenuManager take the grab.
+        // The other way round, going from modal -> !modal while already open
+        // is not possible though.
+        if (this.isOpen) {
+            if (this._modal) {
+                this.emit('open-state-changed', true);
+            } else {
+                this._modal = true;
+                throw new Error('Disabling modal mode not allowed while PopupMenu is open');
+            }
+        }
+
+        this.emit('notify::modal');
     }
 
     _sessionUpdated() {
@@ -1178,6 +1205,10 @@ export class PopupDummyMenu extends Signals.EventEmitter {
         return this.getSensitive();
     }
 
+    get modal() {
+        return true;
+    }
+
     open() {
         if (this.isOpen)
             return;
@@ -1515,7 +1546,7 @@ export class PopupMenuManager {
     }
 
     _onMenuOpenState(menu, open) {
-        if (open && this.activeMenu === menu)
+        if (!menu.modal || (open && this.activeMenu === menu))
             return;
 
         if (open) {
