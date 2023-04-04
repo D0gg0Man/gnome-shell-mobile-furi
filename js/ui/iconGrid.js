@@ -452,7 +452,7 @@ export const IconGridLayout = GObject.registerClass({
             this._pages[pageIndex].children.filter(actor => actor.visible);
     }
 
-    _updatePages() {
+    updatePages() {
         for (let i = 0; i < this._pages.length; i++)
             this._relocateSurplusItems(i);
     }
@@ -1261,6 +1261,8 @@ export const IconGrid = GObject.registerClass({
             this.layout_manager.rows_per_page = newMode.rows;
             this.layout_manager.columns_per_page = newMode.columns;
         }
+
+        this.layout_manager.updatePages();
     }
 
     _findBestModeForSize(width, height) {
