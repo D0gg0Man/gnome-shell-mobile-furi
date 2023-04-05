@@ -4,6 +4,7 @@
     <file>main.js</file>
     <file>sensorDaemon.js</file>
     <file>sensorDaemonService.js</file>
+    <file>proximityMonitoring.js</file>
     <file>dbusService.js</file>
 
     <file>misc/config.js</file>
