@@ -10,6 +10,19 @@ export const ProximityMonitoring = class {
         this._sensorDaemon = sensorDaemon;
 
         this._enableCount = 0;
+        this._claimedSensor = false;
+
+        this._proximityAvailable = this._sensorDaemon.proximityAvailable();
+        this._sensorDaemon.connect('proximity-available-changed', async () => {
+            if (this._enableCount === 0)
+                return;
+
+            const available = this._sensorDaemon.proximityAvailable();
+            if (available && !this._claimedSensor)
+                await this._startMonitoring();
+            else if (!available && this._claimedSensor)
+                await this._stopMonitoring();
+        });
 
         this._sensorDaemon.connect('proximity-near',
             this._proximityNearChanged.bind(this));
@@ -19,44 +32,65 @@ export const ProximityMonitoring = class {
             '/org/gnome/Mutter/DisplayConfig');
     }
 
-    _proximityNearChanged(sensorDaemon, isNear) {
-        if (this._enableCount === 0)
+    _proximityNearChanged() {
+        if (!this._claimedSensor)
             return;
 
-        log("PROXIMITYMONITORING: near changed: " + isNear);
+        if (this._enableCount === 0)
+            throw new Error('Proximity changed and enable count is 0, but sensor claimed');
 
-        if (!this._screenOff && isNear) {
+        log("PROXIMITYMONITORING: near changed: " + this._sensorDaemon.proximityNear);
+
+        if (!this._screenOff && this._sensorDaemon.proximityNear) {
             this._displayConfigProxy.PowerSaveMode = 3;
             this._screenOff = true;
-        } else if (this._screenOff && !isNear) {
+        } else if (this._screenOff && !this._sensorDaemon.proximityNear) {
             this._displayConfigProxy.PowerSaveMode = 0;
             this._screenOff = false;
         }
     }
 
-    async enableMonitoring() {
-        this._enableCount++;
+    async _startMonitoring() {
+        if (this._claimedSensor)
+            throw new Error('Tried to start proximity monitoring but sensor already claimed');
 
-        if (this._enableCount === 1) {
-            const claimed = await this._sensorDaemon.claimProximity();
-
-            if (claimed && this._sensorDaemon.proximityNear) {
-                this._displayConfigProxy.PowerSaveMode = 3;
-                this._screenOff = true;
-            }
+        try {
+            await this._sensorDaemon.claimProximity();
+        } catch(e) {
+            console.error(`Claiming proximity for monitoring failed: ${e}`);
+            return;
         }
+
+        this._claimedSensor = true;
+
+        if (this._sensorDaemon.proximityNear) {
+            this._displayConfigProxy.PowerSaveMode = 3;
+            this._screenOff = true;
+        }
+    }
+
+    _stopMonitoring() {
+        if (!this._claimedSensor)
+            return;
+
+        this._claimedSensor = false;
+        this._sensorDaemon.releaseProximity();
+
+        if (this._screenOff) {
+            this._displayConfigProxy.PowerSaveMode = 0;
+            this._screenOff = false;
+        }
+    }
+
+    async startMonitoring() {
+        this._enableCount++;
+        if (this._enableCount === 1 && this._sensorDaemon.proximityAvailable())
+            await this._startMonitoring();
     }
 
     stopMonitoring() {
         this._enableCount--;
-
-        if (this._enableCount === 0) {
-            this._sensorDaemon.releaseProximity();
-
-            if (this._screenOff) {
-                this._displayConfigProxy.PowerSaveMode = 0;
-                this._screenOff = false;
-            }
-        }
+        if (this._enableCount === 0)
+            this._stopMonitoring();
     }
 };

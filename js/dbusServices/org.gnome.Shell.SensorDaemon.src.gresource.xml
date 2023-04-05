@@ -5,12 +5,16 @@
     <file>sensorDaemon.js</file>
     <file>sensorDaemonService.js</file>
     <file>proximityMonitoring.js</file>
+    <file>callsMonitoring.js</file>
     <file>dbusService.js</file>
 
     <file>misc/config.js</file>
     <file>misc/extensionUtils.js</file>
     <file>misc/dbusErrors.js</file>
     <file>misc/dbusUtils.js</file>
+    <file>misc/objectManager.js</file>
     <file>misc/params.js</file>
+    <file>misc/signals.js</file>
+    <file>misc/signalTracker.js</file>
   </gresource>
 </gresources>
