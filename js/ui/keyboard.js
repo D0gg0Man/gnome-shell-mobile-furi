@@ -90,22 +90,31 @@ class KeyContainer extends St.Widget {
             layout_manager: gridLayout,
             x_expand: true,
             y_expand: true,
+            reactive: true,
         });
         this._gridLayout = gridLayout;
         this._nRows = 0;
         this._currentCol = 0;
+        this._currentRow = 0;
         this._maxCols = 0;
+
+        this._keyContainerGesture = new KeyContainerGesture();
+        this.add_action(this._keyContainerGesture);
     }
 
     appendRow() {
-        this._nRows++;
         this._currentCol = 0;
+        this._currentRow = this._nRows;
+        this._nRows++;
     }
 
     appendKey(key, width = 1, height = 1, leftOffset = 0) {
         const left = this._currentCol + leftOffset;
-        const top = this._nRows;
+        const top = this._currentRow;
         this._gridLayout.attach(key,
+            left * KEY_SIZE, top * KEY_SIZE,
+            width * KEY_SIZE, height * KEY_SIZE);
+        this._keyContainerGesture.addKey(key,
             left * KEY_SIZE, top * KEY_SIZE,
             width * KEY_SIZE, height * KEY_SIZE);
 
@@ -185,52 +194,296 @@ class LanguageSelectionPopup extends PopupMenu.PopupMenu {
         }, this);
     }
 
-    _onCapturedEvent(actor, event) {
-        const targetActor = global.stage.get_event_actor(event);
-
-        if (targetActor === this.actor ||
-            this.actor.contains(targetActor))
-            return Clutter.EVENT_PROPAGATE;
-
-        if (event.type() === Clutter.EventType.BUTTON_RELEASE || event.type() === Clutter.EventType.TOUCH_END)
-            this.close(true);
-
-        return Clutter.EVENT_STOP;
-    }
-
     open(animate) {
+        if (!this._coverActor) {
+            this._coverActor = new Clutter.Actor({ reactive: true });
+            this._coverActor.add_constraint(new Clutter.BindConstraint({
+                source: Main.uiGroup,
+                coordinate: Clutter.BindCoordinate.ALL,
+            }));
+
+            const closePopupGesture = new Clutter.LongPressGesture({
+                name: 'OSK language popup close gesture',
+                long_press_duration_ms: 0,
+            });
+            closePopupGesture.connect('notify::state', () => {
+                if (closePopupGesture.state === Clutter.GestureState.RECOGNIZING)
+                    this.close(true);
+            });
+            this._coverActor.add_action(closePopupGesture);
+
+            Main.layoutManager.keyboardBox.add_child(this._coverActor);
+        }
+
         super.open(animate);
-        global.stage.connectObject(
-            'captured-event', this._onCapturedEvent.bind(this), this);
     }
 
     close(animate) {
+        if (this._coverActor) {
+            this._coverActor.destroy();
+            delete this._coverActor;
+        }
         super.close(animate);
-        global.stage.disconnectObject(this);
     }
 
     destroy() {
-        global.stage.disconnectObject(this);
         this.sourceActor.disconnectObject(this);
+
+        if (this._coverActor)
+            this._coverActor.destroy();
         super.destroy();
     }
 }
+
+const KeyContainerGesture = GObject.registerClass({
+    Signals: {
+    },
+}, class KeyContainerGesture extends Clutter.Gesture {
+    _init() {
+        super._init();
+
+        this._rows = [];
+        this._nRows = 0;
+        this._nCols = 0;
+
+        this._pressedKey = null;
+        this._currentPoint = null;
+        this._inLongPressDrag = false;
+        this._keyLongPressTimeout = 0;
+    }
+
+    _findNearestRowOrCol(array, index) {
+        let prevIndex = null;
+        for (let i = Math.floor(index); i >= 0; i--) {
+            if (array[i]) {
+                prevIndex = i;
+                break;
+            }
+        }
+
+        let nextIndex = null;
+        for (let i = Math.ceil(index); i < array.length; i++) {
+            if (array[i]) {
+                nextIndex = i;
+                break;
+            }
+        }
+
+        if (prevIndex !== null) {
+            if (prevIndex + array[prevIndex].size >= index)
+                return array[prevIndex];// direct hit
+
+            if (nextIndex !== null) {
+                const distanceToPrev = index - prevIndex;
+                const distanceToNext = nextIndex - index;
+
+                if (distanceToNext < distanceToPrev)
+                    return array[nextIndex];
+                else
+                    return array[prevIndex];
+            }
+
+            return array[prevIndex];
+        }
+
+        if (nextIndex !== null)
+            return array[nextIndex];
+
+        return null;
+    }
+
+    vfunc_should_handle_sequence(sequenceBeginEvent) {
+        const eventType = sequenceBeginEvent.type();
+
+        return eventType === Clutter.EventType.BUTTON_PRESS ||
+               eventType === Clutter.EventType.TOUCH_BEGIN;
+    }
+
+    _getKeyForCoords(coords) {
+        const rowRatio = coords.y / this.actor.height;
+        const rowIndex = Math.floor(this._nRows * rowRatio);
+        const colRatio = coords.x / this.actor.width;
+        let colIndex = Math.floor(this._nCols * colRatio);
+
+        if (rowIndex < 0 || rowIndex >= this._nRows ||
+            colIndex < 0 || colIndex >= this._nCols)
+            return null;
+
+        // we always expect there to be a row
+        if (!this._rows[rowIndex][colIndex]) {
+            let nextCol = colIndex;
+            let prevCol = colIndex;
+
+            while (!this._rows[rowIndex][nextCol]) {
+                nextCol += 1;
+                if (nextCol === this._nCols) {
+                    nextCol = colIndex;
+                    break;
+                }
+            }
+
+            while (!this._rows[rowIndex][prevCol]) {
+                prevCol -= 1;
+                if (prevCol === -1) {
+                    prevCol = colIndex;
+                    break;
+                }
+            }
+
+            if (nextCol !== colIndex && prevCol !== colIndex) {
+                const distNextColBegin = nextCol - (this._nCols * colRatio);
+                const distPrevColEnd = (this._nCols * colRatio) - (prevCol + 1);
+                colIndex = distNextColBegin < distPrevColEnd ? nextCol : prevCol;
+            } else {
+                colIndex = nextCol !== colIndex ? nextCol : prevCol;
+            }
+        }
+
+        return this._rows[rowIndex][colIndex];
+    }
+
+    vfunc_point_began(point) {
+        const coords = this.get_point_coords(point);
+        const key = this._getKeyForCoords(coords);
+        if (!key) {
+            this.set_state(Clutter.GestureState.CANCELLED);
+            return;
+        }
+
+        // If a key is already pressed down by another finger, release it
+        if (this._pressedKey) {
+            this._pressedKey.release();
+
+            if (this._keyLongPressTimeout) {
+                GLib.source_remove(this._keyLongPressTimeout);
+                this._keyLongPressTimeout = 0;
+            }
+
+            this._pressedKey = null;
+            this._currentPoint = null;
+            this._inLongPressDrag = false;
+        }
+
+        if (this._keyLongPressTimeout)
+            throw new Error('this._keyLongPressTimeout already exists');
+
+        this._keyLongPressTimeout = GLib.timeout_add(GLib.PRIORITY_DEFAULT, KEY_LONG_PRESS_TIME, () => {
+            this._inLongPressDrag = this._pressedKey.longPressBegin();
+            if (this._inLongPressDrag) {
+                this.set_state(Clutter.GestureState.RECOGNIZING);
+
+                const event = this.get_point_event(this._currentPoint);
+                this._pressedKey.longPressMoved(global.stage.get_event_actor(event));
+            }
+
+            this._keyLongPressTimeout = 0;
+            return GLib.SOURCE_REMOVE;
+        });
+
+        this._currentPoint = point;
+        this._pressedKey = key;
+        this._pressedKey.press();
+    }
+
+  //  vfunc_crossing_event(point, type, time, flags, sourceActor, relatedActor) {
+    vfunc_point_moved(point) {
+        if (point !== this._currentPoint)
+            return;
+
+        if (!this._pressedKey)
+            throw new Error('this._pressedKey not set on point moved');
+
+        if (this._inLongPressDrag)
+            return;
+
+        const coords = this.get_point_coords(point);
+        const key = this._getKeyForCoords(coords);
+        if (!key || key !== this._pressedKey)
+            this.set_state(Clutter.GestureState.CANCELLED);
+    }
+
+    vfunc_point_ended(point) {
+        if (point !== this._currentPoint)
+            return;
+
+        if (!this._pressedKey)
+            throw new Error('this._pressedKey not set on point ended');
+
+        this.set_state(Clutter.GestureState.COMPLETED);
+    }
+
+    vfunc_crossing_event(point, type, time, flags, sourceActor, relatedActor) {
+        if (point !== this._currentPoint)
+            return;
+
+        if (type === Clutter.EventType.ENTER && this._inLongPressDrag)
+            this._pressedKey.longPressMoved(sourceActor);
+    }
+
+    vfunc_state_changed(oldState, newState) {
+        if (this._pressedKey && newState === Clutter.GestureState.CANCELLED)
+            this._pressedKey.cancel();
+
+        if (newState === Clutter.GestureState.COMPLETED)
+            this._pressedKey.release();
+
+        if (newState === Clutter.GestureState.COMPLETED ||
+            newState === Clutter.GestureState.CANCELLED) {
+            if (this._keyLongPressTimeout) {
+                GLib.source_remove(this._keyLongPressTimeout);
+                this._keyLongPressTimeout = 0;
+            }
+
+            this._pressedKey = null;
+            this._currentPoint = null;
+            this._inLongPressDrag = false;
+
+            // NB: this means we skip infuencing, because changing state in
+            // state_changed() is detected and then influencing is skipped
+            this.reset_state_machine();
+        }
+    }
+
+    vfunc_should_be_influenced_by(otherGesture, cancel, inhibit) {
+        // doesn't make sense to ever inhibit this one
+        return [cancel, false];
+    }
+
+    addKey(key, colIndex, rowIndex, width, height) {
+        for (let i = rowIndex; i < rowIndex + height; i++) {
+            if (!this._rows[i])
+                this._rows[i] = [];
+
+            for (let j = colIndex; j < colIndex + width; j++)
+                this._rows[i][j] = key;
+        }
+
+        this._nRows = Math.max(this._nRows, rowIndex + height);
+        this._nCols = Math.max(this._nCols, colIndex + width);
+    }
+});
 
 const Key = GObject.registerClass({
     Signals: {
         'long-press': {},
         'pressed': {},
         'released': {},
+        'cancelled': {},
         'keyval': {param_types: [GObject.TYPE_UINT]},
         'commit': {param_types: [GObject.TYPE_STRING]},
     },
 }, class Key extends St.BoxLayout {
     _init(params, extendedKeys = []) {
-        const {label, iconName, commitString, keyval, hasAction} = {keyval: 0, ...params};
+        const {label, iconName, commitString, keyval, hasAction, useInternalClickGesture} =
+            {keyval: 0, useInternalClickGesture: true, ...params};
+
         super._init({style_class: 'key-container'});
 
-        this._keyval = parseInt(keyval, 16);
         this.keyButton = this._makeKey(commitString, label, iconName);
+        if (useInternalClickGesture)
+            this.keyButton.connect('clicked', () => this.release());
+        else
+            this.keyButton.get_click_gesture().enabled = false;
 
         /* Add the key in a container, so keys can be padded without losing
          * logical proportions between those.
@@ -240,9 +493,68 @@ const Key = GObject.registerClass({
 
         this._extendedKeys = extendedKeys;
         this._extendedKeyboard = null;
-        this._pressTimeoutId = 0;
-        this._capturedPress = false;
         this._hasAction = hasAction;
+
+        this._commitString = commitString;
+        this._keyval = keyval;
+    }
+
+    press() {
+        this.keyButton.add_style_pseudo_class('active');
+        this.emit('pressed');
+    }
+
+    release() {
+        this.keyButton.remove_style_pseudo_class('active');
+
+        if (this.keyButton.checked) {
+            if (this._currentExtendedKeyButton) {
+                const extendedKey = this._currentExtendedKeyButton.extendedKey;
+
+                this.emit('commit', extendedKey);
+
+                this._currentExtendedKeyButton.remove_style_pseudo_class('active');
+                delete this._currentExtendedKeyButton;
+                this._hideSubkeys();
+            }
+
+            return;
+        }
+
+        if (this._keyval)
+            this.emit('keyval', this._keyval);
+        else if (this._commitString)
+            this.emit('commit', this._commitString);
+        else if (!this._hasAction)
+            console.error('Need keyval, commitString or an action');
+
+        this.emit('released');
+    }
+
+    cancel() {
+        this.keyButton.remove_style_pseudo_class('active');
+        this.emit('cancelled');
+    }
+
+    longPressBegin() {
+        this.emit('long-press');
+
+        if (this._extendedKeys.length > 0) {
+            this._ensureExtendedKeysPopup();
+            this._showSubkeys();
+            return true;
+        }
+
+        return false;
+    }
+
+    longPressMoved(newActor) {
+        this._currentExtendedKeyButton?.remove_style_pseudo_class('active');
+
+        this._currentExtendedKeyButton =
+            this._extendedKeyboard?.contains(newActor) ? newActor : null;
+
+        this._currentExtendedKeyButton?.add_style_pseudo_class('active');
     }
 
     get iconName() {
@@ -258,8 +570,6 @@ const Key = GObject.registerClass({
             this._boxPointer.destroy();
             this._boxPointer = null;
         }
-
-        this.cancel();
     }
 
     _ensureExtendedKeysPopup() {
@@ -281,95 +591,47 @@ const Key = GObject.registerClass({
         this.keyButton._extendedKeys = this._extendedKeyboard;
     }
 
-    _press(button) {
-        if (button === this.keyButton) {
-            this._pressTimeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT,
-                KEY_LONG_PRESS_TIME,
-                () => {
-                    this._pressTimeoutId = 0;
-
-                    this.emit('long-press');
-
-                    if (this._extendedKeys.length > 0) {
-                        this._touchPressSlot = null;
-                        this._ensureExtendedKeysPopup();
-                        this.keyButton.set_hover(false);
-                        this.keyButton.fake_release();
-                        this._showSubkeys();
-                    }
-
-                    return GLib.SOURCE_REMOVE;
-                });
-        }
-
-        this.emit('pressed');
-        this._pressed = true;
-    }
-
-    _release(button, commitString) {
-        if (this._pressTimeoutId !== 0) {
-            GLib.source_remove(this._pressTimeoutId);
-            this._pressTimeoutId = 0;
-        }
-
-        if (this._pressed) {
-            if (this._keyval && button === this.keyButton)
-                this.emit('keyval', this._keyval);
-            else if (commitString)
-                this.emit('commit', commitString);
-            else if (!this._hasAction)
-                console.error('Need keyval, commitString or an action');
-        }
-
-        this.emit('released');
-        this._hideSubkeys();
-        this._pressed = false;
-    }
-
-    cancel() {
-        if (this._pressTimeoutId !== 0) {
-            GLib.source_remove(this._pressTimeoutId);
-            this._pressTimeoutId = 0;
-        }
-        this._touchPressSlot = null;
-        this.keyButton.set_hover(false);
-        this.keyButton.fake_release();
-    }
-
-    _onCapturedEvent(actor, event) {
-        let type = event.type();
-        let press = type === Clutter.EventType.BUTTON_PRESS || type === Clutter.EventType.TOUCH_BEGIN;
-        let release = type === Clutter.EventType.BUTTON_RELEASE || type === Clutter.EventType.TOUCH_END;
-        const targetActor = global.stage.get_event_actor(event);
-
-        if (targetActor === this._boxPointer.bin ||
-            this._boxPointer.bin.contains(targetActor))
-            return Clutter.EVENT_PROPAGATE;
-
-        if (press)
-            this._capturedPress = true;
-        else if (release && this._capturedPress)
-            this._hideSubkeys();
-
-        return Clutter.EVENT_STOP;
+    _getKeyvalFromString(string) {
+        let unicode = string?.length ? string.charCodeAt(0) : undefined;
+        return Clutter.unicode_to_keysym(unicode);
     }
 
     _showSubkeys() {
         this._boxPointer.open(BoxPointer.PopupAnimation.FULL);
-        global.stage.connectObject(
-            'captured-event', this._onCapturedEvent.bind(this), this);
         this.keyButton.connectObject('notify::mapped', () => {
             if (!this.keyButton.is_mapped())
                 this._hideSubkeys();
         }, this);
+
+        this.keyButton.checked = true;
+
+        this._coverActor = new Clutter.Actor({ reactive: true });
+        this._coverActor.add_constraint(new Clutter.BindConstraint({
+            source: Main.uiGroup,
+            coordinate: Clutter.BindCoordinate.ALL,
+        }));
+
+        const hideSubkeysGesture = new Clutter.LongPressGesture({
+            name: 'OSK subkeys hide gesture',
+            long_press_duration_ms: 0,
+        });
+        hideSubkeysGesture.connect('notify::state', () => {
+            if (hideSubkeysGesture.state === Clutter.GestureState.RECOGNIZING)
+                this._hideSubkeys();
+        })
+        this._coverActor.add_action(hideSubkeysGesture);
+
+        Main.layoutManager.keyboardBox.insert_child_below(this._coverActor, this._boxPointer);
     }
 
     _hideSubkeys() {
         if (this._boxPointer)
             this._boxPointer.close(BoxPointer.PopupAnimation.FULL);
-        global.stage.disconnectObject(this);
         this.keyButton.disconnectObject(this);
-        this._capturedPress = false;
+
+        this.keyButton.checked = false;
+
+        this._coverActor.destroy();
     }
 
     _makeKey(commitString, label, icon) {
@@ -388,47 +650,6 @@ const Key = GObject.registerClass({
             button.set_label(commitString);
         }
 
-        button.connect('button-press-event', () => {
-            this._press(button, commitString);
-            button.add_style_pseudo_class('active');
-            return Clutter.EVENT_STOP;
-        });
-        button.connect('button-release-event', () => {
-            this._release(button, commitString);
-            button.remove_style_pseudo_class('active');
-            return Clutter.EVENT_STOP;
-        });
-        button.connect('touch-event', (actor, event) => {
-            // We only handle touch events here on wayland. On X11
-            // we do get emulated pointer events, which already works
-            // for single-touch cases. Besides, the X11 passive touch grab
-            // set up by Mutter will make us see first the touch events
-            // and later the pointer events, so it will look like two
-            // unrelated series of events, we want to avoid double handling
-            // in these cases.
-            if (!Meta.is_wayland_compositor())
-                return Clutter.EVENT_PROPAGATE;
-
-            const slot = event.get_event_sequence().get_slot();
-
-            if (!this._touchPressSlot &&
-                event.type() === Clutter.EventType.TOUCH_BEGIN) {
-                this._touchPressSlot = slot;
-                this._press(button, commitString);
-                button.add_style_pseudo_class('active');
-            } else if (event.type() === Clutter.EventType.TOUCH_END) {
-                if (!this._touchPressSlot ||
-                    this._touchPressSlot === slot) {
-                    this._release(button, commitString);
-                    button.remove_style_pseudo_class('active');
-                }
-
-                if (this._touchPressSlot === slot)
-                    this._touchPressSlot = null;
-            }
-            return Clutter.EVENT_STOP;
-        });
-
         return button;
     }
 
@@ -440,6 +661,11 @@ const Key = GObject.registerClass({
         for (let i = 0; i < this._extendedKeys.length; ++i) {
             let extendedKey = this._extendedKeys[i];
             let key = this._makeKey(extendedKey);
+
+            key.connect('clicked', () => {
+                this.emit('commit', extendedKey);
+                this._hideSubkeys();
+            });
 
             key.extendedKey = extendedKey;
             this._extendedKeyboard.add_child(key);
@@ -613,7 +839,6 @@ const EmojiPager = GObject.registerClass({
         this._curPage = null;
         this._followingPage = null;
         this._followingPanel = null;
-        this._currentKey = null;
         this._delta = 0;
         this._width = null;
 
@@ -705,12 +930,6 @@ const EmojiPager = GObject.registerClass({
 
     _onSwipeUpdate(tracker, progress) {
         this.delta = -progress * this._width;
-
-        if (this._currentKey != null) {
-            this._currentKey.cancel();
-            this._currentKey = null;
-        }
-
         return false;
     }
 
@@ -797,17 +1016,8 @@ const EmojiPager = GObject.registerClass({
             let modelKey = page.pageKeys[i];
             let key = new Key({commitString: modelKey.label}, modelKey.variants);
 
-            key.keyButton.set_button_mask(0);
-
-            key.connect('pressed', () => {
-                this._currentKey = key;
-            });
-            key.connect('commit', (actor, str) => {
-                if (this._currentKey !== key)
-                    return;
-                this._currentKey = null;
-                this.emit('emoji', str);
-            });
+            key.connect('commit', (actor, str) =>
+                this.emit('emoji', str));
 
             gridLayout.attach(key, col, row, 1, 1);
 
@@ -1518,6 +1728,7 @@ export const Keyboard = GObject.registerClass({
                 iconName: key.iconName,
                 keyval: key.keyval,
                 hasAction: !!key.action,
+                useInternalClickGesture: false,
             }, strings);
 
             if (key.action) {
@@ -1543,6 +1754,12 @@ export const Keyboard = GObject.registerClass({
                     }
 
                     this._longPressed = false;
+                });
+
+                button.connect('cancelled', () => {
+                    if (key.action === 'delete') {
+                        this._keyboardController.toggleDelete(false)
+                    }
                 });
             } else if (key.keyval) {
                 button.connect('keyval', (_actor, keyval) => {
