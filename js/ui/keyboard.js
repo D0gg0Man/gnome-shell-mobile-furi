@@ -1729,37 +1729,54 @@ export const Keyboard = GObject.registerClass({
             y_expand: true,
         });
 
-        if (purpose === Clutter.InputContentPurpose.DIGITS) {
-            keyboardModel = new KeyboardModel('digits');
-        } else if (purpose === Clutter.InputContentPurpose.NUMBER) {
-            keyboardModel = new KeyboardModel('number');
-        } else if (purpose === Clutter.InputContentPurpose.PHONE) {
-            keyboardModel = new KeyboardModel('phone');
-        } else if (!Main.layoutManager.isPhone && purpose === Clutter.InputContentPurpose.EMAIL) {
-            keyboardModel = new KeyboardModel('email');
-        } else if (!Main.layoutManager.isPhone && purpose === Clutter.InputContentPurpose.URL) {
-            keyboardModel = new KeyboardModel('url');
-        } else {
-            let groups = [groupName];
-            if (groupName.includes('+'))
-                groups.push(groupName.replace(/\+.*/, ''));
-            groups.push('us');
+        // Default to en-us keyboard if nothing is available
+        let groups = ['us'];
 
-            if (purpose === Clutter.InputContentPurpose.TERMINAL)
-                groups = groups.map(g => `${g}-extended`);
+        // Prefer the users chosen layout
+        groups.push(groupName);
 
-            for (const group of groups) {
-                try {
-                    keyboardModel = new KeyboardModel(group);
-                    break;
-                } catch {
-                    // Ignore this error and fall back to next model
-                }
-            }
-
-            if (!keyboardModel)
-                return;
+        // Prefer any layout specific to the input purpose
+        switch (purpose) {
+        case Clutter.InputContentPurpose.DIGITS:
+            groups.push('digits');
+            break;
+        case Clutter.InputContentPurpose.NUMBER:
+            groups.push('number');
+            break;
+        case Clutter.InputContentPurpose.PHONE:
+            groups.push('phone');
+            break;
+        case Clutter.InputContentPurpose.EMAIL:
+            if (!Main.layoutManager.isPhone)
+                groups.push('email');
+            break;
+        case Clutter.InputContentPurpose.URL:
+            if (!Main.layoutManager.isPhone)
+                groups.push('url');
+            break;
+        case Clutter.InputContentPurpose.TERMINAL:
+            // For terminals, we replace the whole list with their extended counterparts
+            groups = groups.map(g => `${g}-extended`);
+            break;
+        default:
+            break;
         }
+
+        // If we're on a phone, replace the whole list with their mobile counterparts
+        if (Main.layoutManager.isPhone)
+            groups = groups.map(g => `${g}-mobile`);
+
+        for (const group of groups.reverse()) {
+            try {
+                keyboardModel = new KeyboardModel(group);
+                break;
+            } catch (e) {
+                // Ignore this error and fall back to next model
+            }
+        }
+
+        if (!keyboardModel)
+            return;
 
         const emojiVisible = Meta.is_wayland_compositor() &&
             (purpose === Clutter.InputContentPurpose.NORMAL ||
