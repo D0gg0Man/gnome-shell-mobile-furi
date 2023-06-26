@@ -1864,6 +1864,13 @@ export const Keyboard = GObject.registerClass({
                         this._keyboardController.toggleDelete(false)
                     }
                 });
+
+                if (key.action === 'emoji') {
+                    button.connect('long-press', () => {
+                        this._popupLanguageMenu(button);
+                        layout._keyContainerGesture.cancel();
+                    });
+                }
             } else if (key.keyval) {
                 button.connect('keyval', (_actor, keyval) => {
                     this._keyboardController.keyvalPress(keyval);
