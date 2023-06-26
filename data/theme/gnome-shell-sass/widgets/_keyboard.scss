@@ -55,6 +55,10 @@ $default_key_bg_color: if($variant=='light', darken($key_bg_color, 11%), darken(
     }
   }
 
+  &.action-levelSwitch {
+    @include fontsize($base_font_size + 2);
+  }
+
   // size of icons on keys
   StIcon { icon-size: $medium_scalable_icon_size; }
 }

@@ -1860,6 +1860,9 @@ export const Keyboard = GObject.registerClass({
             if (key.action || key.keyval)
                 button.keyButton.add_style_class_name('default-key');
 
+            if (key.action)
+                button.keyButton.add_style_class_name('action-' + key.action);
+
             layout.appendKey(button, key.width, key.height, key.leftOffset);
         }
     }
