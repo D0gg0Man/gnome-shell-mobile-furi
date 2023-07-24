@@ -2463,8 +2463,7 @@ export const AppFolderDialog = GObject.registerClass({
         const clickGesture = new Clutter.ClickGesture();
         clickGesture.connect('may-recognize', () => {
             const coords = clickGesture.get_coords_abs();
-            const [, x, y] = this.child.transform_stage_point(coords.x, coords.y);
-            return !this._viewBox.allocation.contains(x, y);
+            return !this._withinDialog(coords.x, coords.y);
         });
         clickGesture.connect('recognize', () => this.popdown());
         this.add_action(clickGesture);
