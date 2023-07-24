@@ -2785,8 +2785,8 @@ export const AppFolderDialog = GObject.registerClass({
     }
 
     _withinDialog(x, y) {
-        const childExtents = this.child.get_transformed_extents();
-        return childExtents.contains_point(new Graphene.Point({x, y}));
+        const viewExtents = this._viewBox.get_transformed_extents();
+        return viewExtents.contains_point(new Graphene.Point({x, y}));
     }
 
     _setupDragMonitor() {
