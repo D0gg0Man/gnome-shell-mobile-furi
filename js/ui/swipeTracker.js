@@ -13,10 +13,6 @@ import * as Params from '../misc/params.js';
 const TOUCHPAD_BASE_HEIGHT = 300;
 const TOUCHPAD_BASE_WIDTH = 400;
 
-const EVENT_HISTORY_THRESHOLD_MS = 150;
-
-const SCROLL_MULTIPLIER = 10;
-
 const MIN_ANIMATION_DURATION = 100;
 const MAX_ANIMATION_DURATION = 400;
 const VELOCITY_THRESHOLD_TOUCH = 0.3;
@@ -25,7 +21,6 @@ const DECELERATION_TOUCH = 0.998;
 const DECELERATION_TOUCHPAD = 0.997;
 const VELOCITY_CURVE_THRESHOLD = 2;
 const DECELERATION_PARABOLA_MULTIPLIER = 0.35;
-const DRAG_THRESHOLD_DISTANCE = 16;
 
 // Derivative of easeOutCubic at t=0
 const DURATION_MULTIPLIER = 3;
@@ -39,269 +34,6 @@ const State = {
     NONE: 0,
     SCROLLING: 1,
 };
-
-const TouchpadState = {
-    NONE: 0,
-    PENDING: 1,
-    HANDLING: 2,
-    IGNORED: 3,
-};
-
-const EventHistory = class {
-    constructor() {
-        this.reset();
-    }
-
-    reset() {
-        this._data = [];
-    }
-
-    trim(time) {
-        const thresholdTime = time - EVENT_HISTORY_THRESHOLD_MS;
-        const index = this._data.findIndex(r => r.time >= thresholdTime);
-
-        this._data.splice(0, index);
-    }
-
-    append(time, delta) {
-        this.trim(time);
-
-        this._data.push({time, delta});
-    }
-
-    calculateVelocity() {
-        if (this._data.length < 2)
-            return 0;
-
-        const firstTime = this._data[0].time;
-        const lastTime = this._data[this._data.length - 1].time;
-
-        if (firstTime === lastTime)
-            return 0;
-
-        const totalDelta = this._data.slice(1).map(a => a.delta).reduce((a, b) => a + b);
-        const period = lastTime - firstTime;
-
-        return totalDelta / period;
-    }
-};
-
-const TouchpadSwipeGesture = GObject.registerClass({
-    Properties: {
-        'enabled': GObject.ParamSpec.boolean(
-            'enabled', null, null,
-            GObject.ParamFlags.READWRITE,
-            true),
-        'orientation': GObject.ParamSpec.enum(
-            'orientation', null, null,
-            GObject.ParamFlags.READWRITE,
-            Clutter.Orientation, Clutter.Orientation.HORIZONTAL),
-    },
-    Signals: {
-        'begin':  {param_types: [GObject.TYPE_UINT, GObject.TYPE_DOUBLE, GObject.TYPE_DOUBLE]},
-        'update': {param_types: [GObject.TYPE_UINT, GObject.TYPE_DOUBLE]},
-        'end':    {param_types: [GObject.TYPE_UINT]},
-    },
-}, class TouchpadSwipeGesture extends GObject.Object {
-    _init(actor, allowedModes) {
-        super._init();
-        this._allowedModes = allowedModes;
-        this._state = TouchpadState.NONE;
-        this._cumulativeX = 0;
-        this._cumulativeY = 0;
-        this._touchpadSettings = new Gio.Settings({
-            schema_id: 'org.gnome.desktop.peripherals.touchpad',
-        });
-
-        actor.connectObject(
-            'event::touchpad', this._handleEvent.bind(this), this);
-    }
-
-    _handleEvent(actor, event) {
-        if (event.type() !== Clutter.EventType.TOUCHPAD_SWIPE)
-            return Clutter.EVENT_PROPAGATE;
-
-        if (event.get_gesture_phase() === Clutter.TouchpadGesturePhase.BEGIN)
-            this._state = TouchpadState.NONE;
-
-        if (event.get_touchpad_gesture_finger_count() < GESTURE_FINGER_COUNT)
-            return Clutter.EVENT_PROPAGATE;
-
-        if ((this._allowedModes & Main.actionMode) === 0)
-            return Clutter.EVENT_PROPAGATE;
-
-        if (!this.enabled)
-            return Clutter.EVENT_PROPAGATE;
-
-        if (this._state === TouchpadState.IGNORED)
-            return Clutter.EVENT_PROPAGATE;
-
-        let time = event.get_time();
-
-        const [x, y] = event.get_coords();
-        const [dx, dy] = event.get_gesture_motion_delta_unaccelerated();
-
-        if (this._state === TouchpadState.NONE) {
-            if (dx === 0 && dy === 0)
-                return Clutter.EVENT_PROPAGATE;
-
-            this._cumulativeX = 0;
-            this._cumulativeY = 0;
-            this._state = TouchpadState.PENDING;
-        }
-
-        if (this._state === TouchpadState.PENDING) {
-            this._cumulativeX += dx;
-            this._cumulativeY += dy;
-
-            const cdx = this._cumulativeX;
-            const cdy = this._cumulativeY;
-            const distance = Math.sqrt(cdx * cdx + cdy * cdy);
-
-            if (distance >= DRAG_THRESHOLD_DISTANCE) {
-                const gestureOrientation = Math.abs(cdx) > Math.abs(cdy)
-                    ? Clutter.Orientation.HORIZONTAL
-                    : Clutter.Orientation.VERTICAL;
-
-                this._cumulativeX = 0;
-                this._cumulativeY = 0;
-
-                if (gestureOrientation === this.orientation) {
-                    this._state = TouchpadState.HANDLING;
-                    this.emit('begin', time, x, y);
-                } else {
-                    this._state = TouchpadState.IGNORED;
-                    return Clutter.EVENT_PROPAGATE;
-                }
-            } else {
-                return Clutter.EVENT_PROPAGATE;
-            }
-        }
-
-        const vertical = this.orientation === Clutter.Orientation.VERTICAL;
-        let delta = vertical ? dy : dx;
-
-        switch (event.get_gesture_phase()) {
-        case Clutter.TouchpadGesturePhase.BEGIN:
-        case Clutter.TouchpadGesturePhase.UPDATE:
-            if (this._touchpadSettings.get_boolean('natural-scroll'))
-                delta = -delta;
-
-            this.emit('update', time, delta);
-            break;
-
-        case Clutter.TouchpadGesturePhase.END:
-        case Clutter.TouchpadGesturePhase.CANCEL:
-            this.emit('end', time);
-            this._state = TouchpadState.NONE;
-            break;
-        }
-
-        return this._state === TouchpadState.HANDLING
-            ? Clutter.EVENT_STOP
-            : Clutter.EVENT_PROPAGATE;
-    }
-
-    destroy() {
-        global.stage.disconnectObject(this);
-    }
-});
-
-const ScrollGesture = GObject.registerClass({
-    Properties: {
-        'enabled': GObject.ParamSpec.boolean(
-            'enabled', null, null,
-            GObject.ParamFlags.READWRITE,
-            true),
-        'orientation': GObject.ParamSpec.enum(
-            'orientation', null, null,
-            GObject.ParamFlags.READWRITE,
-            Clutter.Orientation, Clutter.Orientation.HORIZONTAL),
-        'scroll-modifiers': GObject.ParamSpec.flags(
-            'scroll-modifiers', null, null,
-            GObject.ParamFlags.READWRITE,
-            Clutter.ModifierType, 0),
-    },
-    Signals: {
-        'begin':  {param_types: [GObject.TYPE_UINT, GObject.TYPE_DOUBLE, GObject.TYPE_DOUBLE]},
-        'update': {param_types: [GObject.TYPE_UINT, GObject.TYPE_DOUBLE]},
-        'end':    {param_types: [GObject.TYPE_UINT]},
-    },
-}, class ScrollGesture extends GObject.Object {
-    _init(actor, allowedModes) {
-        super._init();
-        this._allowedModes = allowedModes;
-        this._began = false;
-        this._enabled = true;
-
-        actor.connect('scroll-event', this._handleEvent.bind(this));
-    }
-
-    get enabled() {
-        return this._enabled;
-    }
-
-    set enabled(enabled) {
-        if (this._enabled === enabled)
-            return;
-
-        this._enabled = enabled;
-        this._began = false;
-
-        this.notify('enabled');
-    }
-
-    canHandleEvent(event) {
-        if (event.type() !== Clutter.EventType.SCROLL)
-            return false;
-
-        if (event.get_scroll_source() !== Clutter.ScrollSource.FINGER &&
-            event.get_source_device().get_device_type() !== Clutter.InputDeviceType.TOUCHPAD_DEVICE)
-            return false;
-
-        if (!this.enabled)
-            return false;
-
-        if ((this._allowedModes & Main.actionMode) === 0)
-            return false;
-
-        if (!this._began && this.scrollModifiers !== 0 &&
-            (event.get_state() & this.scrollModifiers) !== this.scrollModifiers)
-            return false;
-
-        return true;
-    }
-
-    _handleEvent(actor, event) {
-        if (!this.canHandleEvent(event))
-            return Clutter.EVENT_PROPAGATE;
-
-        if (event.get_scroll_direction() !== Clutter.ScrollDirection.SMOOTH)
-            return Clutter.EVENT_PROPAGATE;
-
-        const vertical = this.orientation === Clutter.Orientation.VERTICAL;
-
-        let time = event.get_time();
-        let [dx, dy] = event.get_scroll_delta();
-        if (dx === 0 && dy === 0) {
-            this.emit('end', time);
-            this._began = false;
-            return Clutter.EVENT_STOP;
-        }
-
-        if (!this._began) {
-            let [x, y] = event.get_coords();
-            this.emit('begin', time, x, y);
-            this._began = true;
-        }
-
-        const delta = (vertical ? dy : dx) * SCROLL_MULTIPLIER;
-
-        this.emit('update', time, delta);
-
-        return Clutter.EVENT_STOP;
-    }
-});
 
 // USAGE:
 //
@@ -377,7 +109,6 @@ export const SwipeTracker = GObject.registerClass({
         this._allowedModes = allowedModes;
         this._enabled = true;
         this._distance = -1;
-        this._history = new EventHistory();
         this._reset();
 
         this._panGesture = new Clutter.PanGesture({
@@ -403,27 +134,7 @@ export const SwipeTracker = GObject.registerClass({
             null);
         actor.add_action_full(params.name, params.phase, this._panGesture);
 
-        this._touchpadGesture = new TouchpadSwipeGesture(actor, allowedModes);
-        this._touchpadGesture.connect('begin', this._beginTouchpadGesture.bind(this));
-        this._touchpadGesture.connect('update', this._updateTouchpadGesture.bind(this));
-        this._touchpadGesture.connect('end', this._endTouchpadGesture.bind(this));
-        this.bind_property('enabled', this._touchpadGesture, 'enabled', 0);
-        this.bind_property('orientation', this._touchpadGesture, 'orientation',
-            GObject.BindingFlags.SYNC_CREATE);
-
-        if (params.allowScroll) {
-            this._scrollGesture = new ScrollGesture(actor, allowedModes);
-            this._scrollGesture.connect('begin', this._beginTouchpadGesture.bind(this));
-            this._scrollGesture.connect('update', this._updateTouchpadGesture.bind(this));
-            this._scrollGesture.connect('end', this._endTouchpadGesture.bind(this));
-            this.bind_property('enabled', this._scrollGesture, 'enabled', 0);
-            this.bind_property('orientation', this._scrollGesture, 'orientation',
-                GObject.BindingFlags.SYNC_CREATE);
-            this.bind_property('scroll-modifiers',
-                this._scrollGesture, 'scroll-modifiers', 0);
-        } else {
-            this._scrollGesture = null;
-        }
+        this._scrollEnabled = params.allowScroll;
     }
 
     /**
@@ -434,11 +145,10 @@ export const SwipeTracker = GObject.registerClass({
      * @param {Clutter.Event} scrollEvent an event to check
      * @returns {boolean} whether the event can be handled by the tracker
      */
-    canHandleScrollEvent(scrollEvent) {
-        if (!this.enabled || this._scrollGesture === null)
-            return false;
-
-        return this._scrollGesture.canHandleEvent(scrollEvent);
+    canHandleScrollEvent(event) {
+        // FIXME: we assume ClutterPanGesture can handle touchpad scroll and discrete scroll
+        // everywhere here, but there's no scroll event handling in ClutterPanGesture yet
+        return false;
     }
 
     get enabled() {
@@ -474,12 +184,9 @@ export const SwipeTracker = GObject.registerClass({
         this._initialProgress = 0;
         this._cancelProgress = 0;
 
-        this._prevOffset = 0;
         this._progress = 0;
 
         this._cancelled = false;
-
-        this._history.reset();
     }
 
     _interrupt() {
@@ -502,12 +209,6 @@ export const SwipeTracker = GObject.registerClass({
         const coords = panGesture.get_begin_centroid();
 
         this._beginGesture(coords.x, coords.y);
-    }
-
-    _beginTouchpadGesture(gesture, time, x, y) {
-        this._history.append(time, 0);
-
-        this._beginGesture(x, y);
     }
 
     _findClosestPoint(pos) {
@@ -555,9 +256,18 @@ export const SwipeTracker = GObject.registerClass({
         return [this._snapPoints[lowerIndex], this._snapPoints[upperIndex]];
     }
 
-    _updateGesture(delta, isTouchpad) {
+    _updatePanGesture(panGesture) {
         if (this._state !== State.SCROLLING)
             return;
+
+        const deltaVec = panGesture.get_delta_abs();
+        const delta = this.orientation === Clutter.Orientation.HORIZONTAL
+            ? this._getGestureDirFactor() * deltaVec.get_x()
+            : this._getGestureDirFactor() * deltaVec.get_y();
+
+        const lastEventType = this._panGesture.get_point_event(-1).type();
+        const isTouchpad = lastEventType === Clutter.EventType.TOUCHPAD_SWIPE ||
+            lastEventType === Clutter.EventType.SCROLL;
 
         const vertical = this.orientation === Clutter.Orientation.VERTICAL;
         const distance = isTouchpad
@@ -569,29 +279,6 @@ export const SwipeTracker = GObject.registerClass({
         this._progress = Math.clamp(this._progress, ...this._getBounds(this._initialProgress));
 
         this.emit('update', this._progress);
-    }
-
-    _updatePanGesture(panGesture) {
-        const deltaVec = panGesture.get_delta_abs();
-        const delta = this.orientation === Clutter.Orientation.HORIZONTAL
-            ? this._getGestureDirFactor() * deltaVec.get_x()
-            : this._getGestureDirFactor() * deltaVec.get_y();
-
-        this._updateGesture(delta, false);
-    }
-
-    _updateTouchpadGesture(gesture, time, delta) {
-        if ((this._allowedModes & Main.actionMode) === 0 || !this.enabled) {
-            this._interrupt();
-            return;
-        }
-
-        if (this.orientation === Clutter.Orientation.HORIZONTAL &&
-            Clutter.get_default_text_direction() === Clutter.TextDirection.RTL)
-            delta = -delta;
-
-        this._history.append(time, delta);
-        this._updateGesture(delta, true);
     }
 
     _getEndProgress(velocity, distance, isTouchpad) {
@@ -626,7 +313,7 @@ export const SwipeTracker = GObject.registerClass({
         return this._snapPoints[index];
     }
 
-    _endGesture(velocity, isTouchpad) {
+    _endGesture(velocity) {
         if (this._state !== State.SCROLLING)
             return;
 
@@ -634,6 +321,10 @@ export const SwipeTracker = GObject.registerClass({
             this._interrupt();
             return;
         }
+
+        const lastEventType = this._panGesture.get_point_event(-1).type();
+        const isTouchpad = lastEventType === Clutter.EventType.TOUCHPAD_SWIPE ||
+            lastEventType === Clutter.EventType.SCROLL;
 
         const vertical = this.orientation === Clutter.Orientation.VERTICAL;
         const distance = isTouchpad
@@ -664,19 +355,7 @@ export const SwipeTracker = GObject.registerClass({
             ? this._getGestureDirFactor() * velocity.get_x()
             : this._getGestureDirFactor() * velocity.get_y();
 
-        this._endGesture(v, false);
-    }
-
-    _endTouchpadGesture(gesture, time) {
-        if ((this._allowedModes & Main.actionMode) === 0 || !this.enabled) {
-            this._interrupt();
-            return;
-        }
-
-        this._history.trim(time);
-        const velocity = this._history.calculateVelocity();
-
-        this._endGesture(velocity, true);
+        this._endGesture(v);
     }
 
     _cancelPanGesture() {
@@ -684,7 +363,7 @@ export const SwipeTracker = GObject.registerClass({
             return;
 
         this._cancelled = true;
-        this._endGesture(0, false);
+        this._endGesture(0);
     }
 
     _getGestureDirFactor() {
@@ -719,11 +398,6 @@ export const SwipeTracker = GObject.registerClass({
     }
 
     destroy() {
-        if (this._touchpadGesture) {
-            this._touchpadGesture.destroy();
-            delete this._touchpadGesture;
-        }
-
         if (this._panGesture) {
             this._panGesture.actor?.remove_action(this._panGesture);
             delete this._panGesture;
