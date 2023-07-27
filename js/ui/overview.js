@@ -230,7 +230,6 @@ export class Overview extends Signals.EventEmitter {
                 allowDrag: false,
                 allowScroll: false,
                 name: 'Overview swipe tracker',
-                phase: Clutter.EventPhase.CAPTURE,
             });
         swipeTracker.orientation = Clutter.Orientation.VERTICAL;
         swipeTracker.connect('begin', this._gestureBegin.bind(this));
