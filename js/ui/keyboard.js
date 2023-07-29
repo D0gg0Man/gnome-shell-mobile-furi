@@ -270,8 +270,9 @@ const Key = GObject.registerClass({
             return;
 
         this._boxPointer = new BoxPointer.BoxPointer(St.Side.BOTTOM);
+        this._boxPointer.y_align = Clutter.ActorAlign.START;
         this._boxPointer.hide();
-        Main.layoutManager.addTopChrome(this._boxPointer);
+        Main.layoutManager.keyboardBox.add_child(this._boxPointer);
         this._boxPointer.setPosition(this.keyButton, 0.5);
 
         // Adds style to existing keyboard style to avoid repetition
@@ -1193,6 +1194,8 @@ export const Keyboard = GObject.registerClass({
             // keyboard on RTL locales.
             text_direction: Clutter.TextDirection.LTR,
             orientation: Clutter.Orientation.VERTICAL,
+            y_expand: true,
+            y_align: Clutter.ActorAlign.END,
         });
         this._focusInExtendedKeys = false;
         this._emojiActive = false;
@@ -1236,6 +1239,15 @@ export const Keyboard = GObject.registerClass({
 
         this._setupKeyboard();
 
+        this.opacity = 0;
+        this.translation_y = this.get_preferred_height(-1)[1];
+        this._keyboardHeightNotifyId = this.connect('notify::allocation', () => {
+            if (this.mapped)
+                return;
+
+            this.translation_y = this.height;
+        });
+
         this.connect('destroy', this._onDestroy.bind(this));
     }
 
@@ -1276,6 +1288,11 @@ export const Keyboard = GObject.registerClass({
         if (this._languagePopup) {
             this._languagePopup.destroy();
             this._languagePopup = null;
+        }
+
+        if (this._keyboardHeightNotifyId) {
+            this.disconnect(this._keyboardHeightNotifyId);
+            this._keyboardHeightNotifyId = 0;
         }
     }
 
@@ -1602,7 +1619,7 @@ export const Keyboard = GObject.registerClass({
             this._languagePopup.destroy();
 
         this._languagePopup = new LanguageSelectionPopup(keyActor);
-        Main.layoutManager.addTopChrome(this._languagePopup.actor);
+        Main.layoutManager.keyboardBox.add_child(this._languagePopup.actor);
         this._languagePopup.open(true);
     }
 
@@ -1799,7 +1816,7 @@ export const Keyboard = GObject.registerClass({
 
         Main.layoutManager.keyboardBox.show();
         this.ease({
-            translation_y: -this.height,
+            translation_y: 0,
             opacity: 255,
             duration: KEYBOARD_ANIMATION_TIME,
             mode: Clutter.AnimationMode.EASE_OUT_QUAD,
@@ -1813,9 +1830,6 @@ export const Keyboard = GObject.registerClass({
 
     _animateShowComplete() {
         let keyboardBox = Main.layoutManager.keyboardBox;
-        this._keyboardHeightNotifyId = keyboardBox.connect('notify::height', () => {
-            this.translation_y = -this.height;
-        });
 
         // Toggle visibility so the keyboardBox can update its chrome region.
         if (!Meta.is_wayland_compositor()) {
@@ -1828,12 +1842,8 @@ export const Keyboard = GObject.registerClass({
         if (this._focusWindow)
             this._animateWindow(this._focusWindow, false);
 
-        if (this._keyboardHeightNotifyId) {
-            Main.layoutManager.keyboardBox.disconnect(this._keyboardHeightNotifyId);
-            this._keyboardHeightNotifyId = 0;
-        }
         this.ease({
-            translation_y: 0,
+            translation_y: this.height,
             opacity: 0,
             duration: KEYBOARD_ANIMATION_TIME,
             mode: Clutter.AnimationMode.EASE_IN_QUAD,
@@ -1855,7 +1865,7 @@ export const Keyboard = GObject.registerClass({
         this._gestureInProgress = true;
         Main.layoutManager.keyboardBox.show();
         let progress = Math.min(delta, this.height) / this.height;
-        this.translation_y = -this.height * progress;
+        this.translation_y = this.height * (1 - progress);
         this.opacity = 255 * progress;
         const windowActor = this._focusWindow?.get_compositor_private();
         if (windowActor)
@@ -1917,7 +1927,7 @@ export const Keyboard = GObject.registerClass({
             return;
 
         const finalY = show
-            ? this._focusWindowStartY - Main.layoutManager.keyboardBox.height
+            ? this._focusWindowStartY - this.get_transformed_extents().size.height
             : this._focusWindowStartY;
 
         let unmanaged = false;
@@ -1974,7 +1984,7 @@ export const Keyboard = GObject.registerClass({
         let monitor = Main.layoutManager.keyboardMonitor;
 
         if (window && monitor) {
-            const keyboardHeight = Main.layoutManager.keyboardBox.height;
+            const keyboardHeight = this.get_transformed_extents().size.height;
             const keyboardY1 = (monitor.y + monitor.height) - keyboardHeight;
 
             if (this._focusWindow === window) {
