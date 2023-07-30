@@ -1,132 +1,25 @@
-# GNOME Shell
+# GNOME Shell Mobile
+GNOME Shell Mobile is a set of patches on top of GNOME Shell to allow it to run on mobile phones and small tablets.
 
-GNOME Shell provides core user interface functions for the GNOME desktop,
-like switching to windows and launching applications. GNOME Shell takes
-advantage of the capabilities of modern graphics hardware and introduces
-innovative user interface concepts to provide a visually attractive and
-easy to use experience.
+![](https://gitlab.gnome.org/verdre/gnome-shell-mobile/uploads/24687ebbb506b48af35eee3fa98668c3/mobileshell.png)
 
-All interactions with the project should follow the [Code of Conduct][conduct].
+## Running and distributing
+This project consists of three parts, gnome-shell-mobile (this repo), mutter-mobile (https://gitlab.gnome.org/verdre/mutter-mobile), and gnome-settings-daemon-mobile (https://gitlab.gnome.org/verdre/gnome-settings-daemon-mobile). All three need to be built in order to run GNOME Shell Mobile.
 
-[conduct]: https://conduct.gnome.org/
+The `mobile` branch is the main development branch. It's currently based on upstream `gnome-46` and can be used for nightly/unstable images.
 
-## Supported versions
-
-Upstream gnome-shell only supports the most recent stable release series,
-the previous stable release series, and the current development release
-series. Any older stable release series are no longer supported, although
-they may still receive backported security updates in long-term support
-distributions. Such support is up to the distributions, though.
-
-Please refer to the [schedule] to see when a new version will be released.
-
-[schedule]: https://release.gnome.org/calendar
+For distributors, there is the `gnome-46-mobile` branch which is based on the upstream `gnome-46` branch.
 
 ## Reporting bugs
-
-Bugs should be reported to the [issue tracking system][bug-tracker].
-
-The [GNOME handbook][bug-handbook] has useful information for creating
-effective issue reports.
-
-If you are using extensions, please confirm that an issue still happens
-without extensions. To properly disable extensions you can use the
-[extensions-app] and then restart your session. Disabling extensions
-without a restart is not sufficient to rule out extensions as the
-cause of a bug. If an issue can only be reproduced with a certain
-extension, please file an issue report against that extension first.
-
-Please note that the issue tracker is meant to be used for
-actionable issues only.
-
-For support questions, feedback on changes or general discussions,
-you can use:
-
- - the [#gnome-shell matrix room][matrix-room]
- - the `Desktop` category or `shell` tag on [GNOME Discourse][discourse]
-
-[bug-tracker]: https://gitlab.gnome.org/GNOME/gnome-shell/issues
-[bug-handbook]: https://handbook.gnome.org/issues/reporting.html
-[extensions-app]: https://apps.gnome.org/Extensions
-[matrix-room]: https://matrix.to/#/#gnome-shell:gnome.org
-[discourse]: https://discourse.gnome.org
-
-## Feature requests
-
-gnome-shell is a core component of the GNOME desktop experience.
-As such, any changes in behavior or appearance only happen in
-accordance with the [GNOME design team][design-team].
-
-For major changes, it is best to start a discussion on [discourse]
-and reach out on the [#gnome-design matrix room][design-room],
-and only involve the issue tracker once agreement has been reached.
-
-In particular mockups must be approved by the design team to be
-considered for implementation.
-
-For enhancements that are limited in scope and well-defined,
-it is acceptable to directly open a feature request.
-
-When in doubt, it is better to ask before opening an issue.
-
-[design-team]: https://gitlab.gnome.org/Teams/Design
-[discourse]: https://discourse.gnome.org
-[design-room]: https://matrix.to/#/#gnome-design:gnome.org
+Please report any issues with GNOME Shell Mobile on [this repo's issue tracker](https://gitlab.gnome.org/verdre/gnome-shell-mobile/-/issues), do not report them in the GNOME Shell issue tracker.
 
 ## Contributing
+To contribute, please consider first if it makes sense to do so [upstream](https://gitlab.gnome.org/GNOME/gnome-shell/-/merge_requests), that is the case if the change is not specific to phones and can be based just fine on the upstream `main` branch.
 
-To contribute, open merge requests at https://gitlab.gnome.org/GNOME/gnome-shell.
+Otherwise create a merge request for this repo targeting the `mobile` branch.
 
-It can be useful to first look at the [GNOME handbook][mr-handbook].
-
-If a change likely requires discussion beyond code review, it is probably better to
-open an issue first, or follow the process for [feature requests](#feature-requests).
-Otherwise, creating a separate issue is not required.
-
-The following guidelines will help your change to be successfully merged:
-
- * Keep the change as small as possible. If you can split it into multiple
-   merge requests, please do so.
- * Use multiple commits. This makes it easier to review and helps to diagnose
-   bugs in the future.
- * Use clear commit messages following the [conventions][commit-messages].
- * Pay attention to the CI results. Merge requests cannot be merged until the
-   CI passes.
-
-There's also a [small guide for newcomers][newcomers-contribution-guide] with
-a few more basic tips and tricks.
-
-[mr-handbook]: https://handbook.gnome.org/development/change-submission.html
-[commit-messages]: docs/commit-messages.md
-[newcomers-contribution-guide]: docs/newcomers-contribution-guide.md
-
-## Documentation
-
- * [Coding style and conventions for javascript][js-style]
- * [Coding style and conventions for C code][c-style]
- * [The GJS Developer Guide][gjs-guide]
- * [Building and Running][building]
- * [Debugging][debugging]
-
-[js-style]: docs/js-coding-style.md
-[c-style]: docs/c-coding-style.md
-[gjs-guide]: https://gjs.guide
-[building]: docs/building-and-running.md
-[debugging]: docs/debugging.md
-
-## API Reference
-
- * [Meta][meta-docs]: Display server and window manager
- * [St][st-docs]: Shell toolkit
- * [Clutter][clutter-docs]: OpenGL based scene graph
- * [Shell][shell-docs]: Non-ui shell objects and utilities
- * See the [mutter page][mutter-docs] for additional documentation
-
-[st-docs]: <https://gnome.pages.gitlab.gnome.org/gnome-shell/st/>
-[shell-docs]: <https://gnome.pages.gitlab.gnome.org/gnome-shell/shell/>
-[clutter-docs]: <https://mutter.gnome.org/clutter/>
-[meta-docs]: <https://mutter.gnome.org/meta/>
-[mutter-docs]: <https://mutter.gnome.org>
+## Upstreaming
+It is the intention that all changes eventually land upstream in GNOME Shell and Mutter themselves. Due to the stability and code quality requirements that is going to take a while though, which is why this repo exists for everyone wanting to use the patches or contribute in the mean time.
 
 ## License
 
