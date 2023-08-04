@@ -371,38 +371,14 @@ class UnlockDialogClock extends St.BoxLayout {
             style_class: 'unlock-dialog-clock-date',
             x_align: Clutter.ActorAlign.CENTER,
         });
-        this._hint = new St.Label({
-            style_class: 'unlock-dialog-clock-hint',
-            x_align: Clutter.ActorAlign.CENTER,
-            opacity: 0,
-        });
 
         this.add_child(this._time);
         this.add_child(this._date);
-        this.add_child(this._hint);
 
         this._wallClock = new GnomeDesktop.WallClock({time_only: true});
         this._wallClock.connect('notify::clock', this._updateClock.bind(this));
 
-        const backend = this.get_context().get_backend();
-        this._seat = backend.get_default_seat();
-        this._seat.connectObject('notify::touch-mode',
-            this._updateHint.bind(this), this);
-
-        this._monitorManager = global.backend.get_monitor_manager();
-        this._monitorManager.connectObject('power-save-mode-changed',
-            () => (this._hint.opacity = 0), this);
-
-        this._idleMonitor = global.backend.get_core_idle_monitor();
-        this._idleWatchId = this._idleMonitor.add_idle_watch(HINT_TIMEOUT * 1000, () => {
-            this._hint.ease({
-                opacity: 255,
-                duration: CROSSFADE_TIME,
-            });
-        });
-
         this._updateClock();
-        this._updateHint();
 
         this.connect('destroy', this._onDestroy.bind(this));
     }
@@ -417,16 +393,73 @@ class UnlockDialogClock extends St.BoxLayout {
         this._date.text = formatDateWithCFormatString(date, dateFormat);
     }
 
+    _onDestroy() {
+        this._wallClock.run_dispose();
+    }
+});
+
+var UnlockDialogSwipeHint = GObject.registerClass(
+class UnlockDialogSwipeHint extends St.Label {
+    _init() {
+        super._init({
+            style_class: 'unlock-dialog-clock-hint',
+            x_align: Clutter.ActorAlign.CENTER,
+            opacity: 255,//0,
+        });
+
+        const backend = this.get_context().get_backend();
+        this._seat = backend.get_default_seat();
+        this._seat.connectObject('notify::touch-mode',
+            this._updateHint.bind(this), this);
+
+//        this._monitorManager = global.backend.get_monitor_manager();
+  //      this._monitorManager.connectObject('power-save-mode-changed',
+    //        () => (this.opacity = 0), this);
+
+        this._idleMonitor = global.backend.get_core_idle_monitor();
+        this._idleWatchId = this._idleMonitor.add_idle_watch(HINT_TIMEOUT * 1000, () => {
+            this.ease({
+                opacity: 255,
+                duration: CROSSFADE_TIME,
+            });
+        });
+
+        this._updateHint();
+
+        this.connect('destroy', this._onDestroy.bind(this));
+    }
+
     _updateHint() {
-        this._hint.text = this._seat.touch_mode
+        this.text = this._seat.touch_mode
             ? _('Swipe up to unlock')
             : _('Click or press a key to unlock');
     }
 
     _onDestroy() {
-        this._wallClock.run_dispose();
-
         this._idleMonitor.remove_watch(this._idleWatchId);
+    }
+});
+
+const CameraItem = GObject.registerClass(
+class CameraItem extends St.Button {
+    _init() {
+        super._init({
+            style_class: 'icon-button',
+            can_focus: true,
+            icon_name: 'screenshooter-symbolic',
+            visible: !Main.sessionMode.isGreeter,
+            accessible_name: _('Take Screenshot'),
+        });
+
+        this.connect('clicked', () => {
+            const topMenu = Main.panel.statusArea.quickSettings.menu;
+            const laters = global.compositor.get_laters();
+            laters.add(Meta.LaterType.BEFORE_REDRAW, () => {
+                Main.screenshotUI.open().catch(logError);
+                return GLib.SOURCE_REMOVE;
+            });
+            topMenu.close(PopupAnimation.NONE);
+        });
     }
 });
 
@@ -593,23 +626,39 @@ export const UnlockDialog = GObject.registerClass({
   //      this._notificationsBox = new NotificationsBox();
 //        this._notificationsBox.connect('wake-up-screen', () => this.emit('wake-up-screen'));
 
-        this._notificationsBox = new Calendar.CalendarMessageList();
 
-        this._clockNotificationsBox = new St.Widget({
+
+        this._clockNotificationsBox = new St.BoxLayout({
             style_class: 'clock-notifications-box',
+            vertical: true,
         });
+        this._clockNotificationsBox.set_pivot_point(0.5, 0.5);
+
         this._clock = new Clock();
         this._clock.x_expand = true;
-        this._clockNotificationsBox.set_pivot_point(0.5, 0.5);
+
+        this._notificationsBox = new Calendar.CalendarMessageList();
+
+        this._swipeUpHint = new UnlockDialogSwipeHint();
+
+        this._buttonRow = new St.BoxLayout();
+        const cameraButton = new CameraItem();
+        this._buttonRow.add_child(cameraButton);
+
         this._clockNotificationsBox.add_child(this._clock);
         this._clockNotificationsBox.add_child(this._notificationsBox);
+        this._clockNotificationsBox.add_child(this._swipeUpHint);
+        this._clockNotificationsBox.add_child(this._buttonRow);
         this._stack.add_child(this._clockNotificationsBox);
+
         this._showClock();
 
-        this._clockNotificationsBox.layout_manager = new UnlockDialogLayout(
+    /*    this._clockNotificationsBox.layout_manager = new UnlockDialogLayout(
             this._clock,
-            this._notificationsBox);
-
+            this._notificationsBox,
+            this._swipeUpHint,
+            this._buttonRow);
+*/
         this.allowCancel = false;
 
         Main.ctrlAltTabManager.addGroup(this, _('Unlock Window'), 'dialog-password-symbolic');

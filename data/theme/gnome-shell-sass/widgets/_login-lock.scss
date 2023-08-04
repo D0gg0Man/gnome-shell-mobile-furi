@@ -232,6 +232,11 @@ $_gdm_dialog_width: 21em;
   .icon-button {
     @extend %lockscreen_button;
   }
+
+  .clock-notifications-box {
+    margin-left: 12px;
+    margin-right: 12px;
+  }
 }
 
 .screen-shield-background { // just the shadow, really
@@ -245,17 +250,18 @@ $_gdm_dialog_width: 21em;
 
 // Clock
 .unlock-dialog-clock {
+  margin-top: 56px;
   color: $_gdm_fg;
   spacing: 2em;
 
   .unlock-dialog-clock-time {
     @extend %numeric;
-    @include fontsize(72pt);
+    @include fontsize(56pt);
     font-weight: 800;
   }
 
   .unlock-dialog-clock-date {
-    @extend %title_1;
+    @extend %title_2;
     font-weight: 400;
   }
 
