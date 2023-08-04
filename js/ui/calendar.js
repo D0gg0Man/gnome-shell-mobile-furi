@@ -788,13 +788,6 @@ class CalendarMessageList extends St.Widget {
             y_expand: true,
         });
 
-        let box = new St.BoxLayout({
-            orientation: Clutter.Orientation.VERTICAL,
-            x_expand: true,
-            y_expand: true,
-        });
-        this.add_child(box);
-
         this._messageView = new MessageList.MessageView();
 
         this._scrollView = new St.ScrollView({
@@ -808,7 +801,7 @@ class CalendarMessageList extends St.Widget {
         panGesture.connect('pan-update', this._onPanUpdate.bind(this));
         this._scrollView.add_action(panGesture);
 
-        box.add_child(this._scrollView);
+        this.add_child(this._scrollView);
 
         this._messageView.connectObject(
             'message-focused', (_s, messageActor) => {

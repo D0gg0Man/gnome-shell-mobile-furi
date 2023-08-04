@@ -10,6 +10,7 @@ import Shell from 'gi://Shell';
 import St from 'gi://St';
 
 import * as Background from './background.js';
+import * as Calendar from './calendar.js';
 import * as Layout from './layout.js';
 import * as Main from './main.js';
 import * as MessageTray from './messageTray.js';
@@ -447,47 +448,44 @@ class UnlockDialogLayout extends Clutter.LayoutManager {
     }
 
     vfunc_allocate(container, box) {
-        let [width, height] = box.get_size();
+        let [availWidth, availHeight] = box.get_size();
 
-        let tenthOfHeight = height / 10.0;
-        let thirdOfHeight = height / 3.0;
+        let tenthOfHeight = availHeight / 10.0;
+        let thirdOfHeight = availHeight / 3.0;
 
         let [, , clockWidth, clockHeight] =
             this._clock.get_preferred_size();
 
-        if (this._clock.needs_expand(Clutter.Orientation.HORIZONTAL))
-            clockWidth = width;
-        if (this._clock.needs_expand(Clutter.Orientation.VERTICAL))
-            clockHeight = height;
+      //  if (this._clock.needs_expand(Clutter.Orientation.HORIZONTAL))
+        //    clockWidth = availWidth;
+    //    if (this._clock.needs_expand(Clutter.Orientation.VERTICAL))
+      //      clockHeight = availHeight;
 
         let [, , notificationsWidth, notificationsHeight] =
             this._notifications.get_preferred_size();
 
-        let columnWidth = Math.max(clockWidth, notificationsWidth);
-
-        let columnX1 = Math.floor((width - columnWidth) / 2.0);
+        let columnX1 = 0;
         let actorBox = new Clutter.ActorBox();
 
         // Notifications
         let maxNotificationsHeight = Math.min(
             notificationsHeight,
-            height - tenthOfHeight - clockHeight);
+            availHeight - clockHeight);
 
         actorBox.x1 = columnX1;
-        actorBox.y1 = height - maxNotificationsHeight;
-        actorBox.x2 = columnX1 + columnWidth;
+        actorBox.y1 = availHeight - maxNotificationsHeight;
+        actorBox.x2 = columnX1 + availWidth;
         actorBox.y2 = actorBox.y1 + maxNotificationsHeight;
-
         this._notifications.allocate(actorBox);
 
         // Authentication Box
         let clockY = Math.min(
-            thirdOfHeight,
-            height - clockHeight - maxNotificationsHeight);
+            tenthOfHeight,
+            availHeight - clockHeight - maxNotificationsHeight);
 
         actorBox.x1 = columnX1;
         actorBox.y1 = clockY;
-        actorBox.x2 = columnX1 + columnWidth;
+        actorBox.x2 = columnX1 + availWidth;
         actorBox.y2 = clockY + clockHeight;
 
         this._clock.allocate(actorBox);
@@ -592,10 +590,14 @@ export const UnlockDialog = GObject.registerClass({
         this._stack.add_child(this._promptBox);
 
         // Notifications
-        this._notificationsBox = new NotificationsBox();
-        this._notificationsBox.connect('wake-up-screen', () => this.emit('wake-up-screen'));
+  //      this._notificationsBox = new NotificationsBox();
+//        this._notificationsBox.connect('wake-up-screen', () => this.emit('wake-up-screen'));
 
-        this._clockNotificationsBox = new St.Widget();
+        this._notificationsBox = new Calendar.CalendarMessageList();
+
+        this._clockNotificationsBox = new St.Widget({
+            style_class: 'clock-notifications-box',
+        });
         this._clock = new Clock();
         this._clock.x_expand = true;
         this._clockNotificationsBox.set_pivot_point(0.5, 0.5);
