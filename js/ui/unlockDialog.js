@@ -440,29 +440,6 @@ class UnlockDialogSwipeHint extends St.Label {
     }
 });
 
-const CameraItem = GObject.registerClass(
-class CameraItem extends St.Button {
-    _init() {
-        super._init({
-            style_class: 'icon-button',
-            can_focus: true,
-            icon_name: 'screenshooter-symbolic',
-            visible: !Main.sessionMode.isGreeter,
-            accessible_name: _('Take Screenshot'),
-        });
-
-        this.connect('clicked', () => {
-            const topMenu = Main.panel.statusArea.quickSettings.menu;
-            const laters = global.compositor.get_laters();
-            laters.add(Meta.LaterType.BEFORE_REDRAW, () => {
-                Main.screenshotUI.open().catch(logError);
-                return GLib.SOURCE_REMOVE;
-            });
-            topMenu.close(PopupAnimation.NONE);
-        });
-    }
-});
-
 const UnlockDialogLayout = GObject.registerClass(
 class UnlockDialogLayout extends Clutter.LayoutManager {
     _init(clock, notifications) {
@@ -550,17 +527,6 @@ export const UnlockDialog = GObject.registerClass({
         } catch {
         }
 
-        this._adjustment = new St.Adjustment({
-            actor: this,
-            lower: 0,
-            upper: 2,
-            page_size: 1,
-            page_increment: 1,
-        });
-        this._adjustment.connect('notify::value', () => {
-            this._setTransitionProgress(this._adjustment.value);
-        });
-
         this._swipeTracker = new SwipeTracker.SwipeTracker(this,
             Clutter.Orientation.VERTICAL,
             Shell.ActionMode.UNLOCK_SCREEN,
@@ -615,13 +581,6 @@ export const UnlockDialog = GObject.registerClass({
         this._stack.x_expand = true;
         this._stack.y_expand = true;
 
-        this._promptBox = new St.BoxLayout({
-            orientation: Clutter.Orientation.VERTICAL,
-        });
-        this._promptBox.set_pivot_point(0.5, 0.5);
-        this._promptBox.hide();
-        this._stack.add_child(this._promptBox);
-
         // Notifications
   //      this._notificationsBox = new NotificationsBox();
 //        this._notificationsBox.connect('wake-up-screen', () => this.emit('wake-up-screen'));
@@ -641,8 +600,28 @@ export const UnlockDialog = GObject.registerClass({
 
         this._swipeUpHint = new UnlockDialogSwipeHint();
 
-        this._buttonRow = new St.BoxLayout();
-        const cameraButton = new CameraItem();
+        this._buttonRow = new St.BoxLayout({
+            x_align: Clutter.ActorAlign.CENTER,
+            style_class: 'unlock-dialog-button-row',
+        });
+        const cameraButton = new St.Button({
+            style_class: 'icon-button',
+            can_focus: true,
+            icon_name: 'screenshooter-symbolic',
+            visible: !Main.sessionMode.isGreeter,
+            accessible_name: _('Take Screenshot'),
+        });
+        let cameraApp = Shell.AppSystem.get_default().lookup_app('org.gnome.Snapshot.desktop');
+        if (!cameraApp)
+            cameraApp = Shell.AppSystem.get_default().lookup_app('org.gnome.Snapshot.Devel.desktop');
+        if (!cameraApp)
+            cameraButton.add_style_class_name('unavailable');
+        cameraButton.connect('clicked', () => {
+            if (cameraApp) {
+                cameraApp.activate_full(-1, 0);
+                this.emit('show-emergency-calls');
+            }
+        });
         this._buttonRow.add_child(cameraButton);
 
         this._clockNotificationsBox.add_child(this._clock);
@@ -650,6 +629,21 @@ export const UnlockDialog = GObject.registerClass({
         this._clockNotificationsBox.add_child(this._swipeUpHint);
         this._clockNotificationsBox.add_child(this._buttonRow);
         this._stack.add_child(this._clockNotificationsBox);
+
+        this._promptBox = new St.BoxLayout({
+            style_class: 'prompt-box',
+            orientation: Clutter.Orientation.VERTICAL,
+            y_align: Clutter.ActorAlign.END,
+        });
+        this._promptBox.set_pivot_point(0.5, 0.5);
+        this._stack.add_child(this._promptBox);
+
+        this._promptBox.connect('notify::size', () => {
+            this._promptBoxHeight = this._promptBox.allocation.get_height();
+            this._promptBox.translation_y = this._promptBoxHeight;
+        });
+
+        this._ensureAuthPrompt();
 
         this._showClock();
 
@@ -783,7 +777,7 @@ export const UnlockDialog = GObject.registerClass({
     _ensureAuthPrompt() {
         if (!this._authPrompt) {
             const pinEntryIndicator = new AuthPrompt.PinEntryIndicator(6);
-            pinEntryIndicator.y_expand = true;
+      //      pinEntryIndicator.y_expand = true;
             pinEntryIndicator.y_align = Clutter.ActorAlign.END;
             pinEntryIndicator.x_align = Clutter.ActorAlign.CENTER;
             this._pinEntryIndicator = pinEntryIndicator;
@@ -836,7 +830,7 @@ export const UnlockDialog = GObject.registerClass({
             });
 
             this._promptBox.add_child(pinEntryIndicator);
-            this._promptBox.add_child(this._authPrompt);
+          //  this._promptBox.add_child(this._authPrompt);
             this._promptBox.add_child(this._pinUnlockKeyboard);
 
             this._emergencyButton = new St.Button({
@@ -917,12 +911,6 @@ export const UnlockDialog = GObject.registerClass({
         this._activePage = this._clockNotificationsBox;
 
         this._clickGesture.enabled = true;
-
-        this._adjustment.ease(0, {
-            duration: CROSSFADE_TIME,
-            mode: Clutter.AnimationMode.EASE_OUT_QUAD,
-            onComplete: () => this._maybeDestroyAuthPrompt(),
-        });
     }
 
     _showPrompt() {
@@ -934,43 +922,6 @@ export const UnlockDialog = GObject.registerClass({
         this._activePage = this._promptBox;
 
         this._clickGesture.enabled = false;
-
-        this._adjustment.ease(1, {
-            duration: CROSSFADE_TIME,
-            mode: Clutter.AnimationMode.EASE_OUT_QUAD,
-        });
-    }
-
-    _setTransitionProgress(progress) {
-        this._promptBox.visible = progress > 0;
-        this._clockNotificationsBox.visible = progress < 1;
-
-        this._otherUserButton.set({
-            reactive: progress > 0,
-            can_focus: progress > 0,
-        });
-
-        const {scaleFactor} = St.ThemeContext.get_for_stage(global.stage);
-
-        this._promptBox.set({
-            opacity: 255 * progress,
-            scale_x: FADE_OUT_SCALE + (1 - FADE_OUT_SCALE) * progress,
-            scale_y: FADE_OUT_SCALE + (1 - FADE_OUT_SCALE) * progress,
-            translation_y: FADE_OUT_TRANSLATION * (1 - progress) * scaleFactor,
-        });
-
-        this._clockNotificationsBox.set({
-            opacity: 255 * (1 - progress),
-            scale_x: FADE_OUT_SCALE + (1 - FADE_OUT_SCALE) * (1 - progress),
-            scale_y: FADE_OUT_SCALE + (1 - FADE_OUT_SCALE) * (1 - progress),
-            translation_y: -FADE_OUT_TRANSLATION * progress * scaleFactor,
-        });
-
-        this._otherUserButton.set({
-            opacity: 255 * progress,
-            scale_x: FADE_OUT_SCALE + (1 - FADE_OUT_SCALE) * progress,
-            scale_y: FADE_OUT_SCALE + (1 - FADE_OUT_SCALE) * progress,
-        });
     }
 
     _fail() {
@@ -998,19 +949,19 @@ export const UnlockDialog = GObject.registerClass({
         if (monitor !== Main.layoutManager.primaryIndex)
             return;
 
-        this._adjustment.remove_transition('value');
+        this._promptBox.remove_transition('translation-y');
 
         this._ensureAuthPrompt();
 
-        let progress = this._adjustment.value;
-        tracker.confirmSwipe(this._stack.height,
-            [0, 1],
+        const progress = 1 - (this._promptBox.translation_y / this._promptBoxHeight);
+        tracker.confirmSwipe(this._promptBoxHeight,
+            [0, 1], 
             progress,
-            Math.round(progress));
+            progress);
     }
 
     _swipeUpdate(tracker, progress) {
-        this._adjustment.value = progress;
+        this._promptBox.translation_y = (1 - progress) * this._promptBoxHeight;
     }
 
     _swipeEnd(tracker, duration, endProgress, endCb) {
@@ -1020,12 +971,13 @@ export const UnlockDialog = GObject.registerClass({
 
         this._clickGesture.enabled = this._activePage === this._clockNotificationsBox;
 
-        this._adjustment.ease(endProgress, {
+        this._promptBox.ease({
+            translation_y: (1 - endProgress) * this._promptBoxHeight,
             mode: Clutter.AnimationMode.EASE_OUT_CUBIC,
             duration,
             onStopped: () => {
-                if (this._activePage === this._clockNotificationsBox)
-                    this._maybeDestroyAuthPrompt();
+       //         if (this._activePage === this._clockNotificationsBox)
+         //           this._maybeDestroyAuthPrompt();
 
                 endCb();
             },
