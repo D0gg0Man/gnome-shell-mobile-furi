@@ -639,6 +639,8 @@ export const UnlockDialog = GObject.registerClass({
         this._stack.add_child(this._promptBox);
 
         this._promptBox.connect('notify::size', () => {
+            if (this._promptBoxHeight)
+                return;
             this._promptBoxHeight = this._promptBox.allocation.get_height();
             this._promptBox.translation_y = this._promptBoxHeight;
         });
@@ -821,16 +823,16 @@ export const UnlockDialog = GObject.registerClass({
                 if (pinEntryIndicator.visible) {
                     this._authPrompt.mayShowEntry = true;
                     pinEntryIndicator.hide();
-                    this._authPrompt.y_expand = true;
+                  //  this._authPrompt.show();
                 } else {
                     this._authPrompt.mayShowEntry = false;
                     pinEntryIndicator.show();
-                    this._authPrompt.y_expand = false;
+                   // this._authPrompt.hide();
                 }
             });
 
             this._promptBox.add_child(pinEntryIndicator);
-          //  this._promptBox.add_child(this._authPrompt);
+            this._promptBox.add_child(this._authPrompt);
             this._promptBox.add_child(this._pinUnlockKeyboard);
 
             this._emergencyButton = new St.Button({
