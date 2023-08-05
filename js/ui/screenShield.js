@@ -137,7 +137,6 @@ export class ScreenShield extends Signals.EventEmitter {
         this._shortLightbox.connect('notify::active', this._onShortLightbox.bind(this));
 
         this.idleMonitor = global.backend.get_core_idle_monitor();
-        this._cursorTracker = global.backend.get_cursor_tracker();
 
         this._syncInhibitor();
     }
@@ -353,40 +352,6 @@ export class ScreenShield extends Signals.EventEmitter {
         this._ensureUnlockDialog(true);
     }
 
-    _showPointer() {
-        if (this._cursorVisibleInhibited) {
-            const seat = global.stage.context.get_backend().get_default_seat();
-            this._cursorTracker.uninhibit_cursor_visibility();
-            seat.uninhibit_unfocus();
-            this._cursorVisibleInhibited = false;
-        }
-
-        if (this._motionId) {
-            this._lockDialogGroup.disconnect(this._motionId);
-            this._motionId = 0;
-        }
-    }
-
-    _hidePointer() {
-        if (!this._cursorVisibleInhibited) {
-            const seat = global.stage.context.get_backend().get_default_seat();
-            seat.inhibit_unfocus();
-            this._cursorTracker.inhibit_cursor_visibility();
-            this._cursorVisibleInhibited = true;
-        }
-    }
-
-    _hidePointerUntilMotion() {
-        const eventActor = this._lockDialogGroup;
-        this._motionId = eventActor.connect('captured-event', (_, event) => {
-            if (event.type() === Clutter.EventType.MOTION)
-                this._showPointer();
-
-            return Clutter.EVENT_PROPAGATE;
-        });
-        this._hidePointer();
-    }
-
     _ensureUnlockDialog(allowCancel) {
         if (!this._dialog) {
             let constructor = Main.sessionMode.unlockDialog;
@@ -462,8 +427,6 @@ export class ScreenShield extends Signals.EventEmitter {
     }
 
     _lockScreenShown(params) {
-        this._hidePointerUntilMotion();
-
         this._lockScreenState = MessageTray.State.SHOWN;
 
         if (params.fadeToBlack && params.animateFade) {
@@ -515,8 +478,6 @@ export class ScreenShield extends Signals.EventEmitter {
             throw new Error("ScreenShield is already in state HIDDEN");
 
         this._lockScreenState = MessageTray.State.HIDING;
-
-        this._showPointer();
 
         if (Main.sessionMode.currentMode === 'unlock-dialog')
             Main.sessionMode.popMode('unlock-dialog');
