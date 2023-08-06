@@ -276,7 +276,7 @@ export const UnlockDialog = GObject.registerClass({
         this._notificationsSettings = new Gio.Settings({
             schema_id: 'org.gnome.desktop.notifications',
         });
-        Main.messageTray.connect('source-added', (tray, source) => {
+        Main.messageTray.connectObject('source-added', (tray, source) => {
             const policyChangedId = source.policy.connect('notify', () =>
                 this._maybeWakeUpScreenForSource(source));
 
@@ -285,7 +285,7 @@ export const UnlockDialog = GObject.registerClass({
                     this._maybeWakeUpScreenForSource(source),
                 'destroy', () => source.policy.disconnect(policyChangedId),
                 this);
-        });
+        }, this);
 
         this._swipeUpHint = new UnlockDialogSwipeHint();
 
