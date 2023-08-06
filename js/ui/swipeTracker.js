@@ -93,6 +93,7 @@ export const SwipeTracker = GObject.registerClass({
         params = Params.parse(params, {
             allowDrag: true,
             allowScroll: true,
+            pickupOnPress: true,
             phase: Clutter.EventPhase.BUBBLE,
             name: 'SwipeTracker',
         });
@@ -133,6 +134,7 @@ export const SwipeTracker = GObject.registerClass({
         actor.add_action_full(params.name, params.phase, this._panGesture);
 
         this._scrollEnabled = params.allowScroll;
+        this._pickupOnPress = params.pickupOnPress;
     }
 
     /**
@@ -337,8 +339,10 @@ export const SwipeTracker = GObject.registerClass({
                 if (otherTracker._panGesture.get_pickup_on_press())
                     throw new Error("otherTracker in 2d gesture already has pickup_on_press");
 
-                this._panGesture.set_pickup_on_press(true);
-                otherTracker._panGesture.set_pickup_on_press(true);
+                if (this._pickupOnPress) {
+                    this._panGesture.set_pickup_on_press(true);
+                    otherTracker._panGesture.set_pickup_on_press(true);
+                }
 
                 otherTracker.emit('end', finalDuration, otherEndProgress, this._endAnimationDoneCb.bind(otherTracker));
                 this.emit('end', finalDuration, ourEndProgress, this._endAnimationDoneCb.bind(this));
@@ -355,7 +359,8 @@ export const SwipeTracker = GObject.registerClass({
         if (this._panGesture.get_pickup_on_press())
             throw new Error("SwipeTracker already has pickup_on_press");
 
-        this._panGesture.set_pickup_on_press(true);
+        if (this._pickupOnPress)
+            this._panGesture.set_pickup_on_press(true);
 
         this.emit('end', duration, endProgress, this._endAnimationDoneCb.bind(this));
     }
