@@ -80,6 +80,11 @@
   }
 }
 
+.unlock-dialog .message {
+  background-color: transparentize(#a3a3a3, 0.7);
+  &:hover { background-color: transparentize(#a3a3a3, 0.5); }
+}
+
 // message bubbles
 .message {
   @extend %card;
