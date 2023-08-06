@@ -638,10 +638,14 @@ log("UNLOCKDIALOG: waking up screen on notification");
     }
 
     _fail() {
+        this._pinEntryIndicator.setIsLoading(false);
+
         this._showClock();
     }
 
     _onReset(authPrompt, beginRequest) {
+        this._pinEntryIndicator.setIsLoading(false);
+
         let userName;
         if (beginRequest === AuthPrompt.BeginRequestType.PROVIDE_USERNAME) {
             this._authPrompt.setUser(this._user);
