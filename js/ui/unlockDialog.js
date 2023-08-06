@@ -523,16 +523,18 @@ log("UNLOCKDIALOG: waking up screen on notification");
                 if (pinEntryIndicator.visible) {
                     this._authPrompt.mayShowEntry = true;
                     pinEntryIndicator.hide();
+            this._promptBox.insert_child_at_index(this._authPrompt, 0);
                   //  this._authPrompt.show();
                 } else {
                     this._authPrompt.mayShowEntry = false;
                     pinEntryIndicator.show();
+            this._promptBox.remove_child(this._authPrompt);
                    // this._authPrompt.hide();
                 }
             });
 
             this._promptBox.add_child(pinEntryIndicator);
-            this._promptBox.add_child(this._authPrompt);
+
             this._promptBox.add_child(this._pinUnlockKeyboard);
 
             this._emergencyButton = new St.Button({
