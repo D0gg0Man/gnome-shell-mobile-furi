@@ -148,6 +148,9 @@ export const PinEntryIndicator = GObject.registerClass({
     }
 
     setActiveDigits(nDigits) {
+        if (nDigits < this._totalNDigits)
+            this.setIsLoading(false);
+
         for (let i = 0; i < this._totalNDigits; i++) {
             const digit = this.get_child_at_index(i);
 
@@ -156,6 +159,46 @@ export const PinEntryIndicator = GObject.registerClass({
             else
                 digit.remove_style_class_name('filled');
         }
+    }
+
+    setIsLoading(loading) {
+        if (!loading) {
+            if (this._loadingAnimation) {
+                GLib.source_remove(this._loadingAnimation);
+                delete this._loadingAnimation;
+            }
+
+            return;
+        }
+
+        const playAnimation = () => {
+            let delay = 0;
+            for (let i = 0; i < this._totalNDigits; i++) {
+                const digit = this.get_child_at_index(i);
+
+                digit.ease({
+                    delay,
+                    duration: 150,
+                    translation_y: -6,
+                    onStopped: () => {
+                        digit.ease({
+                            duration: 200,
+                            translation_y: 0,
+                            onStopped: () => {
+                                digit.translation_y = 0;
+                            },
+                        });
+                    },
+                });
+
+                delay += 50;
+            }
+        }
+
+        this._loadingAnimation = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 1000, () => {
+            playAnimation();
+            return GLib.SOURCE_CONTINUE;
+        });
     }
 });
 

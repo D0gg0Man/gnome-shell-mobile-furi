@@ -16,7 +16,7 @@ import * as Main from './main.js';
 import * as MessageTray from './messageTray.js';
 import * as SwipeTracker from './swipeTracker.js';
 import {formatDateWithCFormatString} from '../misc/dateUtils.js';
-import * as Util from '../misc/util.js';
+import {wiggle} from '../misc/animationUtils.js';
 import * as AuthPrompt from '../gdm/authPrompt.js';
 import {AuthPromptStatus} from '../gdm/authPrompt.js';
 import {MprisSource} from './mpris.js';
@@ -494,24 +494,35 @@ log("UNLOCKDIALOG: waking up screen on notification");
             this._authPrompt.connect('cancelled', this._fail.bind(this));
             this._authPrompt.connect('reset', this._onReset.bind(this));
             this._authPrompt.connect('failed', () => {
-                Util.wiggle(pinEntryIndicator);
+                wiggle(pinEntryIndicator);
                 pinEntryIndicator.setActiveDigits(0);
             });
 
             this._pinUnlockKeyboard.connect('char', (k, char) => {
+                if (this._authPrompt._spinner._isPlaying)
+                    return;
+
                 this._authPrompt.addCharacter(char);
 
                 pinEntryIndicator.setActiveDigits(this._authPrompt._entry.clutter_text.buffer.get_length());
 
-                if (this._authPrompt._entry.clutter_text.buffer.get_length() === 6)
+                if (this._authPrompt._entry.clutter_text.buffer.get_length() === 6) {
+                    pinEntryIndicator.setIsLoading(true);
                     this._authPrompt._entry.clutter_text.activate();
+                }
             });
             this._pinUnlockKeyboard.connect('delete-last', () => {
+                 if (this._authPrompt._spinner._isPlaying)
+                    return;
+
                 this._authPrompt.deleteLastCharacter();
 
                 pinEntryIndicator.setActiveDigits(this._authPrompt._entry.clutter_text.buffer.get_length());
             });
             this._pinUnlockKeyboard.connect('delete-all', () => {
+                if (this._authPrompt._spinner._isPlaying)
+                    return;
+
                 this._authPrompt.clear();
                 pinEntryIndicator.setActiveDigits(0);
             });
@@ -523,18 +534,16 @@ log("UNLOCKDIALOG: waking up screen on notification");
                 if (pinEntryIndicator.visible) {
                     this._authPrompt.mayShowEntry = true;
                     pinEntryIndicator.hide();
-            this._promptBox.insert_child_at_index(this._authPrompt, 0);
                   //  this._authPrompt.show();
                 } else {
                     this._authPrompt.mayShowEntry = false;
                     pinEntryIndicator.show();
-            this._promptBox.remove_child(this._authPrompt);
                    // this._authPrompt.hide();
                 }
             });
 
             this._promptBox.add_child(pinEntryIndicator);
-
+            this._promptBox.add_child(this._authPrompt);
             this._promptBox.add_child(this._pinUnlockKeyboard);
 
             this._emergencyButton = new St.Button({
