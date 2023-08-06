@@ -225,6 +225,7 @@ export class Overview extends Signals.EventEmitter {
             {
                 allowDrag: false,
                 allowScroll: false,
+                pickupOnPress: false,
                 name: 'Three finger overview gesture',
             });
         threeFingerOverviewGesture.connect('begin', this._overviewGestureBegin.bind(this));
@@ -237,6 +238,7 @@ export class Overview extends Signals.EventEmitter {
             Shell.ActionMode.NORMAL | Shell.ActionMode.OVERVIEW,
             {
                 allowDrag: false,
+                pickupOnPress: false,
                 name: 'Three finger workspaces gesture',
             });
         threeFingerWorkspacesGesture.connect('begin', this._workspacesGestureBegin.bind(this));
@@ -255,6 +257,7 @@ export class Overview extends Signals.EventEmitter {
             Shell.ActionMode.NORMAL | Shell.ActionMode.OVERVIEW,
             {
                 allowScroll: false,
+                pickupOnPress: false,
                 name: 'Single finger overview gesture',
             });
         singleFingerOverviewGesture.connect('swipe-begin', this._overviewGestureBegin.bind(this));
@@ -288,6 +291,7 @@ log("OVERVIEW: got notify zero open: " + Main.wm.workspaceTracker.zeroOpenWindow
             Shell.ActionMode.NORMAL | Shell.ActionMode.OVERVIEW,
             {
                 name: 'Single finger workspaces gesture',
+                pickupOnPress: false,
             });
         singleFingerWorkspacesGesture.connect('swipe-begin', this._workspacesGestureBegin.bind(this));
         singleFingerWorkspacesGesture.connect('swipe-update', this._workspacesGestureUpdate.bind(this));
