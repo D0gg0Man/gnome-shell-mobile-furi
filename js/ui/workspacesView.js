@@ -877,7 +877,7 @@ class WorkspacesDisplay extends St.Widget {
         this._activeTracker = null;
 
         this._scrollAdjustment.ease(endProgress, {
-            mode: Clutter.AnimationMode.EASE_OUT_CUBIC,
+            mode: Clutter.AnimationMode.EASE_OUT_EXPO,
             duration,
             onStopped: (finished) => {
                 /* Activating the workspace needs to happen before calling

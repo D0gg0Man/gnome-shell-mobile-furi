@@ -958,7 +958,7 @@ class ControlsManager extends St.Widget {
         this._stateAdjustment.remove_transition('value');
         this._stateAdjustment.ease(target, {
             duration,
-            mode: Clutter.AnimationMode.EASE_OUT_CUBIC,
+            mode: Clutter.AnimationMode.EASE_OUT_EXPO,
             onStopped,
         });
 
