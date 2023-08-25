@@ -273,7 +273,7 @@ export class AppMenu extends PopupMenu.PopupMenu {
             return;
 
         const minWindows = this._showSingleWindows ? 1 : 2;
-        const windows = this._app.get_windows().filter(w => !w.skip_taskbar);
+        const windows = this._app.get_windows().filter(w => w.is_mapped && !w.skip_taskbar);
         if (windows.length < minWindows)
             return;
 
