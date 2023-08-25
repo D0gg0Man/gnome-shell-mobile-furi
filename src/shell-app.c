@@ -958,6 +958,27 @@ shell_app_sync_running_state (ShellApp *app)
     }
 }
 
+static void
+shell_app_on_is_mapped_changed (MetaWindow *window,
+                                GParamSpec *pspec,
+                                ShellApp   *app)
+{
+  g_assert (app->running_state != NULL);
+
+  /* we rely on MetaWindow:is-mapped only being notified
+   * when it actually changes; when that assumption breaks,
+   * we'll have to track the "interesting" windows themselves
+   */
+  if (!meta_window_is_skip_taskbar (window))
+    {
+      if (meta_window_is_mapped (window))
+        app->running_state->interesting_windows++;
+      else
+        app->running_state->interesting_windows--;
+    }
+
+  shell_app_sync_running_state (app);
+}
 
 static void
 shell_app_on_skip_taskbar_changed (MetaWindow *window,
@@ -970,10 +991,13 @@ shell_app_on_skip_taskbar_changed (MetaWindow *window,
    * when it actually changes; when that assumption breaks,
    * we'll have to track the "interesting" windows themselves
    */
-  if (meta_window_is_skip_taskbar (window))
-    app->running_state->interesting_windows--;
-  else
-    app->running_state->interesting_windows++;
+  if (meta_window_is_mapped (window))
+    {
+      if (meta_window_is_skip_taskbar (window))
+        app->running_state->interesting_windows--;
+      else
+        app->running_state->interesting_windows++;
+    }
 
   shell_app_sync_running_state (app);
 }
@@ -1093,13 +1117,14 @@ _shell_app_add_window (ShellApp        *app,
 
   app->running_state->window_sort_stale = TRUE;
   app->running_state->windows = g_slist_prepend (app->running_state->windows, g_object_ref (window));
+  g_signal_connect_object (window, "notify::is-mapped", G_CALLBACK(shell_app_on_is_mapped_changed), app, 0);
   g_signal_connect_object (window, "notify::user-time", G_CALLBACK(shell_app_on_user_time_changed), app, 0);
   g_signal_connect_object (window, "notify::skip-taskbar", G_CALLBACK(shell_app_on_skip_taskbar_changed), app, 0);
 
   shell_app_update_app_actions (app, window);
   shell_app_ensure_busy_watch (app);
 
-  if (!meta_window_is_skip_taskbar (window))
+  if (meta_window_is_mapped (window) && !meta_window_is_skip_taskbar (window))
     app->running_state->interesting_windows++;
   shell_app_sync_running_state (app);
 
@@ -1123,13 +1148,14 @@ _shell_app_remove_window (ShellApp   *app,
 
   app->running_state->windows = g_slist_remove (app->running_state->windows, window);
 
-  if (!meta_window_is_skip_taskbar (window))
+  if (meta_window_is_mapped (window) && !meta_window_is_skip_taskbar (window))
     app->running_state->interesting_windows--;
   shell_app_sync_running_state (app);
 
   if (app->running_state->windows == NULL)
     g_clear_pointer (&app->running_state, unref_running_state);
 
+  g_signal_handlers_disconnect_by_func (window, G_CALLBACK(shell_app_on_is_mapped_changed), app);
   g_signal_handlers_disconnect_by_func (window, G_CALLBACK(shell_app_on_user_time_changed), app);
   g_signal_handlers_disconnect_by_func (window, G_CALLBACK(shell_app_on_skip_taskbar_changed), app);
 
