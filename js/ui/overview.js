@@ -397,6 +397,8 @@ export class Overview extends Signals.EventEmitter {
 
         this._coverPane.set_position(0, 0);
         this._coverPane.set_size(global.screen_width, global.screen_height);
+        Main.layoutManager.overviewGroup.set_child_above_sibling(
+            this._coverPane, null);
     }
 
     _onRestacked() {
@@ -449,6 +451,8 @@ export class Overview extends Signals.EventEmitter {
             this._visibleTarget = false;
             this._changeShownState(OverviewShownState.HIDING);
             Main.panel.style = `transition-duration: ${duration}ms;`;
+            this._coverPane.show();
+
             onComplete = () => this._hideDone();
         } else {
             onComplete = () => this._showDone();
@@ -488,6 +492,7 @@ export class Overview extends Signals.EventEmitter {
             this._shown = false;
             this._changeShownState(OverviewShownState.HIDING);
             Main.panel.style = `transition-duration: ${duration}ms;`;
+            this._coverPane.show();
 
             onComplete = () => {
                 this._hideDone();
@@ -540,6 +545,8 @@ export class Overview extends Signals.EventEmitter {
 
             if (!this._syncGrab())
                 return;
+
+            this._coverPane.show();
 
             stoppedCb = (finished) => {
                 if (onTopWindow) {
@@ -680,8 +687,6 @@ export class Overview extends Signals.EventEmitter {
         this._visibleTarget = true;
         this._activationTime = GLib.get_monotonic_time() / GLib.USEC_PER_SEC;
 
-        Main.layoutManager.overviewGroup.set_child_above_sibling(
-            this._coverPane, null);
         this._coverPane.show();
 
         this._overview.prepareToEnterOverview();
@@ -740,8 +745,6 @@ export class Overview extends Signals.EventEmitter {
         this._animationInProgress = true;
         this._visibleTarget = false;
 
-        Main.layoutManager.overviewGroup.set_child_above_sibling(
-            this._coverPane, null);
         this._coverPane.show();
 
         this._overview.prepareToLeaveOverview();
