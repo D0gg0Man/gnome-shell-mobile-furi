@@ -1769,12 +1769,20 @@ log("NM device state changed " + this + " to " + newState + " for reason " + rea
             return;
         }
 
-        /* Emit a notification if activation fails, but don't do it
-           if the reason is no secrets, as that indicates the user
-           cancelled the agent dialog */
-        if (newState === NM.DeviceState.FAILED &&
-            reason !== NM.DeviceStateReason.NO_SECRETS)
+
+        if (newState === NM.DeviceState.FAILED) {
+            // Don't notify if the reason is no secrets, as that indicates the user
+            // cancelled the agent dialog .
+            if (reason === NM.DeviceStateReason.NO_SECRETS)
+                return;
+
+            // When the user disables the modem, we get a failure with MODEM_NO_CARRIER
+            // first, let's ignore that.
+            if (reason === NM.DeviceStateReason.MODEM_NO_CARRIER)
+                return;
+
             this.emit('activation-failed');
+        }
     }
 
     _createDeviceMenuItem(_device) {
