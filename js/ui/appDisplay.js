@@ -979,6 +979,21 @@ const phoneGridModes = [
             log(this + " BEGAN DRAG WITH OUR ICON, keeping the icon " + source + " v2" + this._orderedItems.indexOf(source));
 
             this._placeholders.set(source, source);
+
+        const appSys = Shell.AppSystem.get_default();
+        const app = appSys.lookup_app(source.id);
+
+        const isDraggable =
+            global.settings.is_writable('favorite-apps') ||
+            global.settings.is_writable('app-picker-layout');
+
+        const special = new AppIcon(app, { isDraggable });
+this._spezial = special;
+            this._addItem(special, this._grid.nPages, -1);
+
+            special.reactive = false;
+            special.opacity = 0;
+
             source.reactive = false;
             source.opacity = 0;
         } else {
@@ -1081,7 +1096,10 @@ log(this + " removing placeholder");
             DND.removeDragMonitor(this._dragMonitor);
             this._dragMonitor = null;
         }
-
+        if (this._spezial) {
+            this._removeItem(this._spezial);
+            delete this._spezial;
+        }
         this._resetDragPageSwitch();
 
         this._appGridLayout.hidePageIndicators();
