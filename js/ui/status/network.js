@@ -732,13 +732,6 @@ log("MODEM CHANGE: looks like no mobile dev " + this._mobileDevice);
         return this._device.current_capabilities & supportedCaps;
     }
 
-    _autoConnect() {
-        if (this.wwanPanelSupported)
-            launchSettingsPanel('wwan', 'show-device', this._device.udi);
-        else
-            launchSettingsPanel('network', 'connect-3g', this._device.get_path());
-    }
-
     _sessionUpdated() {
         this._autoConnectItem.sensitive = Main.sessionMode.hasWindows;
     }
