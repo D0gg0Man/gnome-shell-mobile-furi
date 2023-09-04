@@ -189,7 +189,7 @@ export const PopupBaseMenuItem = GObject.registerClass({
         this.active = false;
     }
 
-    activate(event) {
+    activate(event = null) {
         this.emit('activate', event);
     }
 
