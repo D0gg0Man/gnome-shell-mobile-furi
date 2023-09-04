@@ -2201,6 +2201,7 @@ class Indicator extends SystemIndicator {
         this._client.connectObject(
             'notify::primary-connection', () => this._syncMainConnection(),
             'notify::activating-connection', () => this._syncMainConnection(),
+            'notify::active-connections', () => this._syncMainConnection(),
             'notify::connectivity', () => this._syncConnectivity(),
             this);
         this._syncMainConnection();
@@ -2251,6 +2252,18 @@ class Indicator extends SystemIndicator {
             this._mainConnectionStateChanged();
         }
 
+        this._secondaryConnection = null;
+        for (const connection of this._client.get_active_connections()) {
+            if (connection === this._mainConnection)
+                continue;
+
+            const devices = connection.get_devices();
+            if (devices[0] && devices[0].device_type === NM.DeviceType.MODEM) {
+                this._secondaryConnection = connection;
+                break;
+            }
+        }
+
         this._syncConnectivity();
     }
 
@@ -2289,8 +2302,9 @@ class Indicator extends SystemIndicator {
     }
 
     _updateIcon() {
-        const [dev] = this._mainConnection?.get_devices() ?? [];
-        const primaryToggle = this._deviceToggles.get(dev?.device_type) ?? null;
+        const [primaryDevice] = this._mainConnection?.get_devices() ?? [];
+     //   const [secondaryDevice] = this._secondaryConnection?.get_devices() ?? [];
+        const primaryToggle = this._deviceToggles.get(primaryDevice?.device_type) ?? null;
 
         this._primaryIndicatorBinding.source = primaryToggle;
 log("MODEM: updating icons, n modem items: " + this._modemToggle._items.size + " visi "+ this._modemToggle.visible);
