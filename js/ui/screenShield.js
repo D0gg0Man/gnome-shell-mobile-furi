@@ -434,7 +434,7 @@ log("LOCKSCREENOVERLAY: preparing length " + this._lockscreenOverlayStack.length
         for (const window of windows) {
             const app = this._windowTracker.get_window_app(window.metaWindow);
 
-            if (app && (app.id === 'org.gnome.Calls.desktop' || app.id === 'org.gnome.Snapshot.desktop' || app.id === 'org.gnome.Snapshot.Devel.desktop')) {
+            if (app && (app.id === 'org.gnome.Calls.desktop')) {
                 const window = app.get_windows()[0];
                 if (!window)
                     return;

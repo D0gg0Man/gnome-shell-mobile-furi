@@ -293,25 +293,6 @@ export const UnlockDialog = GObject.registerClass({
             x_align: Clutter.ActorAlign.CENTER,
             style_class: 'unlock-dialog-button-row',
         });
-        const cameraButton = new St.Button({
-            style_class: 'icon-button',
-            can_focus: true,
-            icon_name: 'screenshooter-symbolic',
-            visible: !Main.sessionMode.isGreeter,
-            accessible_name: _('Take Screenshot'),
-        });
-        let cameraApp = Shell.AppSystem.get_default().lookup_app('org.gnome.Snapshot.desktop');
-        if (!cameraApp)
-            cameraApp = Shell.AppSystem.get_default().lookup_app('org.gnome.Snapshot.Devel.desktop');
-        if (!cameraApp)
-            cameraButton.add_style_class_name('unavailable');
-        cameraButton.connect('clicked', () => {
-            if (cameraApp) {
-                cameraApp.activate_full(-1, 0);
-                this.emit('show-emergency-calls');
-            }
-        });
-        this._buttonRow.add_child(cameraButton);
 
         this._clockNotificationsBox.add_child(this._clock);
         this._clockNotificationsBox.add_child(this._notificationsBox);
