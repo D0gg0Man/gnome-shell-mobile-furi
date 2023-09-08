@@ -122,18 +122,20 @@ $default_key_bg_color: if($variant=='light', darken($key_bg_color, 11%), darken(
 .word-suggestions {
   @extend %title_4;
   spacing: 12px;
-  min-height: 9pt;
-  padding: $base_padding * 2;
-  color: $osd_fg_color;
+  padding-left: 6px;
+  padding-right: 6px;
+  padding-bottom: 4px;
 
   // each suggestion
   StButton {
-    margin: 0 3px;
-    min-width: 32px;
-    border-radius: 4px;
-    padding: $base_padding $base_padding * 3;
+    color: $osd_fg_color;
+    border-radius: $base_border_radius - 2px;
+    padding: $base_padding $base_padding*2;
+    transition-duration: 100ms;
 
     @include button(undecorated, $c:$key_bg_color, $tc:$osd_fg_color);
+
+    &.has-suggestion { @include button(normal, $c:transparentize($key_bg_color, 0.5), $tc:$osd_fg_color);}
 
     &:focus { @include button(focus);}
     &:hover { @include button(hover, $c:$key_bg_color, $tc:$osd_fg_color);}

@@ -1,4 +1,5 @@
 import Clutter from 'gi://Clutter';
+import GLib from 'gi://GLib';
 import GObject from 'gi://GObject';
 import IBus from 'gi://IBus';
 import Mtk from 'gi://Mtk';
@@ -269,6 +270,11 @@ class IbusCandidatePopup extends BoxPointer.BoxPointer {
             this._updateVisibility();
         });
         panelService.connect('update-lookup-table', (_ps, lookupTable, visible) => {
+            if (this._hideTimeout) {
+                GLib.source_remove(this._hideTimeout);
+                delete this._hideTimeout;
+            }
+
             this._candidateArea.visible = visible;
             this._updateVisibility();
 
@@ -278,7 +284,7 @@ class IbusCandidatePopup extends BoxPointer.BoxPointer {
             let nPages = Math.ceil(nCandidates / pageSize);
             let page = cursorPos === 0 ? 0 : Math.floor(cursorPos / pageSize);
             let startIndex = page * pageSize;
-            let endIndex = Math.min((page + 1) * pageSize, nCandidates);
+            let endIndex = Math.min(3, nCandidates);
 
             let indexes = [];
             let indexLabel;
@@ -286,7 +292,6 @@ class IbusCandidatePopup extends BoxPointer.BoxPointer {
                 indexes.push(indexLabel.get_text());
 
             Main.keyboard.resetSuggestions();
-            Main.keyboard.setSuggestionsVisible(visible);
 
             let candidates = [];
             for (let i = startIndex; i < endIndex; ++i) {
@@ -306,19 +311,33 @@ class IbusCandidatePopup extends BoxPointer.BoxPointer {
             this._candidateArea.updateButtons(lookupTable.is_round(), page, nPages);
         });
         panelService.connect('show-lookup-table', () => {
-            Main.keyboard.setSuggestionsVisible(true);
+            if (this._hideTimeout) {
+                GLib.source_remove(this._hideTimeout);
+                delete this._hideTimeout;
+            }
+
             this._candidateArea.show();
             this._updateVisibility();
         });
         panelService.connect('hide-lookup-table', () => {
-            Main.keyboard.setSuggestionsVisible(false);
-            this._candidateArea.hide();
-            this._updateVisibility();
+            this._hideTimeout = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 200, () => {
+                Main.keyboard.resetSuggestions();
+
+                this._candidateArea.hide();
+                this._updateVisibility();
+
+                delete this._hideTimeout;
+                return GLib.SOURCE_REMOVE;
+            });
         });
         panelService.connect('focus-out', () => {
             this.close(BoxPointer.PopupAnimation.NONE);
             Main.keyboard.resetSuggestions();
         });
+    }
+
+    typingBoosterAvailable() {
+        Main.keyboard.setSuggestionsVisible(true);
     }
 
     _setDummyCursorGeometry(x, y, w, h) {

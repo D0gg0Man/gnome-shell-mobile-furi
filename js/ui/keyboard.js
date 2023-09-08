@@ -192,34 +192,58 @@ class Suggestions extends St.BoxLayout {
         super._init({
             style_class: 'word-suggestions',
             orientation: Clutter.Orientation.HORIZONTAL,
-            x_align: Clutter.ActorAlign.CENTER,
         });
-        this.show();
+
+        this.layout_manager.homogeneous = true;
+
+        this._buttons = [];
+
+        const firstButton = new St.Button({ x_expand: true, reactive: false });
+        this._buttons.push(firstButton);
+
+        const secondButton = new St.Button({ x_expand: true, reactive: false });
+        this._buttons.push(secondButton);
+
+        const thirdButton = new St.Button({ x_expand: true, reactive: false });
+        this._buttons.push(thirdButton);
+
+        this._curButton = 0;
+
+        this.add_child(secondButton);
+        this.add_child(firstButton);
+        this.add_child(thirdButton);
     }
 
     add(word, callback) {
-        let button = new St.Button({label: word});
-        button.connect('button-press-event', () => {
-            callback();
-            return Clutter.EVENT_STOP;
-        });
-        button.connect('touch-event', (actor, event) => {
-            if (event.type() !== Clutter.EventType.TOUCH_BEGIN)
-                return Clutter.EVENT_PROPAGATE;
+        if (this._curButton === 3)
+            throw new Error("Tried to add more than 3 buttons");
 
+        const button = this._buttons[this._curButton];
+        this._curButton++;
+
+        button.label = word;
+        button.add_style_class_name('has-suggestion');
+        button.reactive = true;
+        button._clickedId = button.connect('clicked', () => {
             callback();
-            return Clutter.EVENT_STOP;
         });
-        this.add_child(button);
     }
 
     clear() {
-        this.remove_all_children();
-    }
+        if (this._curButton === 0)
+            return;
 
-    setVisible(visible) {
-        for (const child of this)
-            child.visible = visible;
+        for (const button of this) {
+            button.label = "";
+            button.remove_style_class_name('has-suggestion');
+            button.reactive = false;
+            if (button._clickedId) {
+                button.disconnect(button._clickedId);
+                delete button._clickedId;
+            }
+        }
+
+        this._curButton = 0;
     }
 });
 
@@ -1291,6 +1315,8 @@ export class KeyboardManager extends Signals.EventEmitter {
         this._a11yApplicationsSettings = new Gio.Settings({schema_id: A11Y_APPLICATIONS_SCHEMA});
         this._a11yApplicationsSettings.connect('changed', this._syncEnabled.bind(this));
 
+        this._suggestionsVisible = false;
+
         this._seat = global.stage.context.get_backend().get_default_seat();
         this._seat.connect('notify::touch-mode', this._syncEnabled.bind(this));
 
@@ -1344,6 +1370,7 @@ export class KeyboardManager extends Signals.EventEmitter {
 
         if (enabled && !this._keyboard) {
             this._keyboard = new Keyboard();
+            this._keyboard.setSuggestionsVisible(this._suggestionsVisible);
             this._keyboard.connect('visibility-changed', () => {
                 this.emit('visibility-changed');
                 this._bottomDragGesture.enabled = !this._keyboard.visible;
@@ -1386,6 +1413,7 @@ export class KeyboardManager extends Signals.EventEmitter {
     }
 
     setSuggestionsVisible(visible) {
+        this._suggestionsVisible = visible;
         this._keyboard?.setSuggestionsVisible(visible);
     }
 
@@ -1781,6 +1809,7 @@ export const Keyboard = GObject.registerClass({
                 groups.push('url');
             break;
         case Clutter.InputContentPurpose.TERMINAL:
+            this._suggestions.visible = this._suggestionsVisible && !Main.inputMethod.terminalMode;
             // For terminals, we replace the whole list with their extended counterparts
             groups = groups.map(g => `${g}-extended`);
             break;
@@ -2271,8 +2300,8 @@ export const Keyboard = GObject.registerClass({
     }
 
     setSuggestionsVisible(visible) {
-        this._suggestions.visible = visible;
-        this._suggestions?.setVisible(visible);
+        this._suggestionsVisible = visible;
+        this._suggestions.visible = this._suggestionsVisible;
     }
 
     addSuggestion(text, callback) {
