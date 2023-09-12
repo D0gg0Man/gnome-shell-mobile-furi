@@ -189,7 +189,7 @@ export const Lightbox = GObject.registerClass({
         }
     }
 
-    lightOn(fadeInTime) {
+    lightOn(fadeInTime, callback) {
         this.remove_all_transitions();
 
         let easeProps = {
@@ -200,6 +200,8 @@ export const Lightbox = GObject.registerClass({
         let onComplete = () => {
             this._active = true;
             this.notify('active');
+            if (callback)
+                callback();
         };
 
         this.show();
