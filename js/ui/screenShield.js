@@ -563,7 +563,7 @@ export class ScreenShield extends Signals.EventEmitter {
             return;
         }
 
-        if (this._dialog && !this._isGreeter)
+        if (this._dialog)
             this._dialog.popModal();
 
         if (this._isModal) {
