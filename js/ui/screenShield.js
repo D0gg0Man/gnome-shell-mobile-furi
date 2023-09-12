@@ -34,10 +34,10 @@ const LOCKED_STATE_STR = 'screenShield.locked';
 // - STANDARD_FADE_TIME is used when the session goes idle
 // - MANUAL_FADE_TIME is used for lowering the shield when asked by the user,
 //   or when cancelling the dialog
-// - CURTAIN_SLIDE_TIME is used when raising the shield before unlocking
+// - SHIELD_SLIDE_UP_TIME is used when raising the shield before unlocking
 const STANDARD_FADE_TIME = 10000;
 const MANUAL_FADE_TIME = 300;
-const CURTAIN_SLIDE_TIME = 300;
+const SHIELD_SLIDE_UP_TIME = 300;
 
 /**
  * If you are setting org.gnome.desktop.session.idle-delay directly in dconf,
@@ -408,7 +408,7 @@ export class ScreenShield extends Signals.EventEmitter {
         if (animate) {
             this._lockDialogGroup.ease({
                 translation_y: -global.stage.height,
-                duration: CURTAIN_SLIDE_TIME,
+                duration: SHIELD_SLIDE_UP_TIME,
                 mode: Clutter.AnimationMode.EASE_OUT_QUAD,
                 onComplete: () => this._hideLockScreenComplete(),
             });
