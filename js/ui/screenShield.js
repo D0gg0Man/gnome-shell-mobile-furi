@@ -539,11 +539,6 @@ export class ScreenShield extends Signals.EventEmitter {
                     this._lockScreenState = MessageTray.State.HIDDEN;
                     this._lockScreenGroup.hide();
 
-                    if (this._dialog) {
-                        this._dialog.grab_key_focus();
-                        this._dialog.navigate_focus(null, St.DirectionType.TAB_FORWARD, false);
-                    }
-
                     this._activationTime = 0;
                     this._setActive(false);
                 },
@@ -571,11 +566,6 @@ export class ScreenShield extends Signals.EventEmitter {
             onComplete: () => {
                 this._lockScreenState = MessageTray.State.HIDDEN;
                 this._lockScreenGroup.hide();
-
-                if (this._dialog) {
-                    this._dialog.grab_key_focus();
-                    this._dialog.navigate_focus(null, St.DirectionType.TAB_FORWARD, false);
-                }
 
                 this._completeDeactivate();
             },
