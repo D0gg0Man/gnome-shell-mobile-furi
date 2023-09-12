@@ -353,16 +353,6 @@ export class ScreenShield extends Signals.EventEmitter {
         this._ensureUnlockDialog(true);
     }
 
-    _hideLockScreenComplete() {
-        this._lockScreenState = MessageTray.State.HIDDEN;
-        this._lockScreenGroup.hide();
-
-        if (this._dialog) {
-            this._dialog.grab_key_focus();
-            this._dialog.navigate_focus(null, St.DirectionType.TAB_FORWARD, false);
-        }
-    }
-
     _showPointer() {
         if (this._cursorVisibleInhibited) {
             const seat = global.stage.context.get_backend().get_default_seat();
@@ -395,28 +385,6 @@ export class ScreenShield extends Signals.EventEmitter {
             return Clutter.EVENT_PROPAGATE;
         });
         this._hidePointer();
-    }
-
-    _hideLockScreen(animate) {
-        if (this._lockScreenState === MessageTray.State.HIDDEN)
-            return;
-
-        this._lockScreenState = MessageTray.State.HIDING;
-
-        this._lockDialogGroup.remove_all_transitions();
-
-        if (animate) {
-            this._lockDialogGroup.ease({
-                translation_y: -global.stage.height,
-                duration: SHIELD_SLIDE_UP_TIME,
-                mode: Clutter.AnimationMode.EASE_OUT_QUAD,
-                onComplete: () => this._hideLockScreenComplete(),
-            });
-        } else {
-            this._hideLockScreenComplete();
-        }
-
-        this._showPointer();
     }
 
     _ensureUnlockDialog(allowCancel) {
@@ -543,7 +511,12 @@ export class ScreenShield extends Signals.EventEmitter {
     }
 
     _continueDeactivate(animate) {
-        this._hideLockScreen(animate);
+        if (this._lockScreenState === MessageTray.State.HIDDEN)
+            throw new Error("ScreenShield is already in state HIDDEN");
+
+        this._lockScreenState = MessageTray.State.HIDING;
+
+        this._showPointer();
 
         if (Main.sessionMode.currentMode === 'unlock-dialog')
             Main.sessionMode.popMode('unlock-dialog');
@@ -558,8 +531,24 @@ export class ScreenShield extends Signals.EventEmitter {
             // gnome-session will reset the idle counter, and
             // gnome-settings-daemon will stop blanking the screen
 
-            this._activationTime = 0;
-            this._setActive(false);
+            this._lockDialogGroup.ease({
+                translation_y: -global.stage.height,
+                duration: animate ? SHIELD_SLIDE_UP_TIME : 0,
+                mode: Clutter.AnimationMode.EASE_OUT_QUAD,
+                onComplete: () => {
+                    this._lockScreenState = MessageTray.State.HIDDEN;
+                    this._lockScreenGroup.hide();
+
+                    if (this._dialog) {
+                        this._dialog.grab_key_focus();
+                        this._dialog.navigate_focus(null, St.DirectionType.TAB_FORWARD, false);
+                    }
+
+                    this._activationTime = 0;
+                    this._setActive(false);
+                },
+            });
+
             return;
         }
 
@@ -576,10 +565,20 @@ export class ScreenShield extends Signals.EventEmitter {
         this._shortLightbox.lightOff();
 
         this._lockDialogGroup.ease({
-            translation_y: -global.screen_height,
-            duration: Overview.ANIMATION_TIME,
+            translation_y: -global.stage.height,
+            duration: animate ? SHIELD_SLIDE_UP_TIME : 0,
             mode: Clutter.AnimationMode.EASE_OUT_QUAD,
-            onComplete: () => this._completeDeactivate(),
+            onComplete: () => {
+                this._lockScreenState = MessageTray.State.HIDDEN;
+                this._lockScreenGroup.hide();
+
+                if (this._dialog) {
+                    this._dialog.grab_key_focus();
+                    this._dialog.navigate_focus(null, St.DirectionType.TAB_FORWARD, false);
+                }
+
+                this._completeDeactivate();
+            },
         });
     }
 
