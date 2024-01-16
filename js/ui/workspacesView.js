@@ -690,7 +690,8 @@ class SecondaryMonitorDisplay extends St.Widget {
         const themeNode = this.get_theme_node();
         const contentBox = themeNode.get_content_box(box);
         const [width, height] = contentBox.get_size();
-        const {expandFraction} = this._thumbnails;
+        const expandFraction =
+            this._thumbnails.visible ? this._thumbnails.expandFraction : 0;
         const spacing = themeNode.get_length('spacing') * expandFraction;
         const padding =
             Math.round((1 - SECONDARY_WORKSPACE_SCALE) * height / 2);

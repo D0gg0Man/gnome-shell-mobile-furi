@@ -81,7 +81,8 @@ class ControlsManagerLayout extends Clutter.LayoutManager {
         const workspaceBox = box.copy();
         const [width, height] = workspaceBox.get_size();
         const {y1: startY} = this._workAreaBox;
-        const {expandFraction} = this._workspacesThumbnails;
+        const expandFraction = this._workspacesThumbnails.visible
+            ? this._workspacesThumbnails.expandFraction : 0;
 
         switch (state) {
         case ControlsState.HIDDEN:
