@@ -41,6 +41,7 @@ import * as ShellDBus from './shellDBus.js';
 import * as ShellMountOperation from './shellMountOperation.js';
 import * as TimeLimitsManager from '../misc/timeLimitsManager.js';
 import * as WindowManager from './windowManager.js';
+import * as SchedulingManager from '../misc/schedulingManager.js';
 import * as Magnifier from './magnifier.js';
 import * as XdndHandler from './xdndHandler.js';
 import * as KbdA11yDialog from './kbdA11yDialog.js';
@@ -65,6 +66,7 @@ export let runDialog = null;
 export let lookingGlass = null;
 export let welcomeDialog = null;
 export let wm = null;
+export let schedulingManager = null;
 export let messageTray = null;
 export let screenShield = null;
 export let notificationDaemon = null;
@@ -233,6 +235,7 @@ async function _initializeUI() {
     overview = new Overview.Overview();
     kbdA11yDialog = new KbdA11yDialog.KbdA11yDialog();
     wm = new WindowManager.WindowManager();
+    schedulingManager = new SchedulingManager.SchedulingManager();
     magnifier = new Magnifier.Magnifier();
     locatePointer = new LocatePointer.LocatePointer();
 
