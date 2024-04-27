@@ -1690,7 +1690,7 @@ export const Keyboard = GObject.registerClass({
             const rows = currentLevel.rows;
             rows.forEach(row => {
                 levelLayout.appendRow();
-                this._addRowKeys(row, levelLayout, emojiVisible);
+                this._addRowKeys(row, levelLayout, true);
             });
 
             layers[currentLevel.level] = levelLayout;
