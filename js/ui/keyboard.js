@@ -1223,7 +1223,11 @@ const EmojiSelection = GObject.registerClass({
 
         row.appendRow();
 
-        key = new Key({label: 'ABC', hasAction: true}, []);
+        key = new Key({
+            label: 'ABC',
+            hasAction: true,
+            useInternalClickGesture: false,
+        }, []);
         key.keyButton.add_style_class_name('default-key');
         key.connect('released', () => this.emit('toggle'));
         row.appendKey(key, 1.5);
@@ -1233,6 +1237,7 @@ const EmojiSelection = GObject.registerClass({
 
             key = new Key({
                 iconName: section.iconName,
+                useInternalClickGesture: false,
             }, []);
             key.connect('released', () => this._emojiPager.setCurrentSection(section, 0));
             row.appendKey(key);
@@ -1240,7 +1245,11 @@ const EmojiSelection = GObject.registerClass({
             section.button = key;
         }
 
-        key = new Key({iconName: 'osk-hide-symbolic', hasAction: true});
+        key = new Key({
+            iconName: 'osk-hide-symbolic',
+            hasAction: true,
+            useInternalClickGesture: false,
+        }, []);
         key.keyButton.add_style_class_name('default-key');
         key.keyButton.add_style_class_name('hide-key');
         key.connect('released', () => {
