@@ -1229,6 +1229,7 @@ const EmojiSelection = GObject.registerClass({
             useInternalClickGesture: false,
         }, []);
         key.keyButton.add_style_class_name('default-key');
+        key.keyButton.add_style_class_name('bottom-row-key');
         key.connect('released', () => this.emit('toggle'));
         row.appendKey(key, 1.5);
 
@@ -1239,6 +1240,7 @@ const EmojiSelection = GObject.registerClass({
                 iconName: section.iconName,
                 useInternalClickGesture: false,
             }, []);
+            key.keyButton.add_style_class_name('bottom-row-key');
             key.connect('released', () => this._emojiPager.setCurrentSection(section, 0));
             row.appendKey(key);
 
@@ -1252,6 +1254,7 @@ const EmojiSelection = GObject.registerClass({
         }, []);
         key.keyButton.add_style_class_name('default-key');
         key.keyButton.add_style_class_name('hide-key');
+        key.keyButton.add_style_class_name('bottom-row-key');
         key.connect('released', () => {
             this.emit('close-request');
         });

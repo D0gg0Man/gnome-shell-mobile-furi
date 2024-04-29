@@ -88,9 +88,16 @@ $default_key_bg_color: if($variant=='light', darken($key_bg_color, 11%), darken(
 }
 
 .emoji-panel {
-  .keyboard-key:latched {
-    border-color: st-lighten(-st-accent-color, 5%);
-    background-color: -st-accent-color;
+  .keyboard-key {
+    &.bottom-row-key {
+      StIcon { icon-size: 16px; }
+      @include fontsize($base_font_size + 2);
+
+      &:latched {
+        border-color: st-lighten(-st-accent-color, 5%);
+        background-color: -st-accent-color;
+      }
+    }
   }
 }
 
