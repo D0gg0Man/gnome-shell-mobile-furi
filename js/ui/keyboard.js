@@ -1192,8 +1192,8 @@ const EmojiSelection = GObject.registerClass({
 
         this._emojiPager.setRatio(10, 3);
         this._bottomRow.setRatio(10, 1);
-        this._gridLayout.attach(this._pagerBox, 0, 0, 1, 3);
-        this._gridLayout.attach(this._bottomRow, 0, 3, 1, 1);
+        this._gridLayout.attach(this._pagerBox, 0, 0, 1 * KEY_SIZE, 3 * KEY_SIZE);
+        this._gridLayout.attach(this._bottomRow, 0, 3 * KEY_SIZE, 1 * KEY_SIZE, 1 * KEY_SIZE);
     }
 
     vfunc_map() {
