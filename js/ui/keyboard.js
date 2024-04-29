@@ -18,7 +18,6 @@ import * as PopupMenu from './popupMenu.js';
 import * as SwipeTracker from './swipeTracker.js';
 
 const KEYBOARD_ANIMATION_TIME = 150;
-const KEYBOARD_REST_TIME = KEYBOARD_ANIMATION_TIME * 2;
 const KEY_LONG_PRESS_TIME = 250;
 
 const A11Y_APPLICATIONS_SCHEMA = 'org.gnome.desktop.a11y.applications';
@@ -1506,7 +1505,7 @@ export const Keyboard = GObject.registerClass({
         if (!Meta.is_wayland_compositor()) {
             this._focusTracker.connectObject('focus-changed', (_tracker, focused) => {
                 if (focused)
-                    this.open(Main.layoutManager.focusIndex);
+                    this.open();
                 else
                     this.close();
             }, this);
@@ -1516,7 +1515,6 @@ export const Keyboard = GObject.registerClass({
 
         this._keyboardVisible = false;
         this._keyboardRequested = false;
-        this._keyboardRestingId = 0;
 
         Main.layoutManager.connectObject(
             'monitors-changed', this._relayout.bind(this),
@@ -1825,7 +1823,7 @@ export const Keyboard = GObject.registerClass({
 
         if (!this._showIdleId) {
             this._showIdleId = GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
-                this.open(Main.layoutManager.focusIndex);
+                this.open();
                 this._showIdleId = 0;
                 return GLib.SOURCE_REMOVE;
             });
@@ -2202,9 +2200,9 @@ export const Keyboard = GObject.registerClass({
             return;
 
         if (enabled)
-            this.open(Main.layoutManager.focusIndex);
+            this.open();
         else
-            this.close(true);
+            this.close();
     }
 
     _setActiveLevel(activeLevel) {
@@ -2232,14 +2230,7 @@ export const Keyboard = GObject.registerClass({
         this._relayout();
     }
 
-    _clearKeyboardRestTimer() {
-        if (!this._keyboardRestingId)
-            return;
-        GLib.source_remove(this._keyboardRestingId);
-        this._keyboardRestingId = 0;
-    }
-
-    open(immediate = false) {
+    open() {
         this._clearShowIdle();
         this._keyboardRequested = true;
 
@@ -2247,21 +2238,8 @@ export const Keyboard = GObject.registerClass({
             return;
 
         this._keyboardController.setOskCompletion(true);
-        this._clearKeyboardRestTimer();
 
-        if (immediate) {
-            this._open();
-            return;
-        }
-
-        this._keyboardRestingId = GLib.timeout_add(GLib.PRIORITY_DEFAULT,
-            KEYBOARD_REST_TIME,
-            () => {
-                this._clearKeyboardRestTimer();
-                this._open();
-                return GLib.SOURCE_REMOVE;
-            });
-        GLib.Source.set_name_by_id(this._keyboardRestingId, '[gnome-shell] this._clearKeyboardRestTimer');
+        this._open();
     }
 
     _open() {
@@ -2276,7 +2254,7 @@ export const Keyboard = GObject.registerClass({
         this._panGesture.enabled = true;
     }
 
-    close(immediate = false) {
+    close() {
         this._clearShowIdle();
         this._keyboardRequested = false;
 
@@ -2284,21 +2262,8 @@ export const Keyboard = GObject.registerClass({
             return;
 
         this._keyboardController.setOskCompletion(false);
-        this._clearKeyboardRestTimer();
 
-        if (immediate) {
-            this._close();
-            return;
-        }
-
-        this._keyboardRestingId = GLib.timeout_add(GLib.PRIORITY_DEFAULT,
-            KEYBOARD_REST_TIME,
-            () => {
-                this._clearKeyboardRestTimer();
-                this._close();
-                return GLib.SOURCE_REMOVE;
-            });
-        GLib.Source.set_name_by_id(this._keyboardRestingId, '[gnome-shell] this._clearKeyboardRestTimer');
+        this._close();
     }
 
     _close() {
@@ -2377,7 +2342,7 @@ export const Keyboard = GObject.registerClass({
     }
 
     gestureActivate() {
-        this.open(true);
+        this.open();
         this._gestureInProgress = false;
     }
 
