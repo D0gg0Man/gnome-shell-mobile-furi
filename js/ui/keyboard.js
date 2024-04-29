@@ -1367,6 +1367,23 @@ export class KeyboardManager extends Signals.EventEmitter {
         global.stage.add_action(bottomDragGesture);
         this._bottomDragGesture = bottomDragGesture;
 
+        const doubleClickGesture = new Clutter.ClickGesture({
+            name: "OSK double click gesture",
+            n_clicks_required: 2,
+        });
+        doubleClickGesture.connect('may-recognize', () => {
+            if (!(allowedModes & Main.actionMode))
+                return false;
+
+            const clickCoords = doubleClickGesture.get_coords_abs();
+            const monitorY2 =
+                Main.layoutManager.keyboardMonitor.y + Main.layoutManager.keyboardMonitor.height;
+
+            return clickCoords.y > monitorY2 - 30;
+        });
+        doubleClickGesture.connect('recognize', () => this._keyboard?.open());
+        global.stage.add_action(doubleClickGesture);
+
         this._syncEnabled();
     }
 
