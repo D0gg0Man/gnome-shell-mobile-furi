@@ -47,7 +47,7 @@ class AspectContainer extends St.Widget {
         let [min, nat] = super.vfunc_get_preferred_width(forHeight);
 
         if (forHeight > 0)
-            nat = forHeight * this._ratio;
+            nat = Math.max(nat, forHeight * this._ratio);
 
         return [min, nat];
     }
@@ -56,7 +56,7 @@ class AspectContainer extends St.Widget {
         let [min, nat] = super.vfunc_get_preferred_height(forWidth);
 
         if (forWidth > 0)
-            nat = forWidth / this._ratio;
+            nat = Math.max(nat, forWidth / this._ratio);
 
         return [min, nat];
     }
