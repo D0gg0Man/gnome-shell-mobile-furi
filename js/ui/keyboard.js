@@ -934,23 +934,31 @@ const EmojiPager = GObject.registerClass({
     }
 
     _onSwipeBegin(tracker) {
+        this.remove_transition('delta');
+
         this._width = this.width;
         const points = [-1, 0, 1];
         tracker.confirmSwipe(this._width, points, 0, 0);
     }
 
-    _onSwipeEnd(tracker, duration, endProgress) {
+    _onSwipeEnd(tracker, duration, endProgress, endCb) {
         this.remove_all_transitions();
         if (endProgress === 0) {
-            this.ease_property('delta', 0, {duration});
+            this.ease_property('delta', 0, {
+                mode: Clutter.AnimationMode.EASE_OUT_CUBIC,
+                duration,
+                onStopped: () => endCb(),
+            });
         } else {
             const value = endProgress < 0
                 ? this._width + EMOJI_PAGE_SEPARATION
                 : -this._width - EMOJI_PAGE_SEPARATION;
             this.ease_property('delta', value, {
+                mode: Clutter.AnimationMode.EASE_OUT_CUBIC,
                 duration,
-                onComplete: () => {
+                onStopped: () => {
                     this.setCurrentPage(this.getFollowingPage());
+                    endCb();
                 },
             });
         }
