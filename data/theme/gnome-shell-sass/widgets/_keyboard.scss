@@ -84,6 +84,12 @@ $default_key_bg_color: if($variant=='light', darken($key_bg_color, 11%), darken(
     background-color: transparent;
     border: none;
     color: initial;
+
+    @include button(undecorated, $c:transparent, $tc:transparent);
+
+    &:hover { @include button(hover, $c:$key_bg_color, $tc:$osd_fg_color);}
+    &:active { @include button(active, $c:$key_bg_color, $tc:$osd_fg_color); }
+    &:checked { @include button(checked, $c:$key_bg_color, $tc:$osd_fg_color); }
   }
 }
 
