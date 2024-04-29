@@ -232,6 +232,11 @@
 
   // flat style overrides
   @if $style == 'flat' {
+    $button_bg_color: transparentize($tc, 1.0);
+    $hover_button_bg_color: transparentize($tc, .87);
+    $active_button_bg_color: transparentize($tc, .84);
+    $active_hover_button_bg_color: transparentize($tc, .81);
+    $checked_button_bg_color: $active_button_bg_color;
     $insensitive_button_bg_color: $button_bg_color;
   }
 

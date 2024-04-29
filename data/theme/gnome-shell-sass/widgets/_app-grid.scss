@@ -38,7 +38,7 @@ $app_folder_size: 720px;
 
 // app folders
 .app-folder {
-  @include tile_button($bg:$system_base_color, $raised: true);
+  @include tile_button($bg:$system_base_color);
 }
 
 // Running app indicator (also shown in dash)
