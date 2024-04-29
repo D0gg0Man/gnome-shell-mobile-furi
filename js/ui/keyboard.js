@@ -26,7 +26,7 @@ const SHOW_KEYBOARD = 'screen-keyboard-enabled';
 const EMOJI_PAGE_SEPARATION = 32;
 
 /* KeyContainer puts keys in a grid where a 1:1 key takes this size */
-const KEY_SIZE = 2;
+const KEY_SIZE = 4;
 
 const KEY_RELEASE_TIMEOUT = 50;
 const BACKSPACE_WORD_DELETE_THRESHOLD = 50;
@@ -78,6 +78,30 @@ class AspectContainer extends St.Widget {
     }
 });
 
+function smallestCommons(arr) {
+  var max = Math.max(...arr);
+  var min = Math.min(...arr);
+  var candidate = max;
+
+  var smallestCommon = function(low, high) {
+    // inner function to use 'high' variable
+    function scm(l, h) {
+      if (h % l === 0) {
+        return h;
+      } else {
+        return scm(l, h + high);
+      }
+    }
+    return scm(low, high);
+  };
+
+  for (var i = min; i <= max; i += 1) {
+    candidate = smallestCommon(i, candidate);
+  }
+
+  return candidate;
+}
+
 const KeyContainer = GObject.registerClass(
 class KeyContainer extends St.Widget {
     _init() {
@@ -94,23 +118,32 @@ class KeyContainer extends St.Widget {
         });
         this._gridLayout = gridLayout;
         this._nRows = 0;
+        this._nCols = 0;
+        this._maxNCols = 0;
         this._currentCol = 0;
         this._currentRow = 0;
-        this._maxCols = 0;
+        this._maxHeightInRow = 0;
 
         this._keyContainerGesture = new KeyContainerGesture();
         this.add_action(this._keyContainerGesture);
     }
 
-    appendRow() {
+    finishRow() {
         this._currentCol = 0;
-        this._currentRow = this._nRows;
+
+        this._maxNCols = Math.max(this._nCols, this._maxNCols);
+        this._nCols = 0;
+
+        this._currentRow += this._maxHeightInRow;
+        this._maxHeightInRow = 0;
+
         this._nRows++;
     }
 
     appendKey(key, width = 1, height = 1, leftOffset = 0) {
         const left = this._currentCol + leftOffset;
         const top = this._currentRow;
+
         this._gridLayout.attach(key,
             left * KEY_SIZE, top * KEY_SIZE,
             width * KEY_SIZE, height * KEY_SIZE);
@@ -118,12 +151,14 @@ class KeyContainer extends St.Widget {
             left * KEY_SIZE, top * KEY_SIZE,
             width * KEY_SIZE, height * KEY_SIZE);
 
+        this._nCols++;
         this._currentCol += leftOffset + width;
-        this._maxCols = Math.max(this._currentCol, this._maxCols);
+
+        this._maxHeightInRow = Math.max(height, this._maxHeightInRow);
     }
 
     getRatio() {
-        return [this._maxCols, this._nRows];
+        return [this._maxNCols, this._nRows];
     }
 });
 
@@ -1154,6 +1189,11 @@ const EmojiSelection = GObject.registerClass({
         this._bottomRow = this._createBottomRow();
 
         this._curPage = 0;
+
+        this._emojiPager.setRatio(10, 3);
+        this._bottomRow.setRatio(10, 1);
+        this._gridLayout.attach(this._pagerBox, 0, 0, 1, 3);
+        this._gridLayout.attach(this._bottomRow, 0, 3, 1, 1);
     }
 
     vfunc_map() {
@@ -1222,8 +1262,6 @@ const EmojiSelection = GObject.registerClass({
         let row = new KeyContainer();
         let key;
 
-        row.appendRow();
-
         key = new Key({
             label: 'ABC',
             hasAction: true,
@@ -1259,6 +1297,7 @@ const EmojiSelection = GObject.registerClass({
             this.emit('keyval', Clutter.KEY_BackSpace);
         });
         row.appendKey(key, 1.5);
+        row.finishRow();
 
         const actor = new AspectContainer({
             layout_manager: new Clutter.BinLayout(),
@@ -1268,21 +1307,6 @@ const EmojiSelection = GObject.registerClass({
         actor.add_child(row);
 
         return actor;
-    }
-
-    setRatio(nCols, nRows) {
-        this._emojiPager.setRatio(Math.floor(nCols), Math.floor(nRows) - 1);
-        this._bottomRow.setRatio(nCols, 1);
-
-        // (Re)attach actors so the emoji panel fits the ratio and
-        // the bottom row is ensured to take 1 row high.
-        if (this._pagerBox.get_parent())
-            this.remove_child(this._pagerBox);
-        if (this._bottomRow.get_parent())
-            this.remove_child(this._bottomRow);
-
-        this._gridLayout.attach(this._pagerBox, 0, 0, 1, Math.floor(nRows) - 1);
-        this._gridLayout.attach(this._bottomRow, 0, Math.floor(nRows) - 1, 1, 1);
     }
 });
 
@@ -1426,7 +1450,10 @@ export const Keyboard = GObject.registerClass({
             orientation: Clutter.Orientation.VERTICAL,
             y_expand: true,
             y_align: Clutter.ActorAlign.END,
+            y_expand: true,
+            request_mode: Clutter.RequestMode.HEIGHT_FOR_WIDTH,
         });
+
         this._focusInExtendedKeys = false;
         this._emojiActive = false;
 
@@ -1464,8 +1491,13 @@ export const Keyboard = GObject.registerClass({
         this._keyboardRequested = false;
         this._keyboardRestingId = 0;
 
-        Main.layoutManager.connectObject('monitors-changed',
-            this._relayout.bind(this), this);
+        Main.layoutManager.connectObject(
+            'monitors-changed', this._relayout.bind(this),
+            'notify::is-phone', () => {
+                this._updateKeys();
+                this._relayout();
+            },
+            this);
 
         this._setupKeyboard();
 
@@ -1571,8 +1603,6 @@ export const Keyboard = GObject.registerClass({
             this);
         global.stage.connectObject('notify::key-focus',
             this._onKeyFocusChanged.bind(this), this);
-
-        this._relayout();
     }
 
     _onContentHintsChanged(controller, contentHint) {
@@ -1717,8 +1747,8 @@ export const Keyboard = GObject.registerClass({
 
             const rows = currentLevel.rows;
             rows.forEach(row => {
-                levelLayout.appendRow();
                 this._addRowKeys(row, levelLayout, true);
+                levelLayout.finishRow();
             });
 
             layers[currentLevel.level] = levelLayout;
@@ -1907,18 +1937,78 @@ export const Keyboard = GObject.registerClass({
         return [numOfHorizSlots, numOfVertSlots];
     }
 
-    _relayout() {
+    vfunc_get_preferred_height(forWidth) {
+        const [minH, natH] = super.vfunc_get_preferred_height(forWidth);
+
         let monitor = Main.layoutManager.keyboardMonitor;
+        const maxHeight = Main.layoutManager.isPhone
+            ? monitor.height * 0.55 : monitor.height * 0.33;
 
-        if (!monitor)
-            return;
+        return [minH, natH > maxHeight ? maxHeight : natH];
+    }
+/*
+    vfunc_allocate(box) {
+        const monitor = Main.layoutManager.keyboardMonitor;
 
-        this.width = monitor.width;
+        if (monitor) {
+            const maxHeight = Main.layoutManager.isPhone
+                ? monitor.height * 0.55 : monitor.height * 0.33;
 
-        if (monitor.width > monitor.height)
-            this.height = monitor.height / 3;
-        else
-            this.height = monitor.height / 4;
+            if (box.get_height() > maxHeight)
+                box.y1 = box.y2 - maxHeight;
+        }
+
+        super.vfunc_allocate(box);
+    }
+*/
+    _relayout() {
+
+        let [nCols, nRows] = this._currentPage.getRatio();
+
+        const monitor = Main.layoutManager.keyboardMonitor;
+        if (monitor && Main.layoutManager.isPhone) {
+            // on phones, we use a fixed aspect ratio and we only look at the default
+            // page for that ratio
+            [nCols, nRows] = this._layers['default'].getRatio();
+
+            if (nRows <= 4) { // most layouts
+                if (monitor.width > monitor.height) {
+                    nCols = 3;
+                    nRows = 1;
+                } else {
+                    nCols = 16;
+                    nRows = 9;
+                }
+            } else if (nRows <= 4.75) { // most layouts with terminal row
+                if (monitor.width > monitor.height) {
+                    nCols = 3;
+                    nRows = 1;
+                } else {
+                    nCols = 18;
+                    nRows = 12;
+                }
+            } else if (nRows <= 5) { // layouts with one extra row (eg. Thai)
+                if (monitor.width > monitor.height) {
+                    nCols = 3;
+                    nRows = 1;
+                } else {
+                    nCols = 18;
+                    nRows = 13;
+                }
+            } else { // layouts with one extra row and terminal row
+                if (monitor.width > monitor.height) {
+                    nCols = 3;
+                    nRows = 1;
+                } else {
+                    nCols = 18;
+                    nRows = 15;
+                }
+            }
+        }
+
+        // the container will try to request a size in the format we give it, but will
+        // grow larger in case the min sizes don't allow for the format to fit
+        this._aspectContainer.setRatio(nCols, nRows);
     }
 
     _updateKeys() {
@@ -1971,8 +2061,8 @@ export const Keyboard = GObject.registerClass({
             this._currentPage = null;
         });
         this._updateCurrentPageVisible();
-        this._aspectContainer.setRatio(...this._currentPage.getRatio());
-        this._emojiSelection.setRatio(...this._currentPage.getRatio());
+
+        this._relayout();
     }
 
     _clearKeyboardRestTimer() {
@@ -1986,10 +2076,8 @@ export const Keyboard = GObject.registerClass({
         this._clearShowIdle();
         this._keyboardRequested = true;
 
-        if (this._keyboardVisible) {
-            this._relayout();
+        if (this._keyboardVisible)
             return;
-        }
 
         this._keyboardController.setOskCompletion(true);
         this._clearKeyboardRestTimer();
@@ -2013,7 +2101,6 @@ export const Keyboard = GObject.registerClass({
         if (!this._keyboardRequested)
             return;
 
-        this._relayout();
         this._animateShow();
 
         this._setEmojiActive(false);
