@@ -5,7 +5,7 @@
   margin-bottom: $base_padding;
   width: 24em;
 
-  @extend %system_entry;
+  @extend %lockscreen_entry;
 
   .search-entry-icon {
     icon-size: $scalable_icon_size;
