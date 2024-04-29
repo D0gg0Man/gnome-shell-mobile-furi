@@ -1095,6 +1095,7 @@ const EmojiSelection = GObject.registerClass({
         'emoji-selected': {param_types: [GObject.TYPE_STRING]},
         'close-request': {},
         'toggle': {},
+        'keyval': { param_types: [GObject.TYPE_UINT] },
     },
 }, class EmojiSelection extends St.Widget {
     _init() {
@@ -1553,6 +1554,10 @@ export const Keyboard = GObject.registerClass({
         this._emojiSelection.connect('emoji-selected', (selection, emoji) => {
             this._keyboardController.commit(emoji).catch(console.error);
         });
+        this._emojiSelection.connectObject('keyval', (_emojiSelection, keyval) => {
+            this._keyboardController.keyvalPress(keyval);
+            this._keyboardController.keyvalRelease(keyval);
+        }, this);
 
         this._emojiSelection.hide();
         this._aspectContainer.add_child(this._emojiSelection);
