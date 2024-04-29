@@ -1249,17 +1249,16 @@ const EmojiSelection = GObject.registerClass({
         }
 
         key = new Key({
-            iconName: 'osk-hide-symbolic',
+            iconName: 'edit-clear-symbolic',
             hasAction: true,
             useInternalClickGesture: false,
         }, []);
         key.keyButton.add_style_class_name('default-key');
-        key.keyButton.add_style_class_name('hide-key');
         key.keyButton.add_style_class_name('bottom-row-key');
         key.connect('released', () => {
-            this.emit('close-request');
+            this.emit('keyval', Clutter.KEY_BackSpace);
         });
-        row.appendKey(key);
+        row.appendKey(key, 1.5);
 
         const actor = new AspectContainer({
             layout_manager: new Clutter.BinLayout(),
