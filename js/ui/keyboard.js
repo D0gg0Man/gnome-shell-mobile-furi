@@ -821,7 +821,7 @@ const EmojiPager = GObject.registerClass({
     Signals: {
         'emoji': {param_types: [GObject.TYPE_STRING]},
         'page-changed': {
-            param_types: [GObject.TYPE_INT, GObject.TYPE_INT, GObject.TYPE_INT],
+            param_types: [GObject.TYPE_STRING, GObject.TYPE_INT, GObject.TYPE_INT],
         },
     },
 }, class EmojiPager extends St.Widget {
@@ -1069,7 +1069,7 @@ const EmojiPager = GObject.registerClass({
         }
 
         let page = this._pages[nPage];
-        this.emit('page-changed', page.section.label, page.page, page.nPages);
+        this.emit('page-changed', page.section.first, page.page, page.nPages);
     }
 
     setCurrentSection(section, nPage) {
@@ -1112,15 +1112,13 @@ const EmojiSelection = GObject.registerClass({
         });
 
         this._sections = [
-            {first: 'grinning face', label: '🙂️'},
-            {first: 'selfie', label: '👍️'},
-            {first: 'monkey face', label: '🌷️'},
-            {first: 'grapes', label: '🍴️'},
-            {first: 'globe showing Europe-Africa', label: '✈️'},
-            {first: 'jack-o-lantern', label: '🏃️'},
-            {first: 'muted speaker', label: '🔔️'},
-            {first: 'ATM sign', label: '❤️'},
-            {first: 'chequered flag', label: '🚩️'},
+            {first: 'grinning face', iconName: 'emoji-people-symbolic'},
+            {first: 'monkey face', iconName: 'emoji-nature-symbolic'},
+            {first: 'grapes', iconName: 'emoji-food-symbolic'},
+            {first: 'globe showing Europe-Africa', iconName: 'emoji-travel-symbolic'},
+            {first: 'jack-o-lantern', iconName: 'emoji-activities-symbolic'},
+            {first: 'muted speaker', iconName: 'emoji-objects-symbolic'},
+            {first: 'ATM sign', iconName: 'emoji-symbols-symbolic'},
         ];
 
         this._gridLayout = gridLayout;
@@ -1162,14 +1160,14 @@ const EmojiSelection = GObject.registerClass({
         super.vfunc_map();
     }
 
-    _onPageChanged(sectionLabel, page, nPages) {
+    _onPageChanged(sectionFirst, page, nPages) {
         this._curPage = page;
         this._pageIndicator.setNPages(nPages);
         this._updateIndicatorPosition();
 
         for (let i = 0; i < this._sections.length; i++) {
             let sect = this._sections[i];
-            sect.button.setLatched(sectionLabel === sect.label);
+            sect.button.setLatched(sectionFirst === sect.first);
         }
     }
 
@@ -1233,7 +1231,9 @@ const EmojiSelection = GObject.registerClass({
         for (let i = 0; i < this._sections.length; i++) {
             let section = this._sections[i];
 
-            key = new Key({label: section.label}, []);
+            key = new Key({
+                iconName: section.iconName,
+            }, []);
             key.connect('released', () => this._emojiPager.setCurrentSection(section, 0));
             row.appendKey(key);
 
