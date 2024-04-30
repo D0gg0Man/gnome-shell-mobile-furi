@@ -38,7 +38,7 @@
   // $no_inset  if true, override the mixin to not draw an iset
   //
 
-  box-shadow: inset 0 0 0 $width $ic;
+ // box-shadow: inset 0 0 0 $width $ic;
 
   // draw inset as border
   @if $border {
@@ -373,7 +373,7 @@
 
   &:drop {
     background-color: st-transparentize(-st-accent-color, .8);
-    box-shadow: inset 0 0 0 2px st-transparentize(-st-accent-color, .2);
+    //box-shadow: inset 0 0 0 2px st-transparentize(-st-accent-color, .2);
   }
 }
 

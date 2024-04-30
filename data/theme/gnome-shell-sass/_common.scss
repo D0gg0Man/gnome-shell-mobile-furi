@@ -94,8 +94,8 @@ stage {
   border-radius: $base_border_radius;
   padding: $base_padding * .5 $base_padding * 4;
   font-weight: bold;
-  transition: border-width 300ms $ease_out_quad,
-              box-shadow 300ms $ease_out_quad;
+//  transition: border-width 300ms $ease_out_quad,
+  //            box-shadow 300ms $ease_out_quad;
 }
 
 %button {
@@ -141,7 +141,7 @@ stage {
   padding: $scaled_padding * 2;
   margin: $base_margin;
   background-color: $card_bg_color;
-  box-shadow: 0 1px 2px 0 $card_shadow_color;
+//  box-shadow: 0 1px 2px 0 $card_shadow_color;
   // bit of a hack here with border since we can't have double box-shadow
   border: 1px solid $card_shadow_border_color;
 
