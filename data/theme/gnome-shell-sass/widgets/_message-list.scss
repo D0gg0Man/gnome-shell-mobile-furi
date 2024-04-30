@@ -99,7 +99,7 @@
   // message header
   .message-header {
     spacing: $base_padding;
-    color: $card_insensitive_fg_color;
+    color: lighten($card_insensitive_fg_color, 25%);
     padding:0 $base_padding;
 
     // remove side padding to accommodate the close button
@@ -126,7 +126,7 @@
       // Time label
       .event-time {
         @extend %caption;
-        color: $card_insensitive_fg_color;
+        color: lighten($card_insensitive_fg_color, 25%);
         // Add bottom padding to align the app name with the time horizontally
         padding-bottom: to_em(1px);
 
