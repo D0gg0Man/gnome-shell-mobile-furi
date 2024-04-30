@@ -67,11 +67,6 @@ $app_folder_size: 640px;
   width: $app_folder_size;
   height: $app_folder_size;
 
-  &.mobile {
-    width: 360px;
-    height: 430px;
-  }
-
   border-radius: $modal_radius * 4;
   background-color: $system_overlay_bg_color;
   color: $system_fg_color;
@@ -117,6 +112,11 @@ $app_folder_size: 640px;
   & .overview-tile {
     @include tile_button($bg:$system_overlay_bg_color);
   }
+}
+
+#uiGroup.mobile .app-folder-dialog {
+  width: 360px;
+  height: 430px;
 }
 
 // Rename popup for app folders
