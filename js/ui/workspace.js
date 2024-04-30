@@ -1482,7 +1482,7 @@ class Workspace extends St.Widget {
     }
 
     _windowAdded(metaWorkspace, metaWin) {
-        if (!Main.overview.closing)
+//        if (!Main.overview.closing)
             this._doAddWindow(metaWin);
     }
 
@@ -1491,7 +1491,7 @@ class Workspace extends St.Widget {
     }
 
     _windowEnteredMonitor(metaDisplay, monitorIndex, metaWin) {
-        if (monitorIndex === this.monitorIndex && !Main.overview.closing)
+        if (monitorIndex === this.monitorIndex/*&& !Main.overview.closing*/)
             this._doAddWindow(metaWin);
     }
 
@@ -1516,7 +1516,7 @@ class Workspace extends St.Widget {
     }
 
     prepareToLeaveOverview() {
-        this._clearSkipTaskbarSignals();
+      //  this._clearSkipTaskbarSignals();
 
         for (let i = 0; i < this._windows.length; i++)
             this._windows[i].remove_all_transitions();

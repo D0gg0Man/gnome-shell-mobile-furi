@@ -798,6 +798,15 @@ class WorkspacesDisplay extends St.Widget {
         this._settings = new Gio.Settings({schema_id: MUTTER_SCHEMA});
 
         this._gestureActive = false; // touch(pad) gestures
+
+        this._updateWorkspacesViews();
+
+        Main.overview.connectObject(
+            'windows-restacked', this._onRestacked.bind(this),
+            'scroll-event', this._onScrollEvent.bind(this), this);
+
+        global.stage.connectObject(
+            'key-press-event', this._onKeyPressEvent.bind(this), this);
     }
 
     _workspacesReordered() {
@@ -917,33 +926,9 @@ class WorkspacesDisplay extends St.Widget {
             primaryWorkspace.visible = visible;
     }
 
-    vfunc_show() {
-        this._updateWorkspacesViews();
-
-        Main.overview.connectObject(
-            'windows-restacked', this._onRestacked.bind(this),
-            'scroll-event', this._onScrollEvent.bind(this), this);
-
-        global.stage.connectObject(
-            'key-press-event', this._onKeyPressEvent.bind(this), this);
-
-        super.vfunc_show();
-    }
-
     prepareToLeaveOverview() {
         for (let i = 0; i < this._workspacesViews.length; i++)
             this._workspacesViews[i].prepareToLeaveOverview();
-    }
-
-    vfunc_hide() {
-        Main.overview.disconnectObject(this);
-        global.stage.disconnectObject(this);
-
-        for (let i = 0; i < this._workspacesViews.length; i++)
-            this._workspacesViews[i].destroy();
-        this._workspacesViews = [];
-
-        super.vfunc_hide();
     }
 
     _updateWorkspacesViews() {
