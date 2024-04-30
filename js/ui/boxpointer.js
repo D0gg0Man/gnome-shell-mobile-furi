@@ -486,7 +486,7 @@ export const BoxPointer = GObject.registerClass({
         this._workArea = Main.layoutManager.getWorkAreaForMonitor(monitorIndex);
 
         // Position correctly relative to the sourceActor
-        const sourceAllocation = sourceActor.get_allocation_box();
+        const sourceAllocation = sourceActor.allocation;
         const sourceContentBox = sourceActor instanceof St.Widget
             ? sourceActor.get_theme_node().get_content_box(sourceAllocation)
             : new Clutter.ActorBox({
