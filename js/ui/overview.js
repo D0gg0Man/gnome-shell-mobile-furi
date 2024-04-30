@@ -159,16 +159,6 @@ export class Overview extends Signals.EventEmitter {
         this._visibleTarget = false;
         this._shownState = OverviewShownState.HIDDEN;
 
-        // During transitions, we raise this to the top to avoid having the overview
-        // area be reactive; it causes too many issues such as double clicks on
-        // Dash elements, or mouseover handlers in the workspaces.
-        this._coverPane = new Clutter.Actor({
-            opacity: 0,
-        //    reactive: true,
-        });
-        Main.layoutManager.overviewGroup.add_child(this._coverPane);
-        this._coverPane.hide();
-
         // XDND
         this._dragMonitor = {
             dragMotion: this._onDragMotion.bind(this),
@@ -221,9 +211,6 @@ export class Overview extends Signals.EventEmitter {
         this._overview = new OverviewActor();
         this._overview._delegate = this;
         Main.layoutManager.overviewGroup.add_child(this._overview);
-
-        Main.layoutManager.connect('monitors-changed', this._relayout.bind(this));
-        this._relayout();
 
         Main.wm.addKeybinding(
             'toggle-overview',
@@ -425,13 +412,6 @@ log("OVERVIEW: got notify zero open: " + Main.wm.workspaceTracker.zeroOpenWindow
         return Clutter.EVENT_PROPAGATE;
     }
 
-    _relayout() {
-        this._coverPane.set_position(0, 0);
-        this._coverPane.set_size(global.screen_width, global.screen_height);
-        Main.layoutManager.overviewGroup.set_child_above_sibling(
-            this._coverPane, null);
-    }
-
     _onRestacked() {
         let stack = global.get_window_actors();
         let stackIndices = {};
@@ -482,7 +462,6 @@ log("OVERVIEW: got notify zero open: " + Main.wm.workspaceTracker.zeroOpenWindow
             this._visibleTarget = false;
             this._changeShownState(OverviewShownState.HIDING);
             Main.panel.style = `transition-duration: ${duration}ms;`;
-            this._coverPane.show();
 
             onStopped = (finished) => {
                 endCb();
@@ -533,7 +512,6 @@ log("OVERVIEW: got notify zero open: " + Main.wm.workspaceTracker.zeroOpenWindow
             this._shown = false;
             this._changeShownState(OverviewShownState.HIDING);
             Main.panel.style = `transition-duration: ${duration}ms;`;
-            this._coverPane.show();
 
             onStopped = (finished) => {
                 endCb();
@@ -590,8 +568,6 @@ log("OVERVIEW: got notify zero open: " + Main.wm.workspaceTracker.zeroOpenWindow
 
             if (!this._syncGrab())
                 return;
-
-            this._coverPane.show();
 
             stoppedCb = (finished) => {
                 if (onTopWindow) {
@@ -732,8 +708,6 @@ log("OVERVIEW: got notify zero open: " + Main.wm.workspaceTracker.zeroOpenWindow
         this._visibleTarget = true;
         this._activationTime = GLib.get_monotonic_time() / GLib.USEC_PER_SEC;
 
-        this._coverPane.show();
-
         this._overview.prepareToEnterOverview();
         this._changeShownState(OverviewShownState.SHOWING);
         this._overview.animateToOverview(state, () => this._showDone());
@@ -741,7 +715,6 @@ log("OVERVIEW: got notify zero open: " + Main.wm.workspaceTracker.zeroOpenWindow
 
     _showDone() {
         this._animationInProgress = false;
-        this._coverPane.hide();
 
         if (this._shownState !== OverviewShownState.SHOWN)
             this._changeShownState(OverviewShownState.SHOWN);
@@ -791,8 +764,6 @@ log("OVERVIEW: got notify zero open: " + Main.wm.workspaceTracker.zeroOpenWindow
         this._animationInProgress = true;
         this._visibleTarget = false;
 
-        this._coverPane.show();
-
         this._overview.prepareToLeaveOverview();
         this._changeShownState(OverviewShownState.HIDING);
         this._overview.animateFromOverview(() => this._hideDone());
@@ -807,9 +778,6 @@ log("OVERVIEW: got notify zero open: " + Main.wm.workspaceTracker.zeroOpenWindow
 
         this._threeFingerWorkspacesGesture.allowLongSwipes = false;
         this._singleFingerWorkspacesGesture.allowLongSwipes = false;
-
-
-        this._coverPane.hide();
 
         this._visible = false;
         this._animationInProgress = false;
