@@ -1484,6 +1484,8 @@ export const Keyboard = GObject.registerClass({
 
         this._suggestions = null;
 
+        this._longPressedKeyvals = new Set();
+
         this._focusTracker = new FocusTracker();
         this._focusTracker.connectObject(
             'window-changed', this._onFocusChanged.bind(this), this);
@@ -1949,10 +1951,26 @@ export const Keyboard = GObject.registerClass({
                     });
                 }
             } else if (key.keyval) {
-                button.connect('keyval', (_actor, keyval) => {
-                    this._keyboardController.keyvalPress(keyval);
-                    this._keyboardController.keyvalRelease(keyval);
+                button.connect('long-press', (_actor) => {
+                    this._keyboardController.keyvalPress(key.keyval);
+                    this._longPressedKeyvals.add(key.keyval);
+                });
+                button.connect('released', (_actor) => {
+                    if (this._longPressedKeyvals.has(key.keyval)) {
+                        this._keyboardController.keyvalRelease(key.keyval);
+                        this._longPressedKeyvals.delete(key.keyval);
+                        return;
+                    }
+
+                    this._keyboardController.keyvalPress(key.keyval);
+                    this._keyboardController.keyvalRelease(key.keyval);
                     this._updateLevelFromHints(true);
+                });
+                button.connect('cancelled', (_actor) => {
+                    if (this._longPressedKeyvals.has(key.keyval)) {
+                        this._keyboardController.keyvalRelease(key.keyval);
+                        this._longPressedKeyvals.delete(key.keyval);
+                    }
                 });
             } else {
                 button.connect('commit', (_actor, str) => {
