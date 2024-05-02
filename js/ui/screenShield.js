@@ -385,6 +385,8 @@ log("LOCKSCREENOVERLAY: preparing length " + this._lockscreenOverlayStack.length
                 }
                 this._reparentToOverlayGroup(overlay);
 
+                global.display.set_forward_to_wayland_while_grabbed(true);
+
               /*   const vert = overlay.window.can_maximize_vertically();
                 const horiz = overlay.window.can_maximize_horizontally();
                 if (vert && horiz)
@@ -420,6 +422,8 @@ log("LOCKSCREENOVERLAY: preparing length " + this._lockscreenOverlayStack.length
 
 //        overlay.activeData.connections.forEach(c => overlay.disconnect(c));
         this._reparentToOriginalParent(overlay);
+
+        global.display.set_forward_to_wayland_while_grabbed(false);
 
         delete overlay.activeData;
     }
