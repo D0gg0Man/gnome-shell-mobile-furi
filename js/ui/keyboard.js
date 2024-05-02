@@ -1125,7 +1125,8 @@ const EmojiSelection = GObject.registerClass({
         'emoji-selected': {param_types: [GObject.TYPE_STRING]},
         'close-request': {},
         'toggle': {},
-        'keyval': { param_types: [GObject.TYPE_UINT] },
+        'keyval-press': { param_types: [GObject.TYPE_UINT] },
+        'keyval-release': { param_types: [GObject.TYPE_UINT] },
     },
 }, class EmojiSelection extends St.Widget {
     _init() {
@@ -1290,8 +1291,25 @@ const EmojiSelection = GObject.registerClass({
         }, []);
         key.keyButton.add_style_class_name('default-key');
         key.keyButton.add_style_class_name('bottom-row-key');
+        key.connect('long-press', () => {
+            this.emit('keyval-press', Clutter.KEY_BackSpace);
+            this._isLongPress = true;
+        });
         key.connect('released', () => {
-            this.emit('keyval', Clutter.KEY_BackSpace);
+            if (this._isLongPress) {
+                this.emit('keyval-release', Clutter.KEY_BackSpace);
+                delete this._isLongPress;
+                return;
+            }
+
+            this.emit('keyval-press', Clutter.KEY_BackSpace);
+            this.emit('keyval-release', Clutter.KEY_BackSpace);
+        });
+        key.connect('cancelled', () => {
+            if (this._isLongPress) {
+                this.emit('keyval-release', Clutter.KEY_BackSpace);
+                delete this._isLongPress;
+            }
         });
         row.appendKey(key, 1.5);
         row.finishLayout();
@@ -1666,10 +1684,14 @@ export const Keyboard = GObject.registerClass({
         this._emojiSelection.connect('emoji-selected', (selection, emoji) => {
             this._keyboardController.commit(emoji).catch(console.error);
         });
-        this._emojiSelection.connectObject('keyval', (_emojiSelection, keyval) => {
-            this._keyboardController.keyvalPress(keyval);
-            this._keyboardController.keyvalRelease(keyval);
-        }, this);
+        this._emojiSelection.connectObject(
+            'keyval-press', (_emojiSelection, keyval) => {
+                this._keyboardController.keyvalPress(keyval);
+            },
+            'keyval-release', (_emojiSelection, keyval) => {
+                this._keyboardController.keyvalRelease(keyval);
+            }, this);
+
 
         this._emojiSelection.hide();
         this._aspectContainer.add_child(this._emojiSelection);
