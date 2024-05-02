@@ -2580,10 +2580,7 @@ class KeyboardController extends Signals.EventEmitter {
 
         /* If there is no IM focus or are in the middle of preedit, fallback to
          * keypresses */
-        if (enabled &&
-            (!Main.inputMethod.currentFocus ||
-             Main.inputMethod.hasPreedit() ||
-             this._purpose === Clutter.InputContentPurpose.TERMINAL)) {
+        if (enabled) {
             this.keyvalPress(Clutter.KEY_BackSpace);
             this._backspacePressed = true;
             return;
