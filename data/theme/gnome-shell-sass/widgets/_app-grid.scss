@@ -27,7 +27,7 @@ $app_folder_size: 640px;
   @include tile_button($bg:$system_base_color);
 
   // override the %tile style
-  border-radius: $base_border_radius*3;
+  border-radius: $base_border_radius*2;
 
   // the icon itself
   .overview-icon {
