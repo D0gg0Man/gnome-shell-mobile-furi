@@ -14,7 +14,7 @@ $submenu_bg_color: if($variant == 'light', darken($menu_bg_color, 17%),  lighten
 
 // container of the popover menu
 .popup-menu {
-  min-width: 15em;
+  min-width: 12em;
   color: $fg_color;
 
   //.popup-status-menu-item {font-weight: normal;  color: pink;} //dunno what that is
