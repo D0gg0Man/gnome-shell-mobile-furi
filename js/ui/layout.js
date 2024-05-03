@@ -299,6 +299,8 @@ export const LayoutManager = GObject.registerClass({
         });
         this.addTopChrome(this.keyboardBox);
 
+        global.display.set_keyboard_box(this.keyboardBox);
+
         this.screenshotUIGroup = new St.Widget({
             name: 'screenshotUIGroup',
             layout_manager: new Clutter.BinLayout(),
