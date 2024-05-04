@@ -702,7 +702,5 @@ export const BoxPointer = GObject.registerClass({
             delete this._fullscreenContraint;
             this._isFullscreen = false;
         }
-
-        this.queue_relayout();
     }
 });

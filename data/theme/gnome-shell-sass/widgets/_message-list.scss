@@ -3,16 +3,17 @@
 
 // main list
 .message-list {
-  margin-top: 24px;
+  margin-top: 0px;
+  margin-bottom: 4px;
 
   &:ltr {
     StScrollBar { margin-right: 0; }
-    border-right-width: 1px;
+   // border-right-width: 1px;
   }
 
   &:rtl {
     StScrollBar { margin-left: 0; }
-    border-left-width: 1px;
+ //   border-left-width: 1px;
   }
 
   .message-list-placeholder {
@@ -56,6 +57,8 @@
 // message notification group
 .message-notification-group {
   spacing: $base_padding * 2;
+  padding-left: 16px;
+  padding-right: 16px;
 
   .message-group-header {
     padding: $base_padding;
@@ -259,6 +262,9 @@
 }
 
 .media-message {
+  margin-left: 16px;
+  margin-right: 16px;
+
   // album-art
   .message-icon {
     border-radius: $base_border_radius !important;

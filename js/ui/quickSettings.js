@@ -739,18 +739,26 @@ export const QuickSettingsMenu = class extends PopupMenu.PopupMenu {
 
         this.actor = new St.Widget({reactive: true, width: 0, height: 0});
         this.actor.add_child(this._boxPointer);
+        this._boxPointer.add_style_class_name("quick-settings-boxpointer");
+        this._boxPointer.setFullscreen(true);
         this.actor._delegate = this;
 
         this.connect('menu-closed', () => this.actor.hide());
-
-        Main.layoutManager.connectObject('system-modal-opened',
-            () => this.close(), this);
 
         this._dimEffect = new Clutter.BrightnessContrastEffect({
             enabled: false,
         });
         this._boxPointer.add_effect_with_name('dim', this._dimEffect);
         this.box.add_style_class_name('quick-settings');
+        this.box.x_align = Clutter.ActorAlign.END;
+        this.box.y_align = Clutter.ActorAlign.START;
+        this.box.clip_to_allocation = true;
+
+        this._innerBox = new St.BoxLayout({
+            style_class: 'inner-box',
+            vertical: true,
+        });
+        this.box.add_child(this._innerBox);
 
         // Overlay layer for menus
         this._overlay = new Clutter.Actor({
@@ -765,19 +773,24 @@ export const QuickSettingsMenu = class extends PopupMenu.PopupMenu {
             }),
         });
 
+        this._panelBox = new St.BoxLayout({
+            style_class: 'panel-clone',
+        });
+        this._innerBox.add_child(this._panelBox);
+
         this._grid = new St.Widget({
             style_class: 'quick-settings-grid',
             layout_manager: new QuickSettingsLayout(placeholder, {}),
         });
-        this.box.add_child(this._grid);
+        this._innerBox.add_child(this._grid);
         this._grid.add_child(placeholder);
 
         this._messageList = new Calendar.CalendarMessageList();
-        this.box.add_child(this._messageList);
+        this._innerBox.add_child(this._messageList);
 
         const yConstraint = new Clutter.BindConstraint({
             coordinate: Clutter.BindCoordinate.Y,
-            source: this._boxPointer,
+            source: this.box,
         });
 
         // Pick up additional spacing from any intermediate actors
@@ -785,7 +798,7 @@ export const QuickSettingsMenu = class extends PopupMenu.PopupMenu {
             const laters = global.compositor.get_laters();
             laters.add(Meta.LaterType.BEFORE_REDRAW, () => {
                 const offset = this._grid.apply_relative_transform_to_point(
-                    this._boxPointer, new Graphene.Point3D());
+                    this.box, new Graphene.Point3D());
                 yConstraint.offset = offset.y;
                 return GLib.SOURCE_REMOVE;
             });
@@ -793,15 +806,19 @@ export const QuickSettingsMenu = class extends PopupMenu.PopupMenu {
         this._grid.connect('notify::y', updateOffset);
         this.box.connect('notify::y', updateOffset);
         this._boxPointer.bin.connect('notify::y', updateOffset);
+        this._boxPointer.connect('notify::position', () => {
+            this._overlay.translation_x = this._boxPointer.x;
+            this._overlay.translation_y = this._boxPointer.y;
+        });
 
         this._overlay.add_constraint(yConstraint);
         this._overlay.add_constraint(new Clutter.BindConstraint({
             coordinate: Clutter.BindCoordinate.X,
-            source: this._boxPointer,
+            source: this.box,
         }));
         this._overlay.add_constraint(new Clutter.BindConstraint({
             coordinate: Clutter.BindCoordinate.WIDTH,
-            source: this._boxPointer,
+            source: this.box,
         }));
 
         this.actor.add_child(this._overlay);
@@ -818,26 +835,26 @@ export const QuickSettingsMenu = class extends PopupMenu.PopupMenu {
     }
 
     _panBegin(gesture) {
-        this._boxPointer.remove_transition('translation-y');
+        this.box.remove_transition('translation-y');
 
-        this._panHeight = this._boxPointer.allocation.get_height();
+        this._panHeight = this.box.allocation.get_height() + this.box.margin_top;
     }
 
     _panUpdate(gesture) {
         const [latestDeltaVec] = gesture.get_delta();
 
-        this._boxPointer.translation_y += latestDeltaVec.get_y();
-        if (this._boxPointer.translation_y > 0)
-            this._boxPointer.translation_y = 0;
+        this.box.translation_y += latestDeltaVec.get_y();
+        if (this.box.translation_y > 0)
+            this.box.translation_y = 0;
     }
 
     _panEnd(gesture) {
         const velocityY = gesture.get_velocity().get_y();
 
-        const remainingHeight = this._panHeight - Math.abs(this._boxPointer.translation_y);
+        const remainingHeight = this._panHeight - Math.abs(this.box.translation_y);
 
         if (velocityY < -0.9 || (remainingHeight < this._panHeight * 0.75 && velocityY <= 0)) {
-            this._boxPointer.ease({
+            this.box.ease({
                 translation_y: -this._panHeight,
                 duration: Math.clamp(remainingHeight / Math.abs(velocityY), 160, 450),
                 mode: Clutter.AnimationMode.EASE_OUT_EXPO,
@@ -847,7 +864,7 @@ export const QuickSettingsMenu = class extends PopupMenu.PopupMenu {
                 },
             });
         } else {
-            this._boxPointer.ease({
+            this.box.ease({
                 translation_y: 0,
                 duration: Math.clamp((this._panHeight - remainingHeight) / Math.abs(velocityY), 100, 250),
                 mode: Clutter.AnimationMode.EASE_OUT_QUINT,
@@ -888,6 +905,25 @@ export const QuickSettingsMenu = class extends PopupMenu.PopupMenu {
     }
 
     open(animate) {
+        if (Main.layoutManager.isPhone) {
+            if (this._panelBox.get_n_children() === 0) {
+                const panelLeftClone = new Clutter.Clone({
+                    source: Main.panel._leftBox,
+                    height: Main.panel._leftBox.height,
+                });
+                this._panelBox.add_child(panelLeftClone);
+                const panelRightClone = new Clutter.Clone({
+                    source: Main.panel._rightBox,
+                    x_expand: true,
+                    x_align: Clutter.ActorAlign.END,
+                    height: Main.panel._rightBox.height,
+                });
+                this._panelBox.add_child(panelRightClone);
+            }
+        } else {
+            this._panelBox.destroy_all_children();
+        }
+
         this.actor.show();
         super.open(animate);
     }
@@ -924,12 +960,12 @@ export const QuickSettingsMenu = class extends PopupMenu.PopupMenu {
         this.modal = false;
         this.open(false);
 
-        this._boxPointer.remove_transition('translation-y');
+        this.box.remove_transition('translation-y');
 
         // FIXME: bad idea, before-paint is after updating matrices... we want an after-layout signal for this
         const id = global.stage.connect('before-paint', () => {
-            this._panHeight = this._boxPointer.allocation.get_height();
-            this._boxPointer.translation_y = -this._panHeight + centroid.y;
+            this._panHeight = this.box.allocation.get_height() + this.box.margin_top;
+            this.box.translation_y = -this._panHeight + centroid.y;
 
             global.stage.disconnect(id);
         });
@@ -938,24 +974,24 @@ export const QuickSettingsMenu = class extends PopupMenu.PopupMenu {
     panelPanUpdate(gesture) {
         const [latestDeltaVec] = gesture.get_delta();
 
-        this._boxPointer.translation_y += latestDeltaVec.get_y();
-        if (this._boxPointer.translation_y > 0)
-            this._boxPointer.translation_y = 0;
+        this.box.translation_y += latestDeltaVec.get_y();
+        if (this.box.translation_y > 0)
+            this.box.translation_y = 0;
     }
 
     panelPanEnd(gesture) {
         const velocityY = gesture.get_velocity().get_y();
-        const remainingHeight = Math.abs(this._boxPointer.translation_y);
+        const remainingHeight = Math.abs(this.box.translation_y);
 
         if (velocityY > 0.9 || (remainingHeight < this._panHeight * 0.75 && velocityY >= 0)) {
-            this._boxPointer.ease({
+            this.box.ease({
                 translation_y: 0,
                 duration: Math.clamp(remainingHeight / Math.abs(velocityY), 160, 450),
                 mode: Clutter.AnimationMode.EASE_OUT_QUINT,
                 onStopped: () => { this.modal = true; },
             });
         } else {
-            this._boxPointer.ease({
+            this.box.ease({
                 translation_y: -this._panHeight,
                 duration: Math.clamp((this._panHeight - remainingHeight) / Math.abs(velocityY), 100, 250),
                 mode: Clutter.AnimationMode.EASE_OUT_EXPO,
