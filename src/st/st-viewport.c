@@ -304,6 +304,7 @@ st_viewport_allocate (ClutterActor           *actor,
   clutter_layout_manager_get_preferred_height (layout, actor,
                                                MAX (avail_width, min_width),
                                                &min_height, &natural_height);
+min_height -= 1.0;
 
   /* Because StViewport implements StScrollable, the allocation box passed here
    * may not match the minimum sizes reported by the layout manager. When that
