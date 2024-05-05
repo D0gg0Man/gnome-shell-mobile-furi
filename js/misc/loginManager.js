@@ -195,15 +195,25 @@ class LoginManagerSystemd extends Signals.EventEmitter {
         return new SystemdLoginSession(Gio.DBus.system, 'org.freedesktop.login1', objectPath);
     }
 
-    suspend() {
-        this._proxy.SuspendAsync(true);
+    async suspend() {
+        await this._proxy.SuspendAsync(true);
     }
 
-    async inhibit(reason, cancellable) {
+    async inhibit(what, mode, reason, cancellable) {
         const inVariant = new GLib.Variant('(ssss)',
-            ['sleep', 'GNOME Shell', reason, 'delay']);
+            [what, 'GNOME Shell', reason, mode]);
         const [outVariant_, fdList] =
             await this._proxy.call_with_unix_fd_list('Inhibit',
+                inVariant, 0, -1, null, cancellable);
+        const [fd] = fdList.steal_fds();
+        return new GioUnix.InputStream({fd});
+    }
+
+    inhibitSync(what, mode, reason, cancellable) {
+        const inVariant = new GLib.Variant('(ssss)',
+            [what, 'GNOME Shell', reason, mode]);
+        const [outVariant_, fdList] =
+            this._proxy.call_with_unix_fd_list_sync('Inhibit',
                 inVariant, 0, -1, null, cancellable);
         const [fd] = fdList.steal_fds();
         return new GioUnix.InputStream({fd});

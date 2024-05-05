@@ -339,7 +339,8 @@ export const TimeLimitsManager = GObject.registerClass({
 
         try {
             this._inhibitor = await this._loginManager.inhibit(
-                _('GNOME needs to save screen time data'), this._cancellable);
+                'sleep', 'delay', _('GNOME needs to save screen time data'),
+                this._cancellable);
         } catch (e) {
             if (!e.matches(Gio.IOErrorEnum, Gio.IOErrorEnum.CANCELLED))
                 console.warn('Failed to inhibit suspend: %s'.format(e.message));

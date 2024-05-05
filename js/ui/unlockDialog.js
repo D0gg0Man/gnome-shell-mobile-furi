@@ -686,6 +686,9 @@ export const UnlockDialog = GObject.registerClass({
         if (Main.keyboard.maybeHandleEvent(event))
             return Clutter.EVENT_STOP;
 
+        if (Main.screenShield.maybeHandleEvent(event))
+            return Clutter.EVENT_STOP;
+
         return Clutter.EVENT_PROPAGATE;
     }
 

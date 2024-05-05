@@ -1,5 +1,7 @@
 <node>
   <interface name="org.freedesktop.UPower">
     <property name="OnBattery" type="b" access="read"/>
+    <property name="LidIsPresent" type="b" access="read"/>
+    <property name="LidIsClosed" type="b" access="read"/>
   </interface>
 </node>

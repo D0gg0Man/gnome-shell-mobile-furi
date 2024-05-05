@@ -267,6 +267,9 @@ export class GrabHelper {
             return Clutter.EVENT_PROPAGATE;
         }
 
+        if (Main.screenShield.maybeHandleEvent(event))
+            return Clutter.EVENT_STOP;
+
         const targetActor = global.stage.get_event_actor(event);
 
         if (type === Clutter.EventType.ENTER ||

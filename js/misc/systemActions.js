@@ -429,6 +429,7 @@ const SystemActions = GObject.registerClass({
             throw new Error('The lock-screen action is not available!');
 
         Main.screenShield.lock(true);
+        Main.powerManager.blank();
     }
 
     activateSwitchUser() {

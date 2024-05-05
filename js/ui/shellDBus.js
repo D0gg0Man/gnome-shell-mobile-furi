@@ -526,12 +526,6 @@ class GnomeShellExtensions {
 export class ScreenSaverDBus {
     constructor(screenShield) {
         this._screenShield = screenShield;
-        screenShield.connect('active-changed', shield => {
-            this._dbusImpl.emit_signal('ActiveChanged', GLib.Variant.new('(b)', [shield.active]));
-        });
-        screenShield.connect('wake-up-screen', () => {
-            this._dbusImpl.emit_signal('WakeUpScreen', null);
-        });
 
         this._dbusImpl = Gio.DBusExportedObject.wrapJSObject(ScreenSaverIface, this);
         this._dbusImpl.export(Gio.DBus.session, '/org/gnome/ScreenSaver');
@@ -541,13 +535,10 @@ export class ScreenSaverDBus {
     }
 
     LockAsync(parameters, invocation) {
-        let tmpId = this._screenShield.connect('lock-screen-shown', () => {
-            this._screenShield.disconnect(tmpId);
-
-            invocation.return_value(null);
-        });
-
         this._screenShield.lock(true);
+        Main.powerManager.blank();
+
+        invocation.return_value(null);
     }
 
     SetActive(active) {

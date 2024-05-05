@@ -121,6 +121,9 @@ export const ModalDialog = GObject.registerClass({
         if (Main.keyboard.maybeHandleEvent(event))
             return Clutter.EVENT_STOP;
 
+        if (Main.screenShield.maybeHandleEvent(event))
+            return Clutter.EVENT_PROPAGATE;
+
         return Clutter.EVENT_PROPAGATE;
     }
 

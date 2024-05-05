@@ -1,5 +1,6 @@
 <node>
   <interface name="org.freedesktop.login1.Manager">
+    <property name="OnExternalPower" type="b" access="read"/>
     <method name="Suspend">
       <arg type="b" direction="in"/>
     </method>
