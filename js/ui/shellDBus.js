@@ -319,6 +319,11 @@ export class GnomeShell {
     }
 
     _grabAcceleratorForSender(accelerator, modeFlags, grabFlags, sender) {
+        if (accelerator === "XF86PowerOff") {
+            log("DBus: disallowing the grabbing of power key accelerator");
+            return Meta.KeyBindingAction.NONE;
+        }
+
         let bindingAction = global.display.grab_accelerator(accelerator, grabFlags);
         if (bindingAction === Meta.KeyBindingAction.NONE)
             return Meta.KeyBindingAction.NONE;
