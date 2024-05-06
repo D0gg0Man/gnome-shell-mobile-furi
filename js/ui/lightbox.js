@@ -201,7 +201,7 @@ export const Lightbox = GObject.registerClass({
 
         let easeProps = {
             duration: fadeInTime || 0,
-            mode: Clutter.AnimationMode.EASE_OUT_QUAD,
+            mode: Clutter.AnimationMode.EASE_IN_QUAD,
         };
 
         let onComplete = () => {
