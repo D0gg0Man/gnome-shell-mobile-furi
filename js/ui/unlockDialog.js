@@ -209,7 +209,7 @@ export const UnlockDialog = GObject.registerClass({
 
         this._swipeTracker = new SwipeTracker.SwipeTracker(this,
             Clutter.Orientation.VERTICAL,
-            Shell.ActionMode.UNLOCK_SCREEN,
+            Shell.ActionMode.ALL,
             {
                 name: 'UnlockDialog swipe tracker',
             });
