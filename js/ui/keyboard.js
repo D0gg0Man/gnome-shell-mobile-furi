@@ -1940,6 +1940,22 @@ export const Keyboard = GObject.registerClass({
             }
 
             if (key.action) {
+                button.connect('pressed', () => {
+                    if (key.action === 'levelSwitch') {
+                        if (key.level === 'shift') {
+                            this._levelSwitchPressTime = GLib.get_monotonic_time();
+                        } else if (key.level === 'default') {
+                            const timeNow = GLib.get_monotonic_time();
+                            if ((timeNow - this._levelSwitchPressTime) / 1000 < 400) {
+                                this._setLatched(true);
+                                return;
+                            }
+                        }
+
+                        this._setActiveLevel(key.level);
+                    }
+                });
+
                 button.connect('released', () => {
                     if (key.action === 'hide') {
                         this.close(true);
@@ -1954,14 +1970,7 @@ export const Keyboard = GObject.registerClass({
                         this._keyboardController.toggleDelete(true);
                         this._keyboardController.toggleDelete(false);
                         this._updateLevelFromHints(true);
-                    } else if (!this._longPressed && key.action === 'levelSwitch') {
-                        this._setActiveLevel(key.level);
-                        this._setLatched(
-                            key.level === 1 &&
-                                key.iconName === 'osk-caps-lock-symbolic');
                     }
-
-                    this._longPressed = false;
                 });
 
                 button.connect('cancelled', () => {
@@ -2008,16 +2017,8 @@ export const Keyboard = GObject.registerClass({
             }
 
             if (key.action === 'levelSwitch' &&
-                key.iconName === 'osk-shift-symbolic') {
+                key.iconName === 'osk-shift-symbolic')
                 layout.shiftKeys.push(button);
-                if (key.level === 'shift') {
-                    button.connect('long-press', () => {
-                        this._setActiveLevel(key.level);
-                        this._setLatched(true);
-                        this._longPressed = true;
-                    });
-                }
-            }
 
             if (key.action === 'delete') {
                 button.connect('long-press',
@@ -2225,7 +2226,7 @@ export const Keyboard = GObject.registerClass({
         }
 
         if (this._currentPage != null) {
-            this._setCurrentLevelLatched(this._currentPage, false);
+            this._setLatched(false);
             this._currentPage.disconnect(this._currentPage._destroyID);
             this._currentPage.hide();
             delete this._currentPage._destroyID;
