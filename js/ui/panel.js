@@ -39,8 +39,6 @@ import {ScreenRecordingIndicator, ScreenSharingIndicator} from './status/remoteA
 
 const BUTTON_DND_ACTIVATION_TIMEOUT = 250;
 
-const N_QUICK_SETTINGS_COLUMNS = 2;
-
 const INACTIVE_WORKSPACE_DOT_SCALE = 0.75;
 
 const WorkspaceDot = GObject.registerClass({
@@ -293,7 +291,7 @@ class QuickSettings extends PanelMenu.Button {
         });
         this.add_child(this._indicators);
 
-        this.setMenu(new QuickSettingsMenu(this, N_QUICK_SETTINGS_COLUMNS));
+        this.setMenu(new QuickSettingsMenu(this));
 
         this._setupIndicators().catch(error =>
             logError(error, 'Failed to setup quick settings'));

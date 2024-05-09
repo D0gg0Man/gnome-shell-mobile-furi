@@ -576,6 +576,11 @@ const QuickSettingsLayout = GObject.registerClass({
         if (found)
             this.columnSpacing = length;
 
+        [found, cols] = node.lookup_double('n-columns', false);
+        changed ||= found;
+        if (found)
+            this.nColumns = cols;
+
         if (changed)
             this.layout_changed();
     }
@@ -728,7 +733,7 @@ const QuickSettingsLayout = GObject.registerClass({
 });
 
 export const QuickSettingsMenu = class extends PopupMenu.PopupMenu {
-    constructor(sourceActor, nColumns = 1) {
+    constructor(sourceActor) {
         super(sourceActor, 0, St.Side.TOP);
 
         this.actor = new St.Widget({reactive: true, width: 0, height: 0});
@@ -761,9 +766,7 @@ export const QuickSettingsMenu = class extends PopupMenu.PopupMenu {
 
         this._grid = new St.Widget({
             style_class: 'quick-settings-grid',
-            layout_manager: new QuickSettingsLayout(placeholder, {
-                nColumns,
-            }),
+            layout_manager: new QuickSettingsLayout(placeholder, {}),
         });
         this.box.add_child(this._grid);
         this._grid.add_child(placeholder);
