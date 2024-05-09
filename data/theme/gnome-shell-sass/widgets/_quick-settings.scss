@@ -13,6 +13,10 @@
   n-columns: 2;
 }
 
+#uiGroup.mobile.horizontal .quick-settings-grid {
+  n-columns: 4;
+}
+
 .quick-toggle, .quick-toggle-has-menu {
   border-radius: $forced_circular_radius;
   min-width: 12em;

@@ -362,13 +362,13 @@ class QuickSettings extends PanelMenu.Button {
         // add our quick settings items before any external ones
         const sibling = this.menu.getFirstItem();
         this._addItemsBefore(this._system.quickSettingsItems,
-            sibling, -1);
+            sibling, 2);
         this._addItemsBefore(this._volumeOutput.quickSettingsItems,
-            sibling, -1);
+            sibling, 2);
         this._addItemsBefore(this._volumeInput.quickSettingsItems,
-            sibling, -1);
+            sibling, 2);
         this._addItemsBefore(this._brightness.quickSettingsItems,
-            sibling, -1);
+            sibling, 2);
 
         this._addItemsBefore(this._camera.quickSettingsItems, sibling);
         this._addItemsBefore(this._remoteAccess.quickSettingsItems, sibling);
