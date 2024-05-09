@@ -33,9 +33,7 @@ $app_folder_size: 640px;
   .overview-icon {
     // item with a label
     &.overview-icon-with-label {
-      > StBoxLayout {
-        spacing: 2px;
-      }
+      spacing: 2px;
       StLabel { @extend %caption; }
     }
     border-radius: $base_border_radius * 3;
