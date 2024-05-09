@@ -69,7 +69,7 @@ $app_folder_size: 640px;
   width: $app_folder_size;
   height: $app_folder_size;
 
-  border-radius: $modal_radius * 4;
+  border-radius: $modal_radius * 3;
   background-color: $system_overlay_bg_color;
   color: $system_fg_color;
 
@@ -82,12 +82,14 @@ $app_folder_size: 640px;
   }
 
   & .folder-name-container {
-    padding: 12px 42px;
+    padding: 12px 22px;
     padding-bottom: 0;
+    spacing: 6px;
 
     & .folder-name-label,
     & .folder-name-entry {
       @extend %title_1;
+      @include fontsize(16pt);
     }
 
     & .folder-name-entry {
