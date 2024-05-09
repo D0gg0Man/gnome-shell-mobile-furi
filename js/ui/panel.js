@@ -364,13 +364,13 @@ class QuickSettings extends PanelMenu.Button {
         // add our quick settings items before any external ones
         const sibling = this.menu.getFirstItem();
         this._addItemsBefore(this._system.quickSettingsItems,
-            sibling, N_QUICK_SETTINGS_COLUMNS);
+            sibling, -1);
         this._addItemsBefore(this._volumeOutput.quickSettingsItems,
-            sibling, N_QUICK_SETTINGS_COLUMNS);
+            sibling, -1);
         this._addItemsBefore(this._volumeInput.quickSettingsItems,
-            sibling, N_QUICK_SETTINGS_COLUMNS);
+            sibling, -1);
         this._addItemsBefore(this._brightness.quickSettingsItems,
-            sibling, N_QUICK_SETTINGS_COLUMNS);
+            sibling, -1);
 
         this._addItemsBefore(this._camera.quickSettingsItems, sibling);
         this._addItemsBefore(this._remoteAccess.quickSettingsItems, sibling);
@@ -391,7 +391,7 @@ class QuickSettings extends PanelMenu.Button {
 
         // append background apps
         this._backgroundApps.quickSettingsItems.forEach(
-            item => this.menu.addItem(item, N_QUICK_SETTINGS_COLUMNS));
+            item => this.menu.addItem(item, -1));
     }
 
     _addItemsBefore(items, sibling, colSpan = 1) {

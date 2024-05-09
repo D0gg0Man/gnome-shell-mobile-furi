@@ -535,7 +535,7 @@ const QuickSettingsLayoutMeta = GObject.registerClass({
         'column-span': GObject.ParamSpec.int(
             'column-span', null, null,
             GObject.ParamFlags.READWRITE,
-            1, GLib.MAXINT32, 1),
+            -1, GLib.MAXINT32, 1),
     },
 }, class QuickSettingsLayoutMeta extends Clutter.LayoutMeta {});
 
@@ -565,7 +565,7 @@ const QuickSettingsLayout = GObject.registerClass({
         const node = this._container.get_theme_node();
 
         let changed = false;
-        let found, length;
+        let found, length, cols;
         [found, length] = node.lookup_length('spacing-rows', false);
         changed ||= found;
         if (found)
@@ -582,7 +582,8 @@ const QuickSettingsLayout = GObject.registerClass({
 
     _getColSpan(container, child) {
         const {columnSpan} = this.get_child_meta(container, child);
-        return Math.clamp(columnSpan, 1, this.nColumns);
+        return columnSpan === -1
+            ? this.nColumns : Math.clamp(columnSpan, 1, this.nColumns);
     }
 
     _getMaxChildWidth(container) {
