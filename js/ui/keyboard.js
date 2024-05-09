@@ -1930,6 +1930,15 @@ export const Keyboard = GObject.registerClass({
                 useInternalClickGesture: false,
             }, strings);
 
+            if (commitString && commitString !== ' ') {
+                button.set_pivot_point(1, 1);
+
+                button.connect('pressed', () => { button.translation_y = -34; });
+                button.connect('released', () => { button.translation_y = 0; });
+                button.connect('cancelled', () => { button.translation_y = 0; });
+                button.connect('long-press', () => { button.translation_y = 0; });
+            }
+
             if (key.action) {
                 button.connect('released', () => {
                     if (key.action === 'hide') {
