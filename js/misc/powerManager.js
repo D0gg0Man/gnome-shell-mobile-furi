@@ -1017,6 +1017,12 @@ log("POWERMANAGER: turn on this._fadeInTimeout " + this._fadeInTimeout + " this.
         });
     }
 
+    _showInteractivePowerMenu() {
+        Main.panel.statusArea.quickSettings.menu.box.translation_y = 0;
+        Main.panel.statusArea.quickSettings.menu.open(true);
+        Main.panel.statusArea.quickSettings._system._systemItem.get_children()[0].get_children()[6].menu.open()
+    }
+
     _updatePowersaveIdleWatch() {
         const action = this._onExternalPower
             ? this._powerSettings.get_string('sleep-inactive-ac-type')
@@ -1073,6 +1079,11 @@ log("POWERMANAGER: turn on this._fadeInTimeout " + this._fadeInTimeout + " this.
 
             log(`POWERMANAGER: powersave idle watch happened, will execute action ${action}`);
 
+            if (action === 'interactive') {
+                this._showInteractivePowerMenu();
+                return;
+            }
+
             this._doSystemAction(action, 'powersave idle watch fired', true, 10 * 1000).catch(e => console.error(e));
         });
     }
@@ -1106,6 +1117,12 @@ log("POWERMANAGER: turn on this._fadeInTimeout " + this._fadeInTimeout + " this.
         if (type === Clutter.EventType.KEY_RELEASE) {
             if (this._powerPressHappened) {
                 delete this._powerPressHappened;
+
+                if (!this._powerHoldId)
+                    throw new Error('No this._powerHoldId set when releasing power key');
+
+                GLib.source_remove(this._powerHoldId);
+                delete this._powerHoldId;
             } else {
 //log("POWERMANAGER: ignoring power key release because no press seen");
                 return;
@@ -1142,6 +1159,13 @@ log("POWERMANAGER: turn on this._fadeInTimeout " + this._fadeInTimeout + " this.
 
 
             this._powerPressHappened = true;
+            this._powerHoldId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 2000, () => {
+                this._showInteractivePowerMenu();
+
+                delete this._powerPressHappened;
+                delete this._powerHoldId;
+                return GLib.SOURCE_REMOVE;
+            });
         }
     }
 
