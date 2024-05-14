@@ -1075,7 +1075,7 @@ export const MessageTray = GObject.registerClass({
         if (changed)
             this.emit('queue-changed');
 
-        let hasNotifications = Main.sessionMode.hasNotifications;
+        let hasNotifications = Main.sessionMode.hasNotifications && !Main.screenShield.active;
 
         if (this._notificationState === State.HIDDEN) {
             let nextNotification = this._notificationQueue[0] || null;
