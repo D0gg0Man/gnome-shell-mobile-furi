@@ -509,7 +509,6 @@ class UnlockDialogLayout extends Clutter.LayoutManager {
 
 export const UnlockDialog = GObject.registerClass({
     Signals: {
-        'failed': {},
         'wake-up-screen': {},
     },
 }, class UnlockDialog extends St.Widget {
@@ -833,7 +832,6 @@ export const UnlockDialog = GObject.registerClass({
 
     _fail() {
         this._showClock();
-        this.emit('failed');
     }
 
     _onReset(authPrompt, beginRequest) {

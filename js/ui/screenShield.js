@@ -371,7 +371,6 @@ export class ScreenShield extends Signals.EventEmitter {
                 return false;
             }
 
-            this._dialog.connect('failed', this._onUnlockFailed.bind(this));
             this._wakeUpScreenId = this._dialog.connect(
                 'wake-up-screen', this._wakeUpScreen.bind(this));
         }
@@ -382,13 +381,6 @@ export class ScreenShield extends Signals.EventEmitter {
         else
             this._dialog.grab_key_focus();
         return true;
-    }
-
-    _onUnlockFailed() {
-        this._resetLockScreen({
-            animateLockScreen: true,
-            fadeToBlack: false,
-        });
     }
 
     _resetLockScreen(params) {
