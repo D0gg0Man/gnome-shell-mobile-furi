@@ -9,13 +9,19 @@ import * as Signals from './misc/signals.js';
 const SensorDaemonIface = loadInterfaceXML('org.gnome.Shell.SensorDaemon');
 
 export const SensorDaemonService = class extends ServiceImplementation {
-    constructor(sensorDaemon, proximityMonitoring) {
+    constructor(sensorDaemon, proximityMonitoring, autoBacklightBrightness) {
         super(SensorDaemonIface, '/org/gnome/Shell/SensorDaemon');
 
         this._autoShutdown = false;
 
         this._sensorDaemon = sensorDaemon;
         this._proximityMonitoring = proximityMonitoring;
+        this._autoBacklightBrightness = autoBacklightBrightness;
+
+        this._autoBacklightBrightness.connect('perceived-brightness-changed', () => {
+            this._dbusImpl.emit_property_changed('BacklightBrightness',
+                new GLib.Variant('d', this._autoBacklightBrightness.getPerceivedBrightnessPercent()));
+        });
     }
 
     async StartProximityMonitoringAsync(params, invocation) {
@@ -53,5 +59,54 @@ export const SensorDaemonService = class extends ServiceImplementation {
         } catch (error) {
             this._handleError(invocation, error);
         }
+    }
+
+    async InhibitAdaptiveBacklightAsync(params, invocation) {
+        try {
+            await this._autoBacklightBrightness.inhibit();
+            invocation.return_value(null);
+        } catch (error) {
+            this._handleError(invocation, error);
+        }
+    }
+
+    async UninhibitAdaptiveBacklightAsync(params, invocation) {
+        try {
+            await this._autoBacklightBrightness.uninhibit(params[0]);
+            invocation.return_value(null);
+        } catch (error) {
+            this._handleError(invocation, error);
+        }
+    }
+
+    async DimBacklightAsync(params, invocation) {
+        try {
+            await this._autoBacklightBrightness.dim(params[0], params[1]);
+            invocation.return_value(null);
+        } catch (error) {
+            this._handleError(invocation, error);
+        }
+    }
+
+    async UndimBacklightAsync(params, invocation) {
+        try {
+            await this._autoBacklightBrightness.undim(params[0]);
+            invocation.return_value(null);
+        } catch (error) {
+            this._handleError(invocation, error);
+        }
+    }
+
+    async SetBacklightManuallyAsync(params, invocation) {
+        try {
+            await this._autoBacklightBrightness.setManually(params[0]);
+            invocation.return_value(null);
+        } catch (error) {
+            this._handleError(invocation, error);
+        }
+    }
+
+    get BacklightBrightness() {
+        return this._autoBacklightBrightness.getPerceivedBrightnessPercent();
     }
 }
