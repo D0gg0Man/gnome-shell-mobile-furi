@@ -85,7 +85,6 @@
           {
             "strings": [
               "u",
-              "ü",
               "û",
               "ù",
               "ú",
@@ -100,7 +99,6 @@
           {
             "strings": [
               "o",
-              "ö",
               "ô",
               "ò",
               "ó",
@@ -114,14 +112,17 @@
             "strings": [
               "p"
             ]
+          },
+          {
+            "strings": [
+              "ü"
+            ]
           }
         ],
         [
           {
-            "leftOffset": 0.5,
             "strings": [
               "a",
-              "ä",
               "â",
               "à",
               "á",
@@ -170,9 +171,18 @@
             ]
           },
           {
-            "rightOffset": 0.5,
             "strings": [
               "l"
+            ]
+          },
+          {
+            "strings": [
+              "ö"
+            ]
+          },
+          {
+            "strings": [
+              "ä"
             ]
           }
         ],
@@ -181,7 +191,8 @@
             "action": "levelSwitch",
             "iconName": "osk-shift-symbolic",
             "level": "shift",
-            "width": 1.5
+            "width": 1.66,
+            "rightOffset": 0.34
           },
           {
             "strings": [
@@ -223,7 +234,8 @@
           {
             "action": "delete",
             "iconName": "osk-delete-symbolic",
-            "width": 1.5
+            "width": 1.66,
+            "leftOffset": 0.34
           }
         ],
         [
@@ -358,7 +370,6 @@
           {
             "strings": [
               "U",
-              "Ü",
               "Û",
               "Ù",
               "Ú",
@@ -373,7 +384,6 @@
           {
             "strings": [
               "O",
-              "Ö",
               "Ô",
               "Ò",
               "Ó",
@@ -387,14 +397,17 @@
             "strings": [
               "P"
             ]
+          },
+          {
+            "strings": [
+              "Ü"
+            ]
           }
         ],
         [
           {
-            "leftOffset": 0.5,
             "strings": [
               "A",
-              "Ä",
               "Â",
               "À",
               "Á",
@@ -443,9 +456,18 @@
             ]
           },
           {
-            "rightOffset": 0.5,
             "strings": [
               "L"
+            ]
+          },
+          {
+            "strings": [
+              "Ö"
+            ]
+          },
+          {
+            "strings": [
+              "Ä"
             ]
           }
         ],
@@ -454,7 +476,8 @@
             "action": "levelSwitch",
             "iconName": "osk-shift-symbolic",
             "level": "default",
-            "width": 1.5
+            "width": 1.66,
+            "rightOffset": 0.34
           },
           {
             "strings": [
@@ -496,7 +519,8 @@
           {
             "action": "delete",
             "iconName": "osk-delete-symbolic",
-            "width": 1.5
+            "width": 1.66,
+            "leftOffset": 0.34
           }
         ],
         [
