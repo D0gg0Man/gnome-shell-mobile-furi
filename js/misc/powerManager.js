@@ -127,6 +127,11 @@ export class PowerManager {
                     console.error(error.message);
                     return;
                 }
+
+                // sensor daemon might wait for sensor readings during certain calls,
+                // if those take too long, we don't want to block unlocking the screen
+                // for 60s, so limit to 2s.
+                proxy.set_default_timeout(2000);
             });
 
         this._session = new GnomeSession.SessionManager();
