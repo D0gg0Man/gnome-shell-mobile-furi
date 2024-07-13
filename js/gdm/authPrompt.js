@@ -308,14 +308,6 @@ export const AuthPrompt = GObject.registerClass({
         this._entry = null;
     }
 
-    on_key_press_event(event) {
-        if (event.get_key_symbol() === Clutter.KEY_Escape) {
-            this.cancel();
-            return Clutter.EVENT_STOP;
-        }
-        return Clutter.EVENT_PROPAGATE;
-    }
-
     _initInputRow() {
         this._mainBox = new St.BoxLayout({
             style_class: 'login-dialog-button-box',

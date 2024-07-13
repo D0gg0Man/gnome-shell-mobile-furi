@@ -404,25 +404,34 @@ log("UNLOCKDIALOG: waking up screen on notification");
         this.emit('wake-up-screen');
     }
 
-    vfunc_key_press_event(event) {
-        const focus = global.stage.key_focus;
-        if (this._activePage === this._promptBox &&
-            this._authPrompt && this._authPrompt.contains(focus))
+    vfunc_captured_event(event) {
+        if (event.type() === Clutter.EventType.KEY_PRESS) {
+            const keyval = event.get_key_symbol();
+            if (keyval === Clutter.KEY_Shift_L ||
+                keyval === Clutter.KEY_Shift_R ||
+                keyval === Clutter.KEY_Shift_Lock ||
+                keyval === Clutter.KEY_Caps_Lock)
+                return Clutter.EVENT_PROPAGATE;
+
+            if (keyval === Clutter.KEY_Escape) {
+                this._authPrompt.clear();
+                this._showClock();
+                return Clutter.EVENT_STOP;
+            }
+
+            if (this._activePage !== this._promptBox)
+                this._showPrompt();
+
+            const focus = global.stage.key_focus;
+            if (focus === this._authPrompt._entry.clutter_text)
+                return Clutter.EVENT_PROPAGATE;
+
+            const unichar = event.get_key_unicode();
+            if (GLib.unichar_isgraph(unichar))
+                this._authPrompt.addCharacter(unichar);
+
             return Clutter.EVENT_PROPAGATE;
-
-        const keyval = event.get_key_symbol();
-        if (keyval === Clutter.KEY_Shift_L ||
-            keyval === Clutter.KEY_Shift_R ||
-            keyval === Clutter.KEY_Shift_Lock ||
-            keyval === Clutter.KEY_Caps_Lock)
-            return Clutter.EVENT_PROPAGATE;
-
-        let unichar = event.get_key_unicode();
-
-        this._showPrompt();
-
-        if (GLib.unichar_isgraph(unichar))
-            this._authPrompt.addCharacter(unichar);
+        }
 
         return Clutter.EVENT_PROPAGATE;
     }

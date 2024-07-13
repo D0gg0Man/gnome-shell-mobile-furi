@@ -18,9 +18,19 @@ $_gdm_dialog_width: 21em;
   }
 }
 
-#uiGroup.mobile .login-dialog-prompt-layout {
-  width: 22em;
-  spacing: 6px;
+
+
+#uiGroup.mobile {
+  .login-dialog-prompt-layout {
+    width: 22em;
+    spacing: 0px;
+    margin-bottom: 10px;
+
+    .login-dialog-prompt-entry {
+      margin-top: 14px;
+      margin-bottom: 10px;
+    }
+  }
 }
 
 // GDM Login Dialog
