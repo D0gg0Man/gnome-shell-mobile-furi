@@ -271,8 +271,8 @@ export const AuthPrompt = GObject.registerClass({
 
         this._initInputRow();
 
-       // let capsLockPlaceholder = new St.Label();
-      //  this.add_child(capsLockPlaceholder);
+        let capsLockPlaceholder = new St.Label();
+        this.add_child(capsLockPlaceholder);
 
         this._capsLockWarningLabel = new ShellEntry.CapsLockWarning({
             x_expand: true,
@@ -281,17 +281,18 @@ export const AuthPrompt = GObject.registerClass({
         });
         this.add_child(this._capsLockWarningLabel);
 
-      /*  this._capsLockWarningLabel.bind_property('visible',
+        this._capsLockWarningLabel.bind_property('visible',
             capsLockPlaceholder, 'visible',
             GObject.BindingFlags.SYNC_CREATE | GObject.BindingFlags.INVERT_BOOLEAN);
-*/
+
         this._message = new St.Label({
             opacity: 0,
             styleClass: 'login-dialog-message',
             y_align: Clutter.ActorAlign.START,
             x_align: Clutter.ActorAlign.CENTER,
+visible:false,
         });
-     //   this._message.clutter_text.line_wrap = true;
+        this._message.clutter_text.line_wrap = true;
         this._message.clutter_text.ellipsize = Pango.EllipsizeMode.END;
         this.add_child(this._message);
     }
@@ -687,10 +688,11 @@ export const AuthPrompt = GObject.registerClass({
 
         this._authList.hide();
         this._entryShouldShow = true;
-        if (this._mayShowEntry)
+
+        if (this._mayShowEntry) {
             this._entry.show();
-        if (this._entry.visible)
             this._entry.grab_key_focus();
+        }
     }
 
     _fadeInChoiceList() {
@@ -717,6 +719,7 @@ export const AuthPrompt = GObject.registerClass({
 
         this._entryShouldShow = false;
         this._entry.hide();
+        this.grab_key_focus();
         if (this._message.text === '')
             this._message.hide();
         this._fadeInChoiceList();
@@ -743,6 +746,7 @@ export const AuthPrompt = GObject.registerClass({
             opacity: 0,
             duration: MESSAGE_FADE_OUT_ANIMATION_TIME,
             mode: Clutter.AnimationMode.EASE_OUT_QUAD,
+            onStopped: () => this._message.hide(),
         });
     }
 
@@ -895,12 +899,18 @@ export const AuthPrompt = GObject.registerClass({
     }
 
     addCharacter(unichar) {
+        if (!this._entry.reactive)
+            return;
+
         if (this._entry.visible)
             this._entry.grab_key_focus();
         this._entry.clutter_text.insert_unichar(unichar);
     }
 
     deleteLastCharacter() {
+        if (!this._entry.reactive)
+            return;
+
         const len = this._entry.clutter_text.buffer.get_length();
         this._entry.clutter_text.delete_text(len - 1, len);
     }
@@ -964,12 +974,19 @@ export const AuthPrompt = GObject.registerClass({
         this._mayShowEntry = mayShow;
 
         if (mayShow && this._entryShouldShow) {
+            this._spinner.show();
             this._entry.show();
+            if (!this._hasCancelButton)
+                this.cancelButton.show();
             this._entry.grab_key_focus();
         }
 
         if (!mayShow) {
             this._entry.hide();
+            this._spinner.hide();
+            if (!this._hasCancelButton)
+                this.cancelButton.hide();
+            this.grab_key_focus();
         }
     }
 });

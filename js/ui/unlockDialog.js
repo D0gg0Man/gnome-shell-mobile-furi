@@ -327,11 +327,12 @@ export const UnlockDialog = GObject.registerClass({
         this._promptBox.set_pivot_point(0.5, 0.5);
         this._stack.add_child(this._promptBox);
 
+        this._promptBoxHidden = true;
+        this._promptBoxHeight = 0;
         this._promptBox.connect('notify::size', () => {
-            if (this._promptBoxHeight)
-                return;
             this._promptBoxHeight = this._promptBox.allocation.get_height();
-            this._promptBox.translation_y = this._promptBoxHeight;
+            if (this._promptBoxHidden)
+                this._promptBox.translation_y = this._promptBoxHeight;
         });
 
         this._ensureAuthPrompt();
@@ -499,55 +500,38 @@ log("UNLOCKDIALOG: waking up screen on notification");
 
             this._authPrompt = new AuthPrompt.AuthPrompt(this._gdmClient,
                 AuthPrompt.AuthPromptMode.UNLOCK_ONLY);
-           // this._authPrompt.connect('failed', this._fail.bind(this));
             this._authPrompt.connect('cancelled', this._fail.bind(this));
             this._authPrompt.connect('reset', this._onReset.bind(this));
             this._authPrompt.connect('failed', () => {
                 wiggle(pinEntryIndicator);
-                pinEntryIndicator.setActiveDigits(0);
             });
 
-            this._pinUnlockKeyboard.connect('char', (k, char) => {
-                if (this._authPrompt._spinner._isPlaying)
-                    return;
+            this._authPrompt._entry.clutter_text.connect('text-changed', () => {
+                const textLen = this._authPrompt._entry.clutter_text.buffer.get_length();
+                pinEntryIndicator.setActiveDigits(textLen);
 
-                this._authPrompt.addCharacter(char);
-
-                pinEntryIndicator.setActiveDigits(this._authPrompt._entry.clutter_text.buffer.get_length());
-
-                if (this._authPrompt._entry.clutter_text.buffer.get_length() === 6) {
+                if (textLen === 6 && pinEntryIndicator.visible) {
                     pinEntryIndicator.setIsLoading(true);
                     this._authPrompt._entry.clutter_text.activate();
                 }
             });
+
+            this._pinUnlockKeyboard.connect('char', (k, char) => {
+                this._authPrompt.addCharacter(char);
+            });
             this._pinUnlockKeyboard.connect('delete-last', () => {
-                 if (this._authPrompt._spinner._isPlaying)
-                    return;
-
                 this._authPrompt.deleteLastCharacter();
-
-                pinEntryIndicator.setActiveDigits(this._authPrompt._entry.clutter_text.buffer.get_length());
             });
             this._pinUnlockKeyboard.connect('delete-all', () => {
-                if (this._authPrompt._spinner._isPlaying)
-                    return;
-
                 this._authPrompt.clear();
-                pinEntryIndicator.setActiveDigits(0);
             });
-            this._pinUnlockKeyboard.connect('show-full-keyboard', () => {
-                this._authPrompt.mayShowEntry = true;
-            });
-
             this._pinUnlockKeyboard.connect('show-full-keyboard', () => {
                 if (pinEntryIndicator.visible) {
                     this._authPrompt.mayShowEntry = true;
                     pinEntryIndicator.hide();
-                  //  this._authPrompt.show();
                 } else {
                     this._authPrompt.mayShowEntry = false;
                     pinEntryIndicator.show();
-                   // this._authPrompt.hide();
                 }
             });
 
@@ -633,17 +617,39 @@ log("UNLOCKDIALOG: waking up screen on notification");
         this._activePage = this._clockNotificationsBox;
 
         this._clickGesture.enabled = true;
+
+        this._promptBox.ease({
+            translation_y: this._promptBoxHeight,
+            mode: Clutter.AnimationMode.EASE_OUT_CUBIC,
+            duration: 250,
+            onStopped: () => {
+                this._promptBoxHidden = this._activePage === this._clockNotificationsBox;
+                if (this._promptBoxHidden)
+                    this._authPrompt.clear();
+            },
+        });
     }
 
     _showPrompt() {
-        this._ensureAuthPrompt();
-
-        if (this._activePage === this._promptBox)
+        if (this._activePage === this._promptBox) {
             return;
+}
 
         this._activePage = this._promptBox;
 
         this._clickGesture.enabled = false;
+        this._promptBoxHidden = false;
+
+        this._promptBox.ease({
+            translation_y: 0,
+            mode: Clutter.AnimationMode.EASE_OUT_CUBIC,
+            duration: 250,
+            onStopped: () => {
+                this._promptBoxHidden = this._activePage === this._clockNotificationsBox;
+                if (this._promptBoxHidden)
+                    this._authPrompt.clear();
+            },
+        });
     }
 
     _fail() {
@@ -681,8 +687,6 @@ log("UNLOCKDIALOG: waking up screen on notification");
 
         this._promptBox.remove_transition('translation-y');
 
-        this._ensureAuthPrompt();
-
         const progress = 1 - (this._promptBox.translation_y / this._promptBoxHeight);
         tracker.confirmSwipe(this._promptBoxHeight,
             [0, 1], 
@@ -706,7 +710,11 @@ log("UNLOCKDIALOG: waking up screen on notification");
             mode: Clutter.AnimationMode.EASE_OUT_CUBIC,
             duration,
             onStopped: () => {
-       //         if (this._activePage === this._clockNotificationsBox)
+                this._promptBoxHidden = this._activePage === this._clockNotificationsBox;
+                if (this._promptBoxHidden)
+                    this._authPrompt.clear();
+
+//                if (this._activePage === this._clockNotificationsBox)
          //           this._maybeDestroyAuthPrompt();
 
                 endCb();
