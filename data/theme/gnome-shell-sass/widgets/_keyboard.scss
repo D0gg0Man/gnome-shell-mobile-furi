@@ -70,6 +70,13 @@ $default_key_bg_color: if($variant=='light', darken($key_bg_color, 11%), darken(
   StIcon { icon-size: $medium_icon_size; }
 }
 
+#uiGroup.mobile.horizontal .keyboard-key {
+  @include fontsize($base_font_size + 1pt);
+
+  StIcon { icon-size: 16px; }
+  min-height: 0;
+}
+
 // long press on a key popup
 .keyboard-subkeys-boxpointer {
   -boxpointer-gap: $base_padding;
