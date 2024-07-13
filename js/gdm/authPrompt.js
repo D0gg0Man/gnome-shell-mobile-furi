@@ -756,14 +756,46 @@ export const AuthPrompt = GObject.registerClass({
         else
             this._message.remove_style_class_name('login-dialog-message-hint');
 
-        this._message.show();
+        this._message.remove_all_transitions();
+
         if (message) {
-            this._message.remove_all_transitions();
+            this._message.show();
             this._message.text = message;
-            this._message.opacity = 255;
             this.get_accessible().emit('notification', message, Atk.Live.ASSERTIVE);
+
+            const {naturalHeightSet} = this._message;
+            this._message.natural_height_set = false;
+            let [, height] = this._message.get_preferred_height(-1);
+            this._message.natural_height_set = naturalHeightSet;
+
+            this._message.ease({
+                duration: 250,
+                height,
+                onComplete: () => {
+                    this._message.height = -1;
+                    this._message.ease({
+                        duration: 250,
+                        opacity: 255,
+                    });
+                },
+            });
         } else {
-            this._message.opacity = 0;
+            this._message.ease({
+                duration: 250,
+                opacity: 0,
+                onComplete: () => {
+                    this._message.ease({
+                        duration: 250,
+                        height: 0,
+                        onComplete: () => {
+                            this._message.hide();
+                        },
+                    });
+                },
+            });
+
+
+
         }
 
         wiggle(this._message, wiggleParameters);
