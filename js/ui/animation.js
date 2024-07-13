@@ -34,7 +34,8 @@ class Spinner extends St.Widget {
     play() {
         this.remove_all_transitions();
         this.set_content(new St.SpinnerContent());
-        this.show();
+        if (this._hideOnStop)
+            this.show();
 
         if (this._animate) {
             this.ease({
