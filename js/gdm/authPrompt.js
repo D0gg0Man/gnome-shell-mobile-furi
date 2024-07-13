@@ -561,7 +561,11 @@ export const AuthPrompt = GObject.registerClass({
                 wiggleParameters.duration * (wiggleParameters.wiggleCount + 2));
         }
 
-        this.setMessage(message, type, wiggleParameters);
+        // urgh.. even though this text comes from gdm, it seems there's no way to
+        // detect that it's *this* message particularly other than checking the string
+        // let's at least make the experience nice for english.
+        if (message !== 'Sorry, password authentication didn’t work. Please try again.')
+            this.setMessage(message, type, wiggleParameters);
         this.emit('prompted');
     }
 
