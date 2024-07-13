@@ -178,8 +178,8 @@ export const PinEntryIndicator = GObject.registerClass({
 
                 digit.ease({
                     delay,
-                    duration: 150,
-                    translation_y: -6,
+                    duration: 170,
+                    translation_y: -7,
                     onStopped: () => {
                         digit.ease({
                             duration: 200,
@@ -191,13 +191,18 @@ export const PinEntryIndicator = GObject.registerClass({
                     },
                 });
 
-                delay += 50;
+                delay += 80;
             }
         }
 
-        this._loadingAnimation = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 1000, () => {
+        this._loadingAnimation = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 200, () => {
             playAnimation();
-            return GLib.SOURCE_CONTINUE;
+            this._loadingAnimation = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 1000, () => {
+                playAnimation();
+                return GLib.SOURCE_CONTINUE;
+            });
+
+            return GLib.SOURCE_REMOVE;
         });
     }
 });
