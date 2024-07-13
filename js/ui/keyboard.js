@@ -1389,7 +1389,7 @@ export class KeyboardManager extends Signals.EventEmitter {
 
     _lastDeviceIsTouchscreen() {
         if (!this._lastDevice)
-            return false;
+            return true;
 
         let deviceType = this._lastDevice.get_device_type();
         return deviceType === Clutter.InputDeviceType.TOUCHSCREEN_DEVICE;
