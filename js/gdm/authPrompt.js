@@ -567,21 +567,19 @@ export const AuthPrompt = GObject.registerClass({
 
     _onVerificationFailed(userVerifier, serviceName, canRetry) {
         const wasQueryingService = this._queryingService === serviceName;
-
-        if (wasQueryingService) {
+        if (wasQueryingService)
             this._queryingService = null;
-            this.clear();
-        }
-
-        this.updateSensitivity(canRetry);
-        this.setActorInDefaultButtonWell(null);
 
         if (!canRetry)
             this.verificationStatus = AuthPromptStatus.VERIFICATION_FAILED;
         else
             this.verificationStatus = AuthPromptStatus.VERIFYING;
 
+        this.updateSensitivity(canRetry);
+        this.setActorInDefaultButtonWell(null);
+
         if (wasQueryingService) {
+            this.clear();
             this.emit('failed');
             wiggle(this._entry);
         }
@@ -673,6 +671,9 @@ export const AuthPrompt = GObject.registerClass({
     }
 
     clear() {
+        if (this.verificationStatus === AuthPromptStatus.VERIFICATION_IN_PROGRESS)
+            return;
+
         this._entry.text = '';
         this._inactiveEntry.text = '';
         this.stopSpinning();
