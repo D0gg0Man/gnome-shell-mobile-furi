@@ -650,6 +650,9 @@ log("UNLOCKDIALOG: waking up screen on notification");
         this._pinEntryIndicator.setIsLoading(false);
 
         this._showClock();
+
+        this._authPrompt.reset();
+        this._authPrompt.updateSensitivity(true);
     }
 
     _onReset(authPrompt, beginRequest) {
@@ -667,8 +670,9 @@ log("UNLOCKDIALOG: waking up screen on notification");
     }
 
     _escape() {
-        if (this._authPrompt && this.allowCancel)
-            this._authPrompt.cancel();
+        log("UNLOCKDIALOG: auto cancelling auth prompt because user idle");
+
+        this._showClock();
     }
 
     _swipeBegin(tracker, monitor) {
@@ -737,11 +741,6 @@ log("UNLOCKDIALOG: waking up screen on notification");
             this._userManager.has_multiple_users &&
             this._screenSaverSettings.get_boolean('user-switch-enabled') &&
             !this._lockdownSettings.get_boolean('disable-user-switching');
-    }
-
-    cancel() {
-        if (this._authPrompt)
-            this._authPrompt.cancel();
     }
 
     finish(onComplete) {
