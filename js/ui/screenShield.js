@@ -560,6 +560,10 @@ log("LOCKSCREENOVERLAY: preparing length " + this._lockscreenOverlayStack.length
         return true;
     }
 
+    cancelUnlock() {
+        this._dialog?.cancelUnlock();
+    }
+
     _lockScreenShown() {
         this.actor.translation_y = 0;
         this._lockScreenState = MessageTray.State.SHOWN;

@@ -681,6 +681,10 @@ log("UNLOCKDIALOG: waking up screen on notification");
         this._showClock();
     }
 
+    cancelUnlock() {
+        this._showClock();
+    }
+
     _swipeBegin(tracker, monitor) {
         if (monitor !== Main.layoutManager.primaryIndex)
             return;

@@ -1582,4 +1582,7 @@ export const LoginDialog = GObject.registerClass({
     finish(onComplete) {
         this._authPrompt.finish(onComplete);
     }
+
+    cancelUnlock() {
+    }
 });

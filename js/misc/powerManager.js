@@ -563,6 +563,8 @@ export class PowerManager {
                 console.error("POWERMANAGER: inhibit adaptive backlight failed: " + e);
             }
         }
+
+        Main.screenShield.cancelUnlock();
     }
 
     async _isInPocket() {
