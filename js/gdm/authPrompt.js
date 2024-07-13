@@ -68,6 +68,7 @@ export const PinUnlockKeyboard = GObject.registerClass({
 
     _createGrid() {
         let number = 1;
+        const buttons = [];
 
         for (let row = 0; row < 4; row++) {
             for (let col = 0; col < 3; col++) {
@@ -78,6 +79,7 @@ export const PinUnlockKeyboard = GObject.registerClass({
                     x_expand: true,
                     y_expand: true,
                 });
+                buttons.push(button);
 
                 const isSpecialKey = number === 10 || number === 12;
                 const numericKeyval = number === 11 ? 0 : number;
@@ -125,6 +127,16 @@ export const PinUnlockKeyboard = GObject.registerClass({
                 number++;
             }
         }
+
+        buttons.forEach(button => {
+            buttons.forEach(other => {
+                if (other === button)
+                    return;
+
+                button.get_click_gesture().can_not_cancel(other.get_click_gesture());
+                button.get_click_gesture().recognize_independently_from(other.get_click_gesture());
+            });
+        });
     }
 });
 
