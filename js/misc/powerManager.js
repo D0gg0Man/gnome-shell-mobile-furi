@@ -1142,6 +1142,9 @@ log("POWERMANAGER: turn on this._fadeInTimeout " + this._fadeInTimeout + " this.
                     return;
                 }
 
+                if (Main.layoutManager.isPhone)
+                    action = 'blank';
+
 //log("POWERMANAGER: power key release (flags " + event.get_flags() + " " + (event.get_flags() & Clutter.EventFlags.FLAG_INPUT_METHOD) + "), executing action: " + action);
 
                 this._doSystemAction(action, 'power key released', false).catch(e => console.error(e));
