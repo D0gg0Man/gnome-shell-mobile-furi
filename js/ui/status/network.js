@@ -670,7 +670,6 @@ class NMModemDeviceItem extends NMDeviceItem {
 
     get icon_name() {
         if (this._mobileDevice) {
-log("MODEM CHANGE: actual state " + this._mobileDevice._proxy.State + " simple state " + this._mobileDevice.simpleState + " NM state " + this.state + " access tech " + this._mobileDevice.accessTechnology + " signal qual " + this._mobileDevice.signal_quality);
             switch (this._mobileDevice.simpleState) {
             case 'connecting':
                 return 'network-cellular-acquiring-symbolic';
@@ -716,7 +715,7 @@ log("MODEM CHANGE: actual state " + this._mobileDevice._proxy.State + " simple s
                 return 'network-cellular-disabled-symbolic';
             }
         }
-log("MODEM CHANGE: looks like no mobile dev " + this._mobileDevice);
+
         return 'network-cellular-disabled-symbolic';
     }
 
@@ -1748,7 +1747,6 @@ class NMDeviceToggle extends NMToggle {
     }
 
     _syncDeviceItem(device) {
-log("NM sync device item for " + this + " state " + device.state + " should show " + this._shouldShowDevice(device));
         if (this._shouldShowDevice(device))
             this._ensureDeviceItem(device);
         else
@@ -1756,7 +1754,6 @@ log("NM sync device item for " + this + " state " + device.state + " should show
     }
 
     _deviceStateChanged(device, newState, oldState, reason) {
-log("NM device state changed " + this + " to " + newState + " for reason " + reason);
         if (newState === oldState) {
             console.info(`${device} emitted state-changed without actually changing state`);
             return;
@@ -2294,7 +2291,6 @@ class Indicator extends SystemIndicator {
         const primaryToggle = this._deviceToggles.get(dev?.device_type) ?? null;
 
         this._primaryIndicatorBinding.source = primaryToggle;
-log("MODEM: updating icons, n modem items: " + this._modemToggle._items.size + " visi "+ this._modemToggle.visible);
 
         if (primaryToggle !== this._modemToggle && this._modemToggle.visible) {
             this._secondaryIndicatorBinding.source = this._modemToggle;

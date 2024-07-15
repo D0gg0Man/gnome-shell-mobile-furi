@@ -89,8 +89,6 @@ function _findProviderForSid(sid) {
 }
 
 function _getSimpleAccessTech(accessTechnologies) {
-log("MODEM get access tech: " + accessTechnologies);
-
     if (accessTechnologies & ModemManager.ModemAccessTechnology['5GNR'])
         return '5G';
 
@@ -120,7 +118,6 @@ log("MODEM get access tech: " + accessTechnologies);
 }
 
 function _getSimpleState(state) {
-log("MODEM Getting simple state " + state);
     switch (state) {
     case ModemManager.ModemState.CONNECTED:
     // We're REGISTERED when we're not connected to mobile data but still on
@@ -345,10 +342,9 @@ export const BroadbandModem = GObject.registerClass({
                 this._reloadAccessTechnology();
 
             const stateChanged = !!properties.lookup_value('State', null);
-            if (stateChanged) {
-log("MODEM: got state change property change notification");
+            if (stateChanged)
                 this._reloadSimpleState();
-}
+
         });
         this._reloadSignalQuality();
         this._reloadAccessTechnology();

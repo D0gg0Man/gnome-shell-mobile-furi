@@ -42,7 +42,6 @@ export class SensorDaemon extends Signals.EventEmitter {
                     return;
                 }
 
-log("SENSORDAEMON: Sensor proxy init");
                 this._proxy.connect('g-properties-changed',
                     this._propertiesChanged.bind(this));
 
@@ -52,7 +51,6 @@ log("SENSORDAEMON: Sensor proxy init");
     }
 
     _onIioSensorProxyVanished() {
-log("SENSORDAEMON: Sensor proxy disappeared");
         this._proxy = null;
 
         this.emit('ambient-light-available-changed');
@@ -144,7 +142,6 @@ log("SENSORDAEMON: Sensor proxy disappeared");
         if (this._claimingSensors.has(sensorType))
             throw new Error(`Sensor to release (${sensorType}) is still being claimed`);
 
-log("SENSORDAEMON release the sensor from claimed sensors");
         this._claimedSensors.set(sensorType,
             this._claimedSensors.get(sensorType) - 1)
 
@@ -182,7 +179,6 @@ log("SENSORDAEMON release the sensor from claimed sensors");
     }
 
     async claimAmbientLight() {
-log("SENSORDAEMON: start claimAmbientLight()");
         if (this._claimedSensors.get(SensorTypes.AMBIENT_LIGHT) === 0) {
             await this._claimSensor(SensorTypes.AMBIENT_LIGHT);
         } else {
@@ -192,7 +188,6 @@ log("SENSORDAEMON: start claimAmbientLight()");
     }
 
     async releaseAmbientLight() {
-log("SENSORDAEMON releasing ambient");
         const claimed = this._claimedSensors.get(SensorTypes.AMBIENT_LIGHT);
         if (claimed === 1)
             await this._releaseSensor(SensorTypes.AMBIENT_LIGHT);

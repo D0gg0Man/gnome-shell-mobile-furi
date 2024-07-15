@@ -726,9 +726,6 @@ export const WindowPreview = GObject.registerClass({
         const velocityY = gesture.get_velocity().get_y();
         const remainingHeight = this._panHeight - Math.abs(this.translation_y);
 
-log("pan End: " + velocityY);
-log("pan travelled: " + remainingHeight + " of " + this._panHeight);
-
         if (velocityY < -0.9 || (remainingHeight < this._panHeight / 2 && velocityY < -0.5) || remainingHeight <= 0) {
             this.ease({
                 translation_y: -this._panHeight,

@@ -976,7 +976,6 @@ const phoneGridModes = [
 
         if (this._orderedItems.includes(source)) {
             // its our icon, create a placeholder object but don't actually
-            log(this + " BEGAN DRAG WITH OUR ICON, keeping the icon " + source + " v2" + this._orderedItems.indexOf(source));
 
             this._placeholders.set(source, source);
 
@@ -1079,7 +1078,6 @@ if (!this.mapped)
             }
 
             // we still have a placeholder, which means we didn't accept the drag ---> the item is gone
-log(this + " removing placeholder");
             this._removeItem(pl);
 
            // this._grid.layout_manager.resetOverflowRelocations();
@@ -1178,7 +1176,6 @@ log(this + " removing placeholder");
         }
 
     //    this._grid.layout_manager.storeRelocations();
-log(this + " accepting drop, deleting placeholder: " + this._placeholders.get(source));
         pl.undoScaleAndFade();
         this._placeholders.delete(source); // this magically makes the placeholder a "normal" icon
 
@@ -1533,11 +1530,10 @@ class AppDisplay extends BaseAppView {
 //            Main.queueDeferredWork(this._redisplayWorkId);
 
             if (this._dragMonitor) {
-log("installed change, REDISP after drag");
                 this._redisplayAfterDrag = true;
                 return;
             }
-log("installed change redisp");
+
             this._redisplay();
         });
         this._folderSettings = new Gio.Settings({schema_id: 'org.gnome.desktop.app-folders'});
@@ -1560,7 +1556,6 @@ log("installed change redisp");
 
         // Don't duplicate favorites
         this._appFavorites.connectObject('changed', () => {
-log("DASH CHANGE");
             if (this._dragMonitor) {
                 this._redisplayAfterDrag = true;
                 return;
@@ -1709,7 +1704,6 @@ log("DASH CHANGE");
             if (!icon) {
                 newlyCreated = true;
 
-log("creating new folder for id " + id);
                 icon = new FolderIcon(id, path, this);
             }
 
@@ -1724,8 +1718,6 @@ log("creating new folder for id " + id);
 
             folderAppItems = icon.view.getAllItems();
             if (folderAppItems.length <= 1) {
-log("DESTROYING FOLDER with less than one (" + folderAppItems.length + "): " + id + " have " +this._items.has(id));
-
                 this.deleteFolder(id);
                 if (newlyCreated)
                     icon.destroy();
@@ -1854,7 +1846,6 @@ log("DESTROYING FOLDER with less than one (" + folderAppItems.length + "): " + i
             throw new Error('Unable to find app item for new folder');
 
         const newFolderId = GLib.uuid_string_random();
-log("MAKING FOLDER " + newFolderId);
 
         let folders = this._folderSettings.get_strv('folder-children');
         folders.push(newFolderId);
@@ -1891,7 +1882,6 @@ log("MAKING FOLDER " + newFolderId);
 
         const folderAppItems = folderItem.view.getAllItems();
         if (folderAppItems.length !== 2) {
-log("make deleting EMPTY FOLDER again, shouldnt happen");
             this.deleteFolder(newFolderId);
             folderItem.destroy();
             return false;
@@ -1912,7 +1902,6 @@ log("make deleting EMPTY FOLDER again, shouldnt happen");
     }
 
     deleteFolder(folderId, lastApp = null) {
-log("DELETING FOLDER id " + folderId + " app " + lastApp);
 
         const defaultFolderIds = Object.keys(DEFAULT_FOLDERS);
 
@@ -1962,7 +1951,6 @@ log("DELETING FOLDER id " + folderId + " app " + lastApp);
         const app = appSys.lookup_app(lastApp.get_id());
 
         const item = new AppIcon(app, { isDraggable });
-log("additing item mat " + folderPage + " as " + folderPosition);
 
         this._addItem(item, folderPage, folderPosition);
 

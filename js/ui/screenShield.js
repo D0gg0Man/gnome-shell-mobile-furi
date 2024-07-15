@@ -268,7 +268,6 @@ export class ScreenShield extends Signals.EventEmitter {
         this._lockscreenOverlayStack.push(overlay);
 
         overlay.surface.connect('destroy', () => {
-log("SURFACEOVERLAY: destroyyyyyy");
             if (overlay.activeData) {
                 // let's not reparent during destroy
                 delete overlay.activeData;
@@ -301,7 +300,6 @@ log("SURFACEOVERLAY: destroyyyyyy");
             }
         });
 */
-        log("OVERLAY created: locked " + this._isLocked + " screen off " + (this._becameActiveId !== 0));
 
         if (!this._isLocked)
             return;
@@ -339,7 +337,6 @@ log("SURFACEOVERLAY: destroyyyyyy");
 
         overlay.activeData.origParent = overlay.surface.get_parent();
         overlay.activeData.origParentDestroyId = overlay.activeData.origParent.connect('destroy', () => {
-            log("SURFACEOVERLAY: orig parent destroyyyyyy");
             overlay.surface.destroy();
         });
 
@@ -348,7 +345,6 @@ log("SURFACEOVERLAY: destroyyyyyy");
     }
 
     _prepareLockscreenOverlay() {
-log("LOCKSCREENOVERLAY: preparing length " + this._lockscreenOverlayStack.length);
         if (this._lockscreenOverlayStack.length === 0)
             return Promise.reject();
 
@@ -447,7 +443,6 @@ log("LOCKSCREENOVERLAY: preparing length " + this._lockscreenOverlayStack.length
 //                const surfaceContainer = actor;
                 if (!surfaceContainer)
                     return;
-                log("SURFACEOVERLAY: putting a calls window on top of unlockDialog, container: " + surfaceContainer);
 
                 if (this._lockscreenOverlayStack.findIndex((o) => o.surface === surfaceContainer) !== -1)
                     return;

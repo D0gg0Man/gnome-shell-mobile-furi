@@ -453,8 +453,6 @@ export class AutoBacklightBrightness extends Signals.EventEmitter {
             && this._settings.get_boolean('ambient-enabled')
             && this._sensorDaemon.ambientLightAvailable();
 
-        log("AUTOBACKLIGHT syncing enabled: _inhibitedCount " + this._inhibitedCount + " setting-enabled " + this._settings.get_boolean('ambient-enabled') + " available " + this._sensorDaemon.ambientLightAvailable() + " final " + enabled);
-
         if (this._enabled === enabled)
             return;
 
@@ -467,8 +465,6 @@ export class AutoBacklightBrightness extends Signals.EventEmitter {
                 console.error("AUTOBACKLIGHT failed to claim sensor: " + e);
                 return;
             }
-
-            log("AUTOBACKLIGHT claimed and enabled");
 
             this._enabled = true;
             if (updateNow)
@@ -776,7 +772,6 @@ export class AutoBacklightBrightness extends Signals.EventEmitter {
         this._history.push([timeNowMs, level]);
 
         if (lastLevel !== -1 && Math.abs(level - lastLevel) < level * 0.01) {
-            log("AUTOBACKLIGHT: level diff too small: " + Math.abs(level - lastLevel))
             return;
         }
 
@@ -831,14 +826,12 @@ export class AutoBacklightBrightness extends Signals.EventEmitter {
 
     inhibit() {
         this._inhibitedCount++;
-        log("AUTOBACKLIGHT: inhibiting, ct now " + this._inhibitedCount);
         if (this._inhibitedCount === 1)
             this._syncEnabled();
     }
 
     async uninhibit(setImmediately) {
         this._inhibitedCount--;
-        log("AUTOBACKLIGHT: uninhibiting, ct now " + this._inhibitedCount);
         if (this._inhibitedCount === 0) {
             await this._syncEnabled(false);
 

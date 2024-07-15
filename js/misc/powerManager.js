@@ -587,8 +587,6 @@ log("POWERMANAGER: turn on this._fadeInTimeout " + this._fadeInTimeout + " this.
             return;
 }
 
-        log("POWERMANAGER: _turnOnScreen()");
-
         this._lightbox.remove_all_transitions();
 
         if (this._adaptiveBacklightInhibited) {
@@ -625,8 +623,6 @@ log("POWERMANAGER: turn on this._fadeInTimeout " + this._fadeInTimeout + " this.
     }
 
     async _fadeOut(duration) {
-        log("POWERMANAGER: _fadeOut()");
-
         if (this._fadeInTimeout) {
             GLib.source_remove(this._fadeInTimeout);
             delete this._fadeInTimeout;
@@ -656,8 +652,6 @@ log("POWERMANAGER: turn on this._fadeInTimeout " + this._fadeInTimeout + " this.
             log("POWERMANAGER: _fadeIn() already fading in");
             return;
         }
-
-        log("POWERMANAGER: _fadeIn()");
 
         this._fadingIn = true;
 
@@ -975,7 +969,6 @@ log("POWERMANAGER: turn on this._fadeInTimeout " + this._fadeInTimeout + " this.
     }
 
     _updateScreensaverIdleWatch() {
-        log("POWERMANAGER: updating the screensaver idle watch, screenShield active " + Main.screenShield.active);
         if (this._dimIdleWatchId) {
             this._idleMonitor.remove_watch(this._dimIdleWatchId);
             delete this._dimIdleWatchId;
@@ -1047,8 +1040,6 @@ log("POWERMANAGER: turn on this._fadeInTimeout " + this._fadeInTimeout + " this.
             this._idleMonitor.remove_watch(this._powersaveMessageIdleWatchId);
             delete this._powersaveMessageIdleWatchId;
         }
-
-        log("POWERMANAGER: powersave idle watch setup, timeout " + idleTimeoutMs + "ms");
 
         if (this._runningInsideVm && (action === 'suspend' || action === 'hibernate'))
             return;

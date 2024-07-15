@@ -382,7 +382,6 @@ export const UnlockDialog = GObject.registerClass({
         if (!source.policy.showInLockScreen)
             return;
 
-log("UNLOCKDIALOG: waking up screen on notification");
         this.emit('wake-up-screen');
     }
 
@@ -657,8 +656,6 @@ log("UNLOCKDIALOG: waking up screen on notification");
     }
 
     _escape() {
-        log("UNLOCKDIALOG: auto cancelling auth prompt because user idle");
-
         this._showClock();
     }
 
