@@ -1,0 +1,78 @@
+# See the documentation for more information:
+# https://packit.dev/docs/configuration/
+upstream_package_name: gnome-shell
+downstream_package_name: gnome-shell
+upstream_project_url: https://gitlab.gnome.org/verdre/gnome-shell-mobile
+issue_repository: https://gitlab.gnome.org/verdre/gnome-shell-mobile
+packages:
+  gnome-48-mobile:
+    actions:
+      get-current-version: echo 48^mobile
+      create-archive:
+        # Set version to 48^mobile in meson.build files
+        - "sed -i \"2s/.*/  version: '48^mobile',/\" meson.build"
+        - "sed -i \"2s/.*/  version: '48^mobile',/\" subprojects/shew/meson.build"
+        - "sed -i \"2s/.*/  version: '48^mobile',/\" subprojects/extensions-tool/meson.build"
+        - "sed -i \"2s/.*/  version: '48^mobile',/\" subprojects/extensions-app/meson.build"
+        - sed -i "/meson.add_dist_script('meson\/check-version.py', meson.project_version(), 'NEWS')/d" meson.build
+        # Create archive
+        - meson setup .packit_rpm
+        - meson dist -C .packit_rpm --include-subprojects --no-tests --allow-dirty
+        - echo ".packit_rpm/meson-dist/gnome-shell-48^mobile.tar.xz"
+      post-upstream-clone:
+        # Use the Fedora 42 specfile
+        - git clone https://src.fedoraproject.org/rpms/gnome-shell .packit_rpm --branch f42 --depth=1
+        - rm -fv .packit_rpm/sources
+        # Add deps for building from git
+        - "sed -i 's/BuildRequires:  git/BuildRequires:  git asciidoc sassc cmake pkgconfig(bash-completion)/' .packit_rpm/gnome-shell.spec"
+        - "sed -i 's/BuildRequires:  mutter-devel >= %{mutter_version}/BuildRequires:  mutter-devel = 48^mobile/' .packit_rpm/gnome-shell.spec"
+        # Drop all downstream patches
+        - "sed -i '/^Patch:.*/d' .packit_rpm/gnome-shell.spec"
+        # Add new files
+        - sed -i "/^%files -f %{name}.lang$/a %{_datadir}/dbus-1/services/org.gnome.Shell.SensorDaemon.service" .packit_rpm/gnome-shell.spec
+    specfile_path: .packit_rpm/gnome-shell.spec
+  mobile-devel:
+    actions:
+      get-current-version: echo 48^mobile-devel
+      create-archive:
+        # Set version to 48^mobile-devel in meson.build files
+        - "sed -i \"2s/.*/  version: '48^mobile-devel',/\" meson.build"
+        - "sed -i \"2s/.*/  version: '48^mobile-devel',/\" subprojects/shew/meson.build"
+        - "sed -i \"2s/.*/  version: '48^mobile-devel',/\" subprojects/extensions-tool/meson.build"
+        - "sed -i \"2s/.*/  version: '48^mobile-devel',/\" subprojects/extensions-app/meson.build"
+        - sed -i "/meson.add_dist_script('meson\/check-version.py', meson.project_version(), 'NEWS')/d" meson.build
+        # Create archive
+        - meson setup .packit_rpm
+        - meson dist -C .packit_rpm --include-subprojects --no-tests --allow-dirty
+        - echo ".packit_rpm/meson-dist/gnome-shell-48^mobile-devel.tar.xz"
+      post-upstream-clone:
+        # Use the Fedora Rawhide specfile
+        - git clone https://src.fedoraproject.org/rpms/gnome-shell .packit_rpm --depth=1
+        - rm -fv .packit_rpm/sources
+        # Add deps for building from git
+        - "sed -i 's/BuildRequires:  git/BuildRequires:  git asciidoc sassc cmake pkgconfig(bash-completion)/' .packit_rpm/gnome-shell.spec"
+        - "sed -i 's/BuildRequires:  mutter-devel >= %{mutter_version}/BuildRequires:  mutter-devel = 48^mobile/' .packit_rpm/gnome-shell.spec"
+        # Drop all downstream patches
+        - "sed -i '/^Patch:.*/d' .packit_rpm/gnome-shell.spec"
+        # Add new files
+        - sed -i "/^%files -f %{name}.lang$/a %{_datadir}/dbus-1/services/org.gnome.Shell.SensorDaemon.service" .packit_rpm/gnome-shell.spec
+    specfile_path: .packit_rpm/gnome-shell.spec
+jobs:
+- job: copr_build
+  branch: gnome-48-mobile
+  trigger: commit
+  owner: "@mobility"
+  project: gnome-mobile
+  targets:
+    - fedora-all
+  packages:
+    - gnome-48-mobile
+- job: copr_build
+  branch: mobile
+  trigger: commit
+  owner: "@mobility"
+  project: gnome-mobile
+  targets:
+    - fedora-all
+  packages:
+    - mobile-devel
