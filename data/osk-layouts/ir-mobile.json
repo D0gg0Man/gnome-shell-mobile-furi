@@ -22,16 +22,12 @@
           },
           {
             "strings": [
-              "ق",
-              "ڨ"
+              "ق"
             ]
           },
           {
             "strings": [
-              "ف",
-              "ڤ",
-              "ڢ",
-              "ڥ"
+              "ف"
             ]
           },
           {
@@ -62,16 +58,14 @@
           },
           {
             "strings": [
-              "ج",
-              "چ"
+              "ج"
             ]
           }
         ],
         [
           {
             "strings": [
-              "ش",
-              "ڜ"
+              "ش"
             ]
           },
           {
@@ -81,24 +75,17 @@
           },
           {
             "strings": [
-              "ي",
-              "ئ",
-              "ى"
+              "ی"
             ]
           },
           {
             "strings": [
-              "ب",
-              "پ"
+              "ب"
             ]
           },
           {
             "strings": [
-              "ل",
-              "لا",
-              "لأ",
-              "لإ",
-              "لآ"
+              "ل"
             ]
           },
           {
@@ -128,31 +115,34 @@
           },
           {
             "strings": [
-              "ك",
-              "گ",
               "ک"
             ]
           },
           {
             "strings": [
-              "ط"
+              "گ"
             ]
           }
         ],
         [
           {
             "strings": [
-              "ذ"
+              "ظ"
             ]
           },
           {
             "strings": [
-              "ء"
+              "ط"
             ]
           },
           {
             "strings": [
-              "ؤ"
+              "ژ"
+            ]
+          },
+          {
+            "strings": [
+              "ز"
             ]
           },
           {
@@ -162,13 +152,17 @@
           },
           {
             "strings": [
-              "ى",
-              "ئ"
+              "ذ"
             ]
           },
           {
             "strings": [
-              "ة"
+              "د"
+            ]
+          },
+          {
+            "strings": [
+              "پ"
             ]
           },
           {
@@ -178,18 +172,7 @@
           },
           {
             "strings": [
-              "ز",
-              "ژ"
-            ]
-          },
-          {
-            "strings": [
-              "ظ"
-            ]
-          },
-          {
-            "strings": [
-              "د"
+              "چ"
             ]
           },
           {
@@ -200,7 +183,7 @@
         [
           {
             "action": "levelSwitch",
-            "label": "123",
+            "label": "۱۲۳؟",
             "level": "opt",
             "width": 1.5
           },
@@ -220,9 +203,8 @@
             "width": 3
           },
           {
-            "strings": [
-              " "
-            ]
+            "iconName": "osk-zwnj-symbolic",
+            "keyval": "0x100200c"
           },
           {
             "strings": [
@@ -350,7 +332,8 @@
               "£",
               "¥",
               "₱"
-            ]
+            ],
+            "smallerFontSize": true
           },
           {
             "strings": [
@@ -467,7 +450,7 @@
         [
           {
             "action": "levelSwitch",
-            "label": "ABC",
+            "label": "ا‌ب‌پ",
             "level": "default",
             "width": 1.5
           },
@@ -492,7 +475,7 @@
             "strings": [
               " "
             ],
-            "width": 3
+            "width": 4
           },
           {
             "strings": [
@@ -697,7 +680,7 @@
         [
           {
             "action": "levelSwitch",
-            "label": "ABC",
+            "label": "ا‌ب‌پ",
             "level": "default",
             "width": 1.5
           },
@@ -717,7 +700,7 @@
             "strings": [
               " "
             ],
-            "width": 3
+            "width": 4
           },
           {
             "strings": [
