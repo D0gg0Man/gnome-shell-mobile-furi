@@ -1915,6 +1915,14 @@ export const Keyboard = GObject.registerClass({
                 continue;
             }
 
+            if (key.action === 'languageMenu') {
+                const nInputSources = Object.keys(InputSourceManager.getInputSourceManager().inputSources).length   ;
+                if (nInputSources === 1) {
+                    accumulatedWidth = key.width ?? 1;
+                    continue;
+                }
+            }
+
             if (accumulatedWidth > 0) {
                 // Pass accumulated width onto the next key
                 key.width = (key.width ?? 1) + accumulatedWidth;
