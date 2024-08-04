@@ -462,7 +462,10 @@ log("WS: nope, its occupied");
                 delete workspace._appOpeningOverlay;
             }
 
-            if (workspace.active)
+            // Workspace has no more windows and is the active one, in
+            // single-workspace mode in this case we don't want to go to the
+            // adjacent workspace, but instead always to the overview.
+            if (!Main.layoutManager.starting_up && workspace.active)
                 Main.overview.show(2);
 
             /* There must always be a default workspace, don't remove that one */
