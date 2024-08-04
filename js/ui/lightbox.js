@@ -163,6 +163,13 @@ export const Lightbox = GObject.registerClass({
         this._highlighted = null;
     }
 
+    vfunc_captured_event(event) {
+        if (event.type() === Clutter.EventType.ENTER || event.type() === Clutter.EventType.LEAVE)
+            return Clutter.EVENT_PROPAGATE;
+
+        return Clutter.EVENT_STOP;
+    }
+
     get active() {
         return this._active;
     }
