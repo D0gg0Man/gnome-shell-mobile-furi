@@ -356,8 +356,6 @@ class ControlsManager extends St.Widget {
         this._searchController.connectObject('notify::search-active',
             () => this._onSearchChanged(), this);
 
-        Main.layoutManager.connectObject('monitors-changed', () =>
-            this._thumbnailsBox.setMonitorIndex(Main.layoutManager.primaryIndex), this);
         this._thumbnailsBox = new WorkspaceThumbnail.ThumbnailsBox(
             this._workspaceAdjustment, Main.layoutManager.primaryIndex);
         this._thumbnailsBox.connectObject('notify::should-show', () => {
@@ -376,21 +374,26 @@ class ControlsManager extends St.Widget {
             this._stateAdjustment);
         this._appDisplay = new AppDisplay.AppDisplay();
 
-        let monitor = Main.layoutManager.monitors[Main.layoutManager.primaryIndex];
-        const wallpaper = new St.Widget({
-            x: monitor.x,
-            y: monitor.y,
-            width: monitor.width,
-            height: monitor.height,
-        });
+        const wallpaper = new Clutter.Actor();
+        wallpaper.add_constraint(new Layout.MonitorConstraint({primary: true}));
         Main.wm.workspaceTracker.bind_property('single-window-workspaces',
             wallpaper, 'visible',
             GObject.BindingFlags.SYNC_CREATE);
 
-        const bgManager = new Background.BackgroundManager({
-            container: wallpaper,
-            monitorIndex: Main.layoutManager.primaryIndex,
-            controlPosition: false,
+        const updateBgManager = () => {
+            this._bgManager?.destroy();
+
+            this._bgManager = new Background.BackgroundManager({
+                container: wallpaper,
+                monitorIndex: Main.layoutManager.primaryIndex,
+                controlPosition: false,
+            });
+        }
+        updateBgManager();
+
+        Main.layoutManager.connect('monitors-changed', () => {
+            this._thumbnailsBox.setMonitorIndex(Main.layoutManager.primaryIndex);
+            updateBgManager();
         });
 
         this.add_child(wallpaper);
