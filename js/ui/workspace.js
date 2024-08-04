@@ -1046,11 +1046,14 @@ class WorkspaceBackground extends Shell.WorkspaceBackground {
     _updateBorderRadius() {
         const {scaleFactor} = St.ThemeContext.get_for_stage(global.stage);
         const cornerRadius = Main.layoutManager.is_phone
-            ? 0 : scaleFactor * BACKGROUND_CORNER_RADIUS_PIXELS;
+            ? 0 : BACKGROUND_CORNER_RADIUS_PIXELS;
+
+        const targetRadius = Math.round(Util.lerp(0, cornerRadius, this._stateAdjustment.value));
 
         const backgroundContent = this._bgManager.backgroundActor.content;
-        backgroundContent.rounded_clip_radius =
-            Util.lerp(0, cornerRadius, this._stateAdjustment.value);
+        backgroundContent.rounded_clip_radius = scaleFactor * targetRadius;
+
+        this.style = `border-radius: ${targetRadius}px;`
     }
 
     _updateRoundedClipBounds() {
