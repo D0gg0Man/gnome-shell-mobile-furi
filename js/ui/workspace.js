@@ -1019,17 +1019,9 @@ class WorkspaceBackground extends Shell.WorkspaceBackground {
         this._bin.add_child(this._backgroundGroup);
         this.add_child(this._bin);
 
-        this._bgManager = new Background.BackgroundManager({
-            container: this._backgroundGroup,
-            monitorIndex: this._monitorIndex,
-            controlPosition: false,
-            useContentSize: false,
-        });
-
-        this._bgManager.connect('changed', () => {
-            this._updateRoundedClipBounds();
-            this._updateBorderRadius();
-        });
+        this._updateBackgrounds();
+        Main.layoutManager.connectObject('monitors-changed',
+            this._updateBackgrounds.bind(this), this);
 
         global.display.connectObject('workareas-changed', () => {
             this._workarea = Main.layoutManager.getWorkAreaForMonitor(monitorIndex);
@@ -1041,6 +1033,22 @@ class WorkspaceBackground extends Shell.WorkspaceBackground {
         this._updateBorderRadius();
 
         this.connect('destroy', this._onDestroy.bind(this));
+    }
+
+    _updateBackgrounds() {
+        this._bgManager?.destroy();
+
+        this._bgManager = new Background.BackgroundManager({
+            container: this._backgroundGroup,
+            monitorIndex: this._monitorIndex,
+            controlPosition: false,
+            useContentSize: false,
+        });
+
+        this._bgManager.connect('changed', () => {
+            this._updateRoundedClipBounds();
+            this._updateBorderRadius();
+        });
     }
 
     _updateBorderRadius() {
