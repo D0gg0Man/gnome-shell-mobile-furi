@@ -167,12 +167,7 @@
             "action": "levelSwitch",
             "iconName": "osk-shift-symbolic",
             "level": "shift",
-            "width": 1
-          },
-          {
-            "strings": [
-              "ѕ"
-            ]
+            "width": 1.5
           },
           {
             "strings": [
@@ -217,7 +212,7 @@
           {
             "action": "delete",
             "iconName": "osk-delete-symbolic",
-            "width": 1
+            "width": 1.5
           }
         ],
         [
@@ -434,12 +429,7 @@
             "action": "levelSwitch",
             "iconName": "osk-shift-symbolic",
             "level": "default",
-            "width": 1
-          },
-          {
-            "strings": [
-              "Ѕ"
-            ]
+            "width": 1.5
           },
           {
             "strings": [
@@ -484,7 +474,7 @@
           {
             "action": "delete",
             "iconName": "osk-delete-symbolic",
-            "width": 1
+            "width": 1.5
           }
         ],
         [
