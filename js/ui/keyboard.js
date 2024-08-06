@@ -2037,6 +2037,9 @@ export const Keyboard = GObject.registerClass({
             if (key.action)
                 button.keyButton.add_style_class_name('action-' + key.action);
 
+            if (key.smallerFontSize)
+                button.keyButton.add_style_class_name('smaller-font-size');
+
             layout.appendKey(button, key.width, key.height, key.leftOffset, key.rightOffset);
         }
     }
