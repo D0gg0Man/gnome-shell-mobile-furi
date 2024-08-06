@@ -2031,7 +2031,8 @@ export const Keyboard = GObject.registerClass({
                 this._modifierKeys[key.keyval] = modifierKeys;
             }
 
-            if (key.action || key.keyval)
+            // znwj key uses keyval but should appear like a normal key
+            if (key.action || (key.keyval && key.keyval !== '0x100200c'))
                 button.keyButton.add_style_class_name('default-key');
 
             if (key.action)
