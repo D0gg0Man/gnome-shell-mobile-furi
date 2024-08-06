@@ -118,7 +118,12 @@ $default_key_bg_color: if($variant=='light', darken($key_bg_color, 11%), darken(
 .emoji-panel {
   .keyboard-key {
     &.bottom-row-key {
+      // smaller icons for all the emoji page keys, but not for delete key
       StIcon { icon-size: 16px; }
+      &.default-key {
+        StIcon { icon-size: $medium_icon_size; }
+      }
+
       @include fontsize($base_font_size + 2);
 
       &:latched {
