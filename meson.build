@@ -1,5 +1,5 @@
 project('gnome-shell', 'c',
-  version: '49.3',
+  version: '49.mobile.0',
   meson_version: '>= 1.3.0',
   license: 'GPL-2.0-or-later',
 )
@@ -24,7 +24,7 @@ gcr_req = '>= 3.90.0'
 gio_req = '>= 2.86.0'
 gjs_req = '>= 1.85.90'
 gtk_req = '>= 4.0'
-mutter_req = '>= 49.0'
+mutter_req = '= 49.mobile.0'
 polkit_req = '>= 0.100'
 schemas_req = '>= 49.alpha'
 systemd_req = '>= 246'
@@ -279,9 +279,6 @@ if get_option('extensions_tool')
   )
 
   extension_tool_version = extension_tool.get_variable('package_version')
-  assert(extension_tool_version == meson.project_version(),
-    'extension-tool version does not match project version'
-  )
 endif
 
 if get_option('extensions_app')
@@ -292,9 +289,6 @@ if get_option('extensions_app')
   )
 
   extensions_app_version = extensions_app.get_variable('package_version')
-  assert(extensions_app_version == meson.project_version(),
-    'Extensions app version does not match project version'
-  )
 endif
 
 if get_option('tests')
