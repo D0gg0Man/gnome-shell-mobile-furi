@@ -2529,7 +2529,7 @@ export const Keyboard = GObject.registerClass({
             delete this._windowMovedId;
         }
 
-        if (show && window.maximized_vertically && !window.__keyboardMoved) {
+        if (show && window.maximized_vertically && !window.__keyboardMoved && !window.is_alien()) {
             const frameRect = window.get_frame_rect();
             const workArea = window.get_work_area_current_monitor();
 
