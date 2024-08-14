@@ -4,7 +4,13 @@
     <method name="Suspend">
       <arg type="b" direction="in"/>
     </method>
+    <method name="Hibernate">
+      <arg type="b" direction="in"/>
+    </method>
     <method name="CanSuspend">
+      <arg type="s" direction="out"/>
+    </method>
+    <method name="CanHibernate">
       <arg type="s" direction="out"/>
     </method>
     <method name="Inhibit">

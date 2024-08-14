@@ -163,6 +163,20 @@ class LoginManagerSystemd extends Signals.EventEmitter {
         return {canSuspend, needsAuth};
     }
 
+    async canHibernate() {
+        let canHibernate, needsAuth;
+
+        try {
+            const [result] = await this._proxy.CanSuspendAsync();
+            needsAuth = result === 'challenge';
+            canHibernate = needsAuth || result === 'yes';
+        } catch (error) {
+            canHibernate = false;
+            needsAuth = false;
+        }
+        return {canHibernate, needsAuth};
+    }
+
     async canRebootToBootLoaderMenu() {
         let canRebootToBootLoaderMenu, needsAuth;
 
@@ -197,6 +211,10 @@ class LoginManagerSystemd extends Signals.EventEmitter {
 
     async suspend() {
         await this._proxy.SuspendAsync(true);
+    }
+
+    async hibernate() {
+        await this._proxy.HibernateAsync(true);
     }
 
     async inhibit(what, mode, reason, cancellable) {
@@ -267,6 +285,13 @@ class LoginManagerDummy extends Signals.EventEmitter  {
         }));
     }
 
+    canHibernate() {
+        return new Promise(resolve => resolve({
+            canSuspend: false,
+            needsAuth: false,
+        }));
+    }
+
     canRebootToBootLoaderMenu() {
         return new Promise(resolve => resolve({
             canRebootToBootLoaderMenu: false,
@@ -294,6 +319,11 @@ class LoginManagerDummy extends Signals.EventEmitter  {
 
     get preparingForSleep() {
         return this._preparingForSleep;
+    }
+
+    hibernate() {
+        this.emit('prepare-for-sleep', true);
+        this.emit('prepare-for-sleep', false);
     }
 
     /* eslint-disable-next-line require-await */
