@@ -471,7 +471,7 @@ const SystemActions = GObject.registerClass({
         if (!this._actions.get(SUSPEND_ACTION_ID).available)
             throw new Error('The suspend action is not available!');
 
-        this._loginManager.suspend();
+        Main.powerManager.suspend();
     }
 
     activateScreenshotUI() {
