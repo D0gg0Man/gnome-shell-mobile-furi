@@ -2956,7 +2956,11 @@ export const AppIcon = GObject.registerClass({
         this._updateRunningStyle();
 
         const longPressGesture = new Clutter.LongPressGesture();
-        longPressGesture.connect('recognize', () => this.popupMenu());
+        longPressGesture.connect('recognize', () => this.popupMenu(false));
+        longPressGesture.connect('end', () => {
+            this._menu.modal = true;
+        });
+        longPressGesture.connect('cancel', () => this._menu.close(true));
         this.add_action(longPressGesture);
 
         const rightClickGesture = new Clutter.ClickGesture({
@@ -3005,7 +3009,7 @@ export const AppIcon = GObject.registerClass({
         return this.app.get_id();
     }
 
-    popupMenu() {
+    popupMenu(takeGrab = true) {
         this.setForcedHighlight(true);
 
         if (!this._menu) {
@@ -3027,6 +3031,7 @@ export const AppIcon = GObject.registerClass({
 
         this.emit('menu-state-changed', true);
 
+        this._menu.modal = takeGrab;
         this._menu.open(BoxPointer.PopupAnimation.FULL);
         this._menuManager.ignoreRelease();
         this.emit('sync-tooltip');
