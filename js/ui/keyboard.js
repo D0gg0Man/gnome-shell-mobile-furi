@@ -1542,6 +1542,12 @@ export const Keyboard = GObject.registerClass({
         this.opacity = 0;
         this.translation_y = this.get_preferred_height(-1)[1];
         this._keyboardHeightNotifyId = this.connect('notify::allocation', () => {
+            const monitor = Main.layoutManager.keyboardMonitor;
+            const x = monitor.x;
+            const y = (monitor.y + monitor.height) - this.allocation.get_height();
+
+            Main.inputMethod.set_input_rect(x, Math.floor(y), Math.ceil(this.allocation.get_width()), Math.ceil(this.allocation.get_height()));
+
             if (this.mapped)
                 return;
 
