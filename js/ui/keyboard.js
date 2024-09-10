@@ -2092,15 +2092,17 @@ export const Keyboard = GObject.registerClass({
                     } else if (key.action === 'modifier') {
                         this._toggleModifier(key.keyval);
                     } else if (key.action === 'delete') {
-                        this._keyboardController.toggleDelete(true);
-                        this._keyboardController.toggleDelete(false);
+                        const alien = this._focusWindow?.is_alien();
+
+                        this._keyboardController.toggleDelete(true, alien);
+                        this._keyboardController.toggleDelete(false, alien);
                         this._updateLevelFromHints(true);
                     }
                 });
 
                 button.connect('cancelled', () => {
                     if (key.action === 'delete') {
-                        this._keyboardController.toggleDelete(false)
+                        this._keyboardController.toggleDelete(false, this._focusWindow?.is_alien())
                     }
                 });
 
@@ -2147,7 +2149,7 @@ export const Keyboard = GObject.registerClass({
 
             if (key.action === 'delete') {
                 button.connect('long-press',
-                    () => this._keyboardController.toggleDelete(true));
+                    () => this._keyboardController.toggleDelete(true, this._focusWindow?.is_alien()));
             }
 
             if (key.action === 'modifier') {
@@ -2795,7 +2797,7 @@ class KeyboardController extends Signals.EventEmitter {
         return charPos;
     }
 
-    toggleDelete(enabled) {
+    toggleDelete(enabled, useTextInput) {
         if (this._deleteEnabled === enabled)
             return;
 
@@ -2804,7 +2806,7 @@ class KeyboardController extends Signals.EventEmitter {
 
         /* If there is no IM focus or are in the middle of preedit, fallback to
          * keypresses */
-        if (enabled) {
+        if (enabled && !useTextInput) {
             this.keyvalPress(Clutter.KEY_BackSpace);
             this._backspacePressed = true;
             return;
