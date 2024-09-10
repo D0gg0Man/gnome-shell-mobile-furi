@@ -1735,9 +1735,9 @@ export const Keyboard = GObject.registerClass({
             keyboardModel = new KeyboardModel('number');
         } else if (purpose === Clutter.InputContentPurpose.PHONE) {
             keyboardModel = new KeyboardModel('phone');
-        } else if (purpose === Clutter.InputContentPurpose.EMAIL) {
+        } else if (!Main.layoutManager.isPhone && purpose === Clutter.InputContentPurpose.EMAIL) {
             keyboardModel = new KeyboardModel('email');
-        } else if (purpose === Clutter.InputContentPurpose.URL) {
+        } else if (!Main.layoutManager.isPhone && purpose === Clutter.InputContentPurpose.URL) {
             keyboardModel = new KeyboardModel('url');
         } else {
             let groups = [groupName];
