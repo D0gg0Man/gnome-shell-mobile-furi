@@ -1562,9 +1562,6 @@ export class PopupMenuManager {
         let menu = actor._delegate;
         const targetActor = global.stage.get_event_actor(event);
 
-        if (Main.screenShield.maybeHandleEvent(event))
-            return Clutter.EVENT_STOP;
-
         if (event.type() === Clutter.EventType.KEY_PRESS) {
             let symbol = event.get_key_symbol();
             if (symbol === Clutter.KEY_Down &&

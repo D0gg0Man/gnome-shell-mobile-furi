@@ -1483,13 +1483,6 @@ class LookingGlass extends St.BoxLayout {
         return Clutter.EVENT_PROPAGATE;
     }
 
-    vfunc_captured_event(event) {
-        if (Main.screenShield.maybeHandleEvent(event))
-            return Clutter.EVENT_PROPAGATE;
-
-        return Clutter.EVENT_PROPAGATE;
-    }
-
     setBorderPaintTarget(obj) {
         if (this._borderPaintTarget != null)
             this._borderPaintTarget.remove_effect(this._redBorderEffect);

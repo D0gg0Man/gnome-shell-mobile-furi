@@ -96,25 +96,28 @@ export class ScreenShield extends Signals.EventEmitter {
         this._isLocked = false;
         this._activationTime = 0;
 
-        global.stage.connect('captured-event::key', (a, e) => {
-            return this.maybeHandleEvent(e);
-        });
+        Main.wm.addKeybinding(
+            'power-button',
+            new Gio.Settings({schema_id: 'org.gnome.shell.keybindings'}),
+            Meta.KeyBindingFlags.BINDING_BUILTIN |
+            Meta.KeyBindingFlags.BINDING_NON_MASKABLE |
+            Meta.KeyBindingFlags.TRIGGER_RELEASE,
+            Shell.ActionMode.ALL,
+            this._handlePowerButtonEvent.bind(this),
+        );
     }
 
-    maybeHandleEvent(e) {
-        if (e.get_flags() !== Clutter.EventFlags.NONE)
-            return Clutter.EVENT_PROPAGATE;
+    _handlePowerButtonEvent(display, window, event, binding) {
+        log('_powerButtonEvent', display, window, event, binding)
 
-        const type = e.type();
+        if (event.get_flags() !== Clutter.EventFlags.NONE)
+            return;
+
+        const type = event.type();
         if (type !== Clutter.EventType.KEY_PRESS && type !== Clutter.EventType.KEY_RELEASE)
-            return Clutter.EVENT_PROPAGATE;
+            return;
 
-        if (e.get_key_symbol() !== Clutter.KEY_PowerOff)
-            return Clutter.EVENT_PROPAGATE;
-
-        Main.powerManager.powerButtonEvent(e);
-
-        return Clutter.EVENT_STOP;
+        Main.powerManager.powerButtonEvent(event);
     }
 
     async _getLoginSession() {
