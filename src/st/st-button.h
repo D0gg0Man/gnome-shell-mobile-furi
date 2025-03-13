@@ -77,4 +77,6 @@ void         st_button_set_button_mask (StButton     *button,
                                         StButtonMask  mask);
 StButtonMask st_button_get_button_mask (StButton     *button);
 
+ClutterClickGesture * st_button_get_click_gesture (StButton *self);
+
 G_END_DECLS

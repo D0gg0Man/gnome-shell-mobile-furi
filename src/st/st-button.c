@@ -776,6 +776,27 @@ st_button_fake_release (StButton *button)
   clutter_gesture_cancel (CLUTTER_GESTURE (priv->click_gesture));
 }
 
+/**
+ * st_button_get_click_gesture:
+ * @self: a #StButton
+ *
+ * Gets the internal #ClutterClickGesture used by StButton to recognize
+ * clicks.
+ *
+ * Returns: (transfer none): The click gesture
+ */
+ClutterClickGesture *
+st_button_get_click_gesture (StButton *self)
+{
+  StButtonPrivate *priv;
+
+  g_return_val_if_fail (ST_IS_BUTTON (self), NULL);
+
+  priv = st_button_get_instance_private (self);
+
+  return priv->click_gesture;
+}
+
 /******************************************************************************/
 /*************************** ACCESSIBILITY SUPPORT ****************************/
 /******************************************************************************/
