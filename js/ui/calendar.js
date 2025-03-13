@@ -780,7 +780,7 @@ class Placeholder extends St.BoxLayout {
 
 export const CalendarMessageList = GObject.registerClass(
 class CalendarMessageList extends St.Widget {
-    constructor() {
+    constructor(messageViewParams) {
         super({
             style_class: 'message-list',
             layout_manager: new Clutter.BinLayout(),
@@ -788,7 +788,7 @@ class CalendarMessageList extends St.Widget {
             y_expand: true,
         });
 
-        this._messageView = new MessageList.MessageView();
+        this._messageView = new MessageList.MessageView(messageViewParams);
 
         this._scrollView = new St.ScrollView({
             x_expand: true, y_expand: true,

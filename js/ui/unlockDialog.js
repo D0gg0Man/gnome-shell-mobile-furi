@@ -270,7 +270,9 @@ export const UnlockDialog = GObject.registerClass({
         this._clock = new Clock();
         this._clock.x_expand = true;
 
-        this._notificationsBox = new Calendar.CalendarMessageList();
+        this._notificationsBox = new Calendar.CalendarMessageList({
+            isOnLockscreen: true,
+        });
         this._notificationsSettings = new Gio.Settings({
             schema_id: 'org.gnome.desktop.notifications',
         });

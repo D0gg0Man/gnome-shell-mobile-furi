@@ -811,6 +811,13 @@ export const Message = GObject.registerClass({
     get interactedWithTouchGesture() {
         return this._gestureWasStarted;
     }
+
+    setShowDetails(showDetails) {
+        if (showDetails)
+            this._bodyBin.show();
+        else
+            this._bodyBin.hide();
+    }
 });
 
 export const NotificationMessage = GObject.registerClass(
@@ -1002,13 +1009,17 @@ export const NotificationMessageGroup = GObject.registerClass({
             'focus-child', null, null,
             GObject.ParamFlags.READABLE,
             Message),
+        'is-on-lockscreen': GObject.ParamSpec.boolean(
+            'is-on-lockscreen', null, null,
+            GObject.ParamFlags.READWRITE | GObject.ParamFlags.CONSTRUCT_ONLY,
+            false),
     },
     Signals: {
         'notification-added': {},
         'expand-toggle-requested': {},
     },
 }, class NotificationMessageGroup extends St.Widget {
-    constructor(source) {
+    constructor(source, params) {
         const action =  new Clutter.ClickGesture();
 
         // A widget that covers stacked messages so that they don't receive events
@@ -1030,6 +1041,7 @@ export const NotificationMessageGroup = GObject.registerClass({
             actions: action,
             reactive: true,
             offscreen_redirect: Clutter.OffscreenRedirect.AUTOMATIC_FOR_OPACITY,
+            ...params,
         });
 
         // The cover is always the second child to prevent interaction
@@ -1072,9 +1084,15 @@ export const NotificationMessageGroup = GObject.registerClass({
         this.add_child(this._headerBox);
         this.add_child(this._cover);
 
+        const policyChangedId = source.policy.connect('notify', () => {
+            this._notificationToMessage.forEach(message =>
+                this._updateMessageDetailsForLockscreen(message));
+        });
+
         source.connectObject(
             'notification-added', (_, notification) => this._addNotification(notification),
             'notification-removed', (_, notification) => this._removeNotification(notification),
+            'destroy', () => source.policy.disconnect(policyChangedId), // FIXME: hmm, why isn't there more stuff done on this signal, this object seems to per-source, so in theory the whole object should go away?
             this);
 
         this._closeGesture = new Clutter.PanGesture({
@@ -1246,6 +1264,8 @@ export const NotificationMessageGroup = GObject.registerClass({
 
         if (isUrgent)
             this._nUrgent++;
+
+        this._updateMessageDetailsForLockscreen(message);
 
         const wasExpanded = this.expanded;
         const item = new St.Bin({
@@ -1443,6 +1463,22 @@ export const NotificationMessageGroup = GObject.registerClass({
 
     _panCancel(gesture) {
 
+    }
+
+    _updateMessageDetailsForLockscreen(message) {
+        if (!this.isOnLockscreen)
+            return;
+
+        const show = this.source.policy.showInLockScreen;
+        const showDetails = this.source.policy.detailsInLockScreen ||
+            this.source.narrowestPrivacyScope === MessageTray.PrivacyScope.SYSTEM;
+
+        if (show)
+            message.show();
+        else
+            message.hide();
+
+        message.setShowDetails(showDetails);
     }
 });
 
@@ -1681,6 +1717,10 @@ export const MessageView = GObject.registerClass({
             'expanded-group', null, null,
             GObject.ParamFlags.READABLE,
             Clutter.Actor),
+        'is-on-lockscreen': GObject.ParamSpec.boolean(
+            'is-on-lockscreen', null, null,
+            GObject.ParamFlags.READWRITE | GObject.ParamFlags.CONSTRUCT_ONLY,
+            false),
     },
     Signals: {
         'message-focused': {param_types: [Message]},
@@ -1695,7 +1735,7 @@ export const MessageView = GObject.registerClass({
     _playerToMessage = new Map();
     _mediaSource = new Mpris.MprisSource();
 
-    constructor() {
+    constructor(params) {
         // Add an overlay that will be placed below the expanded group message
         // to block interaction with other messages.
         // Unfortunately there isn't a much better way to block
@@ -1712,6 +1752,7 @@ export const MessageView = GObject.registerClass({
             effect: new FadeEffect({name: 'highlight'}),
             x_expand: true,
             y_expand: true,
+            ...params,
         });
 
         this._overlay = overlay;
@@ -2004,7 +2045,8 @@ export const MessageView = GObject.registerClass({
     }
 
     _addNotificationSource(source) {
-        const group = new NotificationMessageGroup(source);
+        const group = new NotificationMessageGroup(source,
+            { isOnLockscreen: this.isOnLockscreen });
 
         this._notificationSourceToGroup.set(source, group);
 
