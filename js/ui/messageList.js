@@ -627,6 +627,10 @@ export const Message = GObject.registerClass({
         return this._useBodyMarkup;
     }
 
+    get closeGesture() {
+        return this._closeGesture
+    }
+
     setActionArea(actor) {
         this._actionBin.child = actor;
         this._actionBin.visible = actor && this.expanded;
@@ -1025,6 +1029,7 @@ export const NotificationMessageGroup = GObject.registerClass({
             layout_manager: new MessageGroupExpanderLayout(cover, header),
             actions: action,
             reactive: true,
+            offscreen_redirect: Clutter.OffscreenRedirect.AUTOMATIC_FOR_OPACITY,
         });
 
         // The cover is always the second child to prevent interaction
@@ -1072,6 +1077,17 @@ export const NotificationMessageGroup = GObject.registerClass({
             'notification-removed', (_, notification) => this._removeNotification(notification),
             this);
 
+        this._closeGesture = new Clutter.PanGesture({
+            pan_axis: Clutter.PanAxis.X,
+            max_n_points: 1,
+        });
+        this._closeGesture.connect('may-recognize', () => this.canClose());
+        this._closeGesture.connect('recognize', this._panBegin.bind(this));
+        this._closeGesture.connect('pan-update', this._panUpdate.bind(this));
+        this._closeGesture.connect('end', this._panEnd.bind(this));
+        this._closeGesture.connect('cancel', this._panCancel.bind(this));
+        this.add_action(this._closeGesture);
+
         source.notifications.forEach(notification => {
             this._addNotification(notification);
         });
@@ -1107,6 +1123,11 @@ export const NotificationMessageGroup = GObject.registerClass({
         this.notify('expanded');
         this._cover.hide();
 
+        this._notificationToMessage.forEach(message => {
+            message.closeGesture.enabled = true;
+        });
+        this._closeGesture.enabled = false;
+
         await new Promise((resolve, _) => {
             this.ease_property('@layout.expansion', 1, {
                 progress_mode: Clutter.AnimationMode.EASE_OUT_QUAD,
@@ -1120,7 +1141,11 @@ export const NotificationMessageGroup = GObject.registerClass({
         if (!this._expanded)
             return;
 
-        this._notificationToMessage.forEach(message => message.unexpand(true));
+        this._notificationToMessage.forEach(message => {
+            message.closeGesture.enabled = false;
+            message.unexpand(true);
+        });
+        this._closeGesture.enabled = true;
 
         // Give focus to the fully visible message
         if (this.focusChild?.has_key_focus())
@@ -1260,6 +1285,7 @@ export const NotificationMessageGroup = GObject.registerClass({
         this.insert_child_at_index(item, index);
         this._ensureCoverPosition();
         this._updateStackedMessagesFade();
+        message.closeGesture.enabled = false;
 
         item.layout_manager.scalingEnabled = this._expanded;
 
@@ -1374,6 +1400,49 @@ export const NotificationMessageGroup = GObject.registerClass({
             message.disconnectObject(this);
             message.close();
         });
+    }
+
+    _panBegin(gesture) {
+        this.remove_transition('translation-x');
+        this.remove_transition('opacity');
+
+        this._panWidth = this.get_transformed_extents().size.width;
+    }
+
+    _panUpdate(gesture) {
+        const [latestDeltaVec] = gesture.get_delta();
+
+        this.translation_x += latestDeltaVec.get_x();
+        this.opacity = 255 * (1 - Math.min(Math.abs(this.translation_x / (this._panWidth * 0.7)), 1));
+    }
+
+    _panEnd(gesture) {
+        const velocityX = gesture.get_velocity().get_x();
+
+        const panDirection = this.translation_x > 0 ? this._panWidth : -this._panWidth;
+        const remainingWidth = Math.abs(panDirection - this.translation_x);
+        const velocity = Math.abs(velocityX);
+
+        if (velocity > 0.9 || (remainingWidth < Math.abs(panDirection * 0.5) && velocity > 0.5) || this.opacity === 0) {
+            this.ease({
+                translation_x: panDirection,
+                opacity: 0,
+                duration: Math.clamp(velocity / remainingWidth, 100, 350),
+                mode: Clutter.AnimationMode.LINEAR,
+                onComplete: () => this.close(),
+            });
+        } else {
+            this.ease({
+                translation_x: 0,
+                opacity: 255,
+                duration: Math.clamp((1 - (remainingWidth / panDirection)) * 250, 100, 350),
+                mode: Clutter.AnimationMode.EASE_OUT_QUAD,
+            });
+        }
+    }
+
+    _panCancel(gesture) {
+
     }
 });
 
