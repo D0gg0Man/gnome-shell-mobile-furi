@@ -242,11 +242,6 @@ $_gdm_dialog_width: 21em;
   .icon-button {
     @extend %lockscreen_button;
   }
-
-  .clock-notifications-box {
-    margin-left: 12px;
-    margin-right: 12px;
-  }
 }
 
 .screen-shield-background { // just the shadow, really
