@@ -257,7 +257,6 @@ $_gdm_dialog_width: 21em;
 .unlock-dialog-clock {
   margin-top: 56px;
   color: $_gdm_fg;
-  spacing: 2em;
 
   .unlock-dialog-clock-time {
     @extend %numeric;
