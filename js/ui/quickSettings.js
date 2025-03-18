@@ -823,6 +823,19 @@ export const QuickSettingsMenu = class extends PopupMenu.PopupMenu {
 
         this.actor.add_child(this._overlay);
 
+        const clickGesture = new Clutter.ClickGesture();
+        clickGesture.connect('should-handle-sequence', (_gesture, event) => {
+            return event.type() === Clutter.EventType.BUTTON_PRESS;
+        });
+        clickGesture.connect('may-recognize', () => {
+            const clickCoords = clickGesture.get_coords_abs();
+            const boxExtents = this.box.get_transformed_extents();
+
+            return !boxExtents.contains_point(clickCoords);
+        });
+        clickGesture.connect('recognize', () => this.close(PopupAnimation.FULL));
+        this._boxPointer.add_action(clickGesture);
+
         this._panGesture = new Clutter.PanGesture({
             pan_axis: Clutter.PanAxis.Y,
             max_n_points: 1,
