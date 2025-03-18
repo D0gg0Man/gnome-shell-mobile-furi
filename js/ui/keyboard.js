@@ -428,7 +428,7 @@ const KeyContainerGesture = GObject.registerClass({
     vfunc_point_began(point) {
         const coords = this.get_point_coords(point);
         const key = this._getKeyForCoords(coords);
-        if (!key) {
+        if (!key || !key.enabled) {
             this.set_state(Clutter.GestureState.CANCELLED);
             return;
         }
@@ -481,7 +481,7 @@ const KeyContainerGesture = GObject.registerClass({
 
         const coords = this.get_point_coords(point);
         const key = this._getKeyForCoords(coords);
-        if (!key || key !== this._pressedKey)
+        if (!key || !key.enabled || key !== this._pressedKey)
             this.set_state(Clutter.GestureState.CANCELLED);
     }
 
@@ -580,6 +580,7 @@ const Key = GObject.registerClass({
 
         this._commitString = commitString;
         this._keyval = keyval;
+        this._enabled = true;
     }
 
     press() {
@@ -646,6 +647,22 @@ const Key = GObject.registerClass({
 
     set iconName(value) {
         this._icon.icon_name = value;
+    }
+
+    get enabled() {
+        return this._enabled;
+    }
+
+    set enabled(enabled) {
+        if (this._enabled === enabled)
+            return;
+
+        this._enabled = enabled;
+
+        if (enabled)
+            this.keyButton.remove_style_class_name('disabled');
+        else
+            this.keyButton.add_style_class_name('disabled');
     }
 
     _onDestroy() {
@@ -2054,6 +2071,9 @@ export const Keyboard = GObject.registerClass({
 
             if (key.smallerFontSize)
                 button.keyButton.add_style_class_name('smaller-font-size');
+
+            if (key.disabled)
+                button.enabled = false;
 
             layout.appendKey(button, key.width, key.height, key.leftOffset, key.rightOffset);
         }

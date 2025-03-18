@@ -52,6 +52,8 @@ $default_key_bg_color: if($variant=='light', darken($key_bg_color, 11%), darken(
   &:active { @include button(active, $c:lighten($key_bg_color, 10%), $tc:$osd_fg_color); }
   &:checked { @include button(checked, $c:$key_bg_color, $tc:$osd_fg_color); }
 
+  &.disabled { @include button(insensitive, $c:$key_bg_color, $tc:$osd_fg_color); }
+
   // non-character keys
   &.default-key {
     @include button(normal, $c:$default_key_bg_color, $tc:$osd_fg_color);
