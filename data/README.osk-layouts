@@ -61,6 +61,10 @@ it has the following structure:
     will be implicitly located at the right of the
     previous key in the row. Multiples of 0.5 are
     accepted.
+  - rightOffset (Double): If set, the right offset of
+    this key, relative to the key immediately to the
+    right, or the end of the row. Multiples of 0.5 are
+    accepted.
   - width (Double): Relative width of the key in the
     row. 1 is for a square key. Multiples of 0.5 are
     accepted. The implicit default value is 1.

@@ -26,7 +26,7 @@ const SHOW_KEYBOARD = 'screen-keyboard-enabled';
 const EMOJI_PAGE_SEPARATION = 32;
 
 /* KeyContainer puts keys in a grid where a 1:1 key takes this size */
-const KEY_SIZE = 4;
+const KEY_SIZE = 12;
 
 const KEY_RELEASE_TIMEOUT = 50;
 const BACKSPACE_WORD_DELETE_THRESHOLD = 50;
@@ -120,41 +120,66 @@ class KeyContainer extends St.Widget {
         this._nRows = 0;
         this._nCols = 0;
         this._maxNCols = 0;
-        this._currentCol = 0;
-        this._currentRow = 0;
+        this._currentLayoutCol = 0;
+        this._currentLayoutRow = 0;
         this._maxHeightInRow = 0;
+
+        this._rows = [];
+        this._rowSizes = [];
 
         this._keyContainerGesture = new KeyContainerGesture();
         this.add_action(this._keyContainerGesture);
     }
 
-    finishRow() {
-        this._currentCol = 0;
+    appendRow() {
+        this._rows.push([]);
 
-        this._maxNCols = Math.max(this._nCols, this._maxNCols);
-        this._nCols = 0;
+        if (this._currentLayoutCol)
+            this._rowSizes.push(this._currentLayoutCol);
+        this._currentLayoutCol = 0;
 
-        this._currentRow += this._maxHeightInRow;
+        this._currentLayoutRow += this._maxHeightInRow;
         this._maxHeightInRow = 0;
-
-        this._nRows++;
     }
 
-    appendKey(key, width = 1, height = 1, leftOffset = 0) {
-        const left = this._currentCol + leftOffset;
-        const top = this._currentRow;
+    appendKey(key, width = 1, height = 1, leftOffset = 0, rightOffset = 0) {
+        const left = this._currentLayoutCol + leftOffset;
+        const top = this._currentLayoutRow;
 
-        this._gridLayout.attach(key,
-            left * KEY_SIZE, top * KEY_SIZE,
-            width * KEY_SIZE, height * KEY_SIZE);
-        this._keyContainerGesture.addKey(key,
-            left * KEY_SIZE, top * KEY_SIZE,
-            width * KEY_SIZE, height * KEY_SIZE);
+        this._rows[this._rows.length - 1].push([key, left, top, width, height]);
 
-        this._nCols++;
-        this._currentCol += leftOffset + width;
-
+        this._currentLayoutCol += leftOffset + width + rightOffset;
         this._maxHeightInRow = Math.max(height, this._maxHeightInRow);
+    }
+
+    finishLayout() {
+        // need to find a common multiple for all the row sizes, this multiple
+        // then is the total width of the grid, and all rows can fit neatly
+        // into the grid
+
+        this._rowSizes.push(this._currentLayoutCol);
+        this._nRows = this._currentLayoutRow + this._maxHeightInRow;
+        this._maxNCols = Math.max(...this._rowSizes);
+
+        let multiple = smallestCommons(this._rowSizes);
+        if (multiple > 10000)
+            multiple = 100;
+
+        for (let i = 0; i < this._rows.length; i++) {
+            const row = this._rows[i];
+            const rowSize = this._rowSizes[i];
+            const multi = multiple / rowSize;
+
+            for (const col of row) {
+                const [key, left, top, width, height] = col;
+                this._gridLayout.attach(key,
+                    left * KEY_SIZE * multi, top * KEY_SIZE,
+                    width * KEY_SIZE * multi, height * KEY_SIZE);
+                this._keyContainerGesture.addKey(key,
+                    Math.round(left * KEY_SIZE * multi), Math.round(top * KEY_SIZE),
+                    Math.round(width * KEY_SIZE * multi), Math.round(height * KEY_SIZE));
+            }
+        }
     }
 
     getRatio() {
@@ -1262,6 +1287,8 @@ const EmojiSelection = GObject.registerClass({
         let row = new KeyContainer();
         let key;
 
+        row.appendRow();
+
         key = new Key({
             label: 'ABC',
             hasAction: true,
@@ -1297,7 +1324,7 @@ const EmojiSelection = GObject.registerClass({
             this.emit('keyval', Clutter.KEY_BackSpace);
         });
         row.appendKey(key, 1.5);
-        row.finishRow();
+        row.finishLayout();
 
         const actor = new AspectContainer({
             layout_manager: new Clutter.BinLayout(),
@@ -1747,9 +1774,10 @@ export const Keyboard = GObject.registerClass({
 
             const rows = currentLevel.rows;
             rows.forEach(row => {
+                levelLayout.appendRow();
                 this._addRowKeys(row, levelLayout, true);
-                levelLayout.finishRow();
             });
+            levelLayout.finishLayout();
 
             layers[currentLevel.level] = levelLayout;
             layout.add_child(levelLayout);
@@ -1863,7 +1891,7 @@ export const Keyboard = GObject.registerClass({
             if (key.action)
                 button.keyButton.add_style_class_name('action-' + key.action);
 
-            layout.appendKey(button, key.width, key.height, key.leftOffset);
+            layout.appendKey(button, key.width, key.height, key.leftOffset, key.rightOffset);
         }
     }
 
