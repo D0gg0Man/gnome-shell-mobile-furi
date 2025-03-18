@@ -1,0 +1,100 @@
+{
+  "levels": [
+    {
+      "level": "default",
+      "mode": "default",
+      "rows": [
+        [
+          {
+            "strings": [
+              "1"
+            ]
+          },
+          {
+            "strings": [
+              "2"
+            ]
+          },
+          {
+            "strings": [
+              "3"
+            ]
+          },
+          {
+            "strings": [
+              "-",
+              "+",
+              "E"
+            ]
+          }
+        ],
+        [
+          {
+            "strings": [
+              "4"
+            ]
+          },
+          {
+            "strings": [
+              "5"
+            ]
+          },
+          {
+            "strings": [
+              "6"
+            ]
+          },
+          {
+            "strings": [
+              ","
+            ]
+          }
+        ],
+        [
+          {
+            "strings": [
+              "7"
+            ]
+          },
+          {
+            "strings": [
+              "8"
+            ]
+          },
+          {
+            "strings": [
+              "9"
+            ]
+          },
+          {
+            "action": "delete",
+            "iconName": "osk-delete-symbolic"
+          }
+        ],
+        [
+          {
+            "strings": [
+              "."
+            ]
+          },
+          {
+            "strings": [
+              "0"
+            ]
+          },
+          {
+            "label": "⎽",
+            "strings": [
+              " "
+            ]
+          },
+          {
+            "iconName": "osk-enter-symbolic",
+            "keyval": "0xff0d"
+          }
+        ]
+      ]
+    }
+  ],
+  "name": "Numeric Keyboard"
+}

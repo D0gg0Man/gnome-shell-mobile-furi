@@ -31,6 +31,7 @@
     <file>de-extended.json</file>
     <file>de-mobile.json</file>
     <file>digits.json</file>
+    <file>digits-mobile.json</file>
     <file>dk-extended-mobile.json</file>
     <file>dk.json</file>
     <file>dk-mobile.json</file>
@@ -124,10 +125,12 @@
     <file>no.json</file>
     <file>no-mobile.json</file>
     <file>number.json</file>
+    <file>number-mobile.json</file>
     <file>ph-extended-mobile.json</file>
     <file>ph.json</file>
     <file>ph-mobile.json</file>
     <file>phone.json</file>
+    <file>phone-mobile.json</file>
     <file>pl-extended-mobile.json</file>
     <file>pl.json</file>
     <file>pl-mobile.json</file>
