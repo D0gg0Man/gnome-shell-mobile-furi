@@ -831,7 +831,27 @@ class FocusTracker extends Signals.EventEmitter {
         global.display.connectObject(
             'notify::focus-window', () => {
                 this._setCurrentWindow(global.display.focus_window);
+
+
                 this.emit('window-changed', this._currentWindow);
+            },
+            'window-created', (display, window) => {
+                GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
+                    const windowActor = window.get_compositor_private();
+                    if (!windowActor)
+                        return GLib.SOURCE_CONTINUE;
+
+                    // We assume skip_taskbar windows are popovers
+                    if (window.skip_taskbar) {
+                        this.emit('focus-popover-added', window);
+
+                        window.connect('unmanaging', () => {
+                            this.emit('focus-popover-removed', window);
+                        });
+                    }
+
+                    return GLib.SOURCE_REMOVE;
+                });
             },
             'grab-op-begin', (display, window, op) => {
                 if (window === this._currentWindow &&
@@ -1528,6 +1548,7 @@ export const Keyboard = GObject.registerClass({
 
         this._languagePopup = null;
         this._focusWindow = null;
+        this._focusPopovers = new Set();
 
         this._latched = false; // current level is latched
         this._modifiers = new Set();
@@ -1539,7 +1560,10 @@ export const Keyboard = GObject.registerClass({
 
         this._focusTracker = new FocusTracker();
         this._focusTracker.connectObject(
-            'window-changed', this._onFocusChanged.bind(this), this);
+            'window-changed', this._onFocusChanged.bind(this),
+            'focus-popover-added', this._onFocusPopoverAdded.bind(this),
+            'focus-popover-removed', this._onFocusPopoverRemoved.bind(this),
+            this);
 
         this._windowMovedId = this._focusTracker.connect('window-maximize-changed', () => {
             if (this._focusWindow && this._focusWindow.maximized_vertically) {
@@ -1648,6 +1672,9 @@ export const Keyboard = GObject.registerClass({
         if (newTranslation !== 0 && this._focusWindow)
             this._animateWindow(this._focusWindow, false);
 
+        if (newTranslation !== 0 && this._focusPopovers.size > 0)
+            this._animatePopovers(false);
+
         this.translation_y = newTranslation;
     }
 
@@ -1673,6 +1700,9 @@ export const Keyboard = GObject.registerClass({
 
             if (this._focusWindow)
                 this._animateWindow(this._focusWindow, true);
+
+            if (this._focusPopovers.size > 0)
+                this._animatePopovers(true);
         }
     }
 
@@ -1687,6 +1717,34 @@ export const Keyboard = GObject.registerClass({
     _onFocusChanged(focusTracker) {
         this._setFocusWindow(focusTracker.currentWindow);
         this._updateLevelFromHints(true);
+    }
+
+    _onFocusPopoverAdded(focusTracker, newPopover) {
+        this._focusPopovers.add(newPopover);
+
+        if (this._keyboardVisible && !Main.overview.visible)
+            this._animatePopovers(true);
+    }
+
+    _onFocusPopoverRemoved(focusTracker, popover) {
+        this._focusPopovers.delete(popover);
+
+        if (popover.__trackedByOSK) {
+            const windowActor = popover.get_compositor_private();
+
+            if (popover.hasOwnProperty('__origTranslationY')) {
+                windowActor.translation_y = popover.__origTranslationY;
+                delete popover.__origTranslationY;
+            }
+
+            delete popover.__trackedByOSK;
+
+            windowActor.disconnect(popover.__notifyAllocationId);
+            delete popover.__notifyAllocationId;
+        }
+
+        if (this._keyboardVisible && !Main.overview.visible)
+            this._animatePopovers(true);
     }
 
     _onDestroy() {
@@ -2352,6 +2410,9 @@ export const Keyboard = GObject.registerClass({
         if (this._focusWindow && !Main.overview.visible)
             this._animateWindow(this._focusWindow, true);
 
+        if (this._focusPopovers.size > 0 && !Main.overview.visible)
+            this._animatePopovers(true);
+
         this.ease({
             translation_y: 0,
             opacity: 255,
@@ -2378,6 +2439,9 @@ export const Keyboard = GObject.registerClass({
     _animateHide() {
         if (this._focusWindow)
             this._animateWindow(this._focusWindow, false);
+
+        if (this._focusPopovers.size > 0)
+            this._animatePopovers(false);
 
         this.ease({
             translation_y: this.height,
@@ -2492,6 +2556,65 @@ export const Keyboard = GObject.registerClass({
 
         if (this._focusWindow && this._keyboardVisible && !Main.overview.visible)
             this._animateWindow(this._focusWindow, true);
+    }
+
+    _animatePopovers(show) {
+        const workArea = Main.layoutManager.getWorkAreaForMonitor(
+            Main.layoutManager.keyboardMonitor.index);
+
+        if (show) {
+            const keyboardY1 = (workArea.y + workArea.height) - (this.allocation.get_height() - this._bottomPanelBox.allocation.get_height());
+
+            let highestOverlap = 0;
+            for (const popover of this._focusPopovers.keys()) {
+                const windowActor = popover.get_compositor_private();
+                if (!popover.__trackedByOSK) {
+                    popover.__trackedByOSK = true;
+                    popover.__notifyAllocationId = windowActor.connect('notify::allocation',
+                        () => this._animatePopovers(true));
+                }
+
+                if (!windowActor.has_allocation())
+                    continue;
+
+                const popoverOverlap = (windowActor.y + windowActor.height) - keyboardY1;
+                highestOverlap = Math.max(highestOverlap, popoverOverlap);
+            }
+
+            for (const popover of this._focusPopovers.keys()) {
+                const windowActor = popover.get_compositor_private();
+
+                if (!popover.hasOwnProperty('__origTranslationY'))
+                    popover.__origTranslationY = windowActor.translation_y;
+
+                windowActor.translation_y = -highestOverlap;
+            }
+        } else {
+            for (const popover of this._focusPopovers.keys()) {
+                if (popover.__trackedByOSK) {
+                    const windowActor = popover.get_compositor_private();
+
+                    if (popover.hasOwnProperty('__origTranslationY')) {
+                        windowActor.translation_y = popover.__origTranslationY;
+                        delete popover.__origTranslationY;
+                    }
+
+                    delete popover.__trackedByOSK;
+
+                    windowActor.disconnect(popover.__notifyAllocationId);
+                    delete popover.__notifyAllocationId;
+                }
+            }
+        }
+
+        if (show && !this._notifyAllocationPopoverId) {
+            this._notifyAllocationPopoverId = this.connect("notify::allocation",
+                () => this._animatePopovers(true));
+        } else if (!show && this._notifyAllocationPopoverId) {
+            this.disconnect(this._notifyAllocationPopoverId);
+            delete this._notifyAllocationPopoverId;
+        }
+
     }
 });
 
