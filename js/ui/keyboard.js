@@ -103,7 +103,7 @@ function smallestCommons(arr) {
 
 const KeyContainer = GObject.registerClass(
 class KeyContainer extends St.Widget {
-    _init() {
+    _init(keyContainerGesture) {
         const gridLayout = new Clutter.GridLayout({
             orientation: Clutter.Orientation.HORIZONTAL,
             column_homogeneous: true,
@@ -113,7 +113,6 @@ class KeyContainer extends St.Widget {
             layout_manager: gridLayout,
             x_expand: true,
             y_expand: true,
-            reactive: true,
         });
         this._gridLayout = gridLayout;
         this._nRows = 0;
@@ -126,8 +125,7 @@ class KeyContainer extends St.Widget {
         this._rows = [];
         this._rowSizes = [];
 
-        this._keyContainerGesture = new KeyContainerGesture();
-        this.add_action(this._keyContainerGesture);
+        this._keyContainerGesture = keyContainerGesture;
     }
 
     appendRow() {
@@ -325,9 +323,7 @@ const KeyContainerGesture = GObject.registerClass({
     _init() {
         super._init();
 
-        this._rows = [];
-        this._nRows = 0;
-        this._nCols = 0;
+        this._levels = new Map();
 
         this._pressedKey = null;
         this._currentPoint = null;
@@ -383,29 +379,31 @@ const KeyContainerGesture = GObject.registerClass({
     }
 
     _getKeyForCoords(coords) {
-        const rowRatio = coords.y / this.actor.height;
-        const rowIndex = Math.floor(this._nRows * rowRatio);
-        const colRatio = coords.x / this.actor.width;
-        let colIndex = Math.floor(this._nCols * colRatio);
+        const levelData = this._levels.get(this._currentLevel);
 
-        if (rowIndex < 0 || rowIndex >= this._nRows ||
-            colIndex < 0 || colIndex >= this._nCols)
+        const rowRatio = coords.y / this.actor.height;
+        const rowIndex = Math.floor(levelData.nRows * rowRatio);
+        const colRatio = coords.x / this.actor.width;
+        let colIndex = Math.floor(levelData.nCols * colRatio);
+
+        if (rowIndex < 0 || rowIndex >= levelData.nRows ||
+            colIndex < 0 || colIndex >= levelData.nCols)
             return null;
 
         // we always expect there to be a row
-        if (!this._rows[rowIndex][colIndex]) {
+        if (!levelData.rows[rowIndex][colIndex]) {
             let nextCol = colIndex;
             let prevCol = colIndex;
 
-            while (!this._rows[rowIndex][nextCol]) {
+            while (!levelData.rows[rowIndex][nextCol]) {
                 nextCol += 1;
-                if (nextCol === this._nCols) {
+                if (nextCol === levelData.nCols) {
                     nextCol = colIndex;
                     break;
                 }
             }
 
-            while (!this._rows[rowIndex][prevCol]) {
+            while (!levelData.rows[rowIndex][prevCol]) {
                 prevCol -= 1;
                 if (prevCol === -1) {
                     prevCol = colIndex;
@@ -414,15 +412,15 @@ const KeyContainerGesture = GObject.registerClass({
             }
 
             if (nextCol !== colIndex && prevCol !== colIndex) {
-                const distNextColBegin = nextCol - (this._nCols * colRatio);
-                const distPrevColEnd = (this._nCols * colRatio) - (prevCol + 1);
+                const distNextColBegin = nextCol - (levelData.nCols * colRatio);
+                const distPrevColEnd = (levelData.nCols * colRatio) - (prevCol + 1);
                 colIndex = distNextColBegin < distPrevColEnd ? nextCol : prevCol;
             } else {
                 colIndex = nextCol !== colIndex ? nextCol : prevCol;
             }
         }
 
-        return this._rows[rowIndex][colIndex];
+        return levelData.rows[rowIndex][colIndex];
     }
 
     vfunc_point_began(point) {
@@ -533,16 +531,30 @@ const KeyContainerGesture = GObject.registerClass({
     }
 
     addKey(key, colIndex, rowIndex, width, height) {
+        const levelData = this._levels.get(this._currentLevel);
+
         for (let i = rowIndex; i < rowIndex + height; i++) {
-            if (!this._rows[i])
-                this._rows[i] = [];
+            if (!levelData.rows[i])
+                levelData.rows[i] = [];
 
             for (let j = colIndex; j < colIndex + width; j++)
-                this._rows[i][j] = key;
+                levelData.rows[i][j] = key;
         }
 
-        this._nRows = Math.max(this._nRows, rowIndex + height);
-        this._nCols = Math.max(this._nCols, colIndex + width);
+        levelData.nRows = Math.max(levelData.nRows, rowIndex + height);
+        levelData.nCols = Math.max(levelData.nCols, colIndex + width);
+    }
+
+    setCurrentLevel(level) {
+        if (!this._levels.has(level)) {
+            this._levels.set(level, {
+                nRows: 0,
+                nCols: 0,
+                rows: [],
+            });
+        }
+
+        this._currentLevel = level;
     }
 });
 
@@ -1272,7 +1284,10 @@ const EmojiSelection = GObject.registerClass({
     }
 
     _createBottomRow() {
-        let row = new KeyContainer();
+        this._keyContainerGesture = new KeyContainerGesture();
+        this._keyContainerGesture.setCurrentLevel(0);
+
+        let row = new KeyContainer(this._keyContainerGesture);
         let key;
 
         row.appendRow();
@@ -1335,8 +1350,10 @@ const EmojiSelection = GObject.registerClass({
             layout_manager: new Clutter.BinLayout(),
             x_expand: true,
             y_expand: true,
+            reactive: true,
         });
         actor.add_child(row);
+        actor.add_action(this._keyContainerGesture);
 
         return actor;
     }
@@ -1845,6 +1862,7 @@ export const Keyboard = GObject.registerClass({
             layout_manager: new Clutter.BinLayout(),
             x_expand: true,
             y_expand: true,
+            reactive: true,
         });
 
         // Default to en-us keyboard if nothing is available
@@ -1903,10 +1921,15 @@ export const Keyboard = GObject.registerClass({
              purpose === Clutter.InputContentPurpose.PASSWORD ||
              purpose === Clutter.InputContentPurpose.TERMINAL);
 
+        this._keyContainerGesture = new KeyContainerGesture();
+        layout.add_action(this._keyContainerGesture);
+
         keyboardModel.getLevels().forEach(currentLevel => {
-            let levelLayout = new KeyContainer();
+            let levelLayout = new KeyContainer(this._keyContainerGesture);
             levelLayout.shiftKeys = [];
             levelLayout.mode = currentLevel.mode;
+
+            this._keyContainerGesture.setCurrentLevel(currentLevel.level);
 
             const rows = currentLevel.rows;
             rows.forEach(row => {
@@ -2013,7 +2036,7 @@ export const Keyboard = GObject.registerClass({
                 if (key.action === 'emoji') {
                     button.connect('long-press', () => {
                         this._popupLanguageMenu(button);
-                        layout._keyContainerGesture.cancel();
+                        this._keyContainerGesture.cancel();
                     });
                 }
             } else if (key.keyval) {
@@ -2268,6 +2291,8 @@ export const Keyboard = GObject.registerClass({
             this._currentPage = null;
         });
         this._currentPage.show();
+
+        this._keyContainerGesture.setCurrentLevel(activeLevel);
 
         this._relayout();
     }
