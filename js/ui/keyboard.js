@@ -2113,15 +2113,10 @@ export const Keyboard = GObject.registerClass({
         this._languagePopup.open(true);
     }
 
-    _updateCurrentPageVisible() {
-        if (this._currentPage)
-            this._currentPage.visible = !this._emojiActive;
-    }
-
     _setEmojiActive(active) {
         this._emojiActive = active;
         this._emojiSelection.visible = this._emojiActive;
-        this._updateCurrentPageVisible();
+        this._currentLayout.visible = !this._emojiActive
     }
 
     _toggleEmoji() {
@@ -2258,10 +2253,8 @@ export const Keyboard = GObject.registerClass({
         const layers = this._layers;
         let currentPage = layers[activeLevel];
 
-        if (this._currentPage === currentPage) {
-            this._updateCurrentPageVisible();
+        if (this._currentPage === currentPage)
             return;
-        }
 
         if (this._currentPage != null) {
             this._setLatched(false);
@@ -2274,7 +2267,7 @@ export const Keyboard = GObject.registerClass({
         this._currentPage._destroyID = this._currentPage.connect('destroy', () => {
             this._currentPage = null;
         });
-        this._updateCurrentPageVisible();
+        this._currentPage.show();
 
         this._relayout();
     }
