@@ -238,6 +238,9 @@ class AppStartupAnimation extends St.Widget {
         if (this._animatedIn)
             throw new Error("May only call animateIn() once");
 
+        const existingAppIconDestroyId = existingAppIcon.connect('destroy',
+            () => { existingAppIcon = null; });
+
         const iconExtents = existingAppIcon.get_transformed_extents();
         existingAppIcon.opacity = 0;
 
@@ -263,7 +266,10 @@ class AppStartupAnimation extends St.Widget {
             mode: Clutter.AnimationMode.EASE_IN_OUT_QUAD,
             duration: 400,
             onStopped: () => {
-                existingAppIcon.opacity = 255;
+                if (existingAppIcon) {
+                    existingAppIcon.opacity = 255;
+                    existingAppIcon.disconnect(existingAppIconDestroyId);
+                }
             },
         });
 
