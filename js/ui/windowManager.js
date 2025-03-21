@@ -558,6 +558,15 @@ const WorkspaceTracker = GObject.registerClass({
             window.window_type === Meta.WindowType.MODAL_DIALOG)
             return false;
 
+        // argh, this means we'll super often first get is-mapped = false, and later
+        // notify ::is-mapped and move the window to its own workspace, not cool..
+        // without notifying ::is-mapped can break single workspaces when opening
+        // two windows quickly.
+        // a reproducer seems to be first opening nautilus, then settings right
+        // after opening a nested session. Then go to overview, and select first workspace
+        if (!window.is_mapped)
+            return false;
+
         return true;
     }
 
@@ -679,6 +688,13 @@ const WorkspaceTracker = GObject.registerClass({
                         }
                     }),
                     window.connect('notify::window-type', () => {
+                        this._windowData.get(window).shouldHaveOwnWorkspace =
+                            this._windowShouldHaveOwnWorkspace(window);
+
+                        if (this._useSingleWindowWorkspaces)
+                            this._maybeMoveToOwnWorkspace(window);
+                    }),
+                    window.connect('notify::is-mapped', () => {
                         this._windowData.get(window).shouldHaveOwnWorkspace =
                             this._windowShouldHaveOwnWorkspace(window);
 
