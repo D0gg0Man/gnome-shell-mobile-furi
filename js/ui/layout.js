@@ -1455,8 +1455,7 @@ class HotCorner extends Clutter.Actor {
     _onCornerLeft(actor, event) {
         if (event.get_related() !== this)
             this._entered = false;
-        // Consume event, otherwise this will confuse onEnvironsLeft
-        return Clutter.EVENT_STOP;
+        return Clutter.EVENT_PROPAGATE;
     }
 
     vfunc_leave_event(event) {
