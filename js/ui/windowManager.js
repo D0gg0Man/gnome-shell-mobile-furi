@@ -1028,7 +1028,9 @@ log("WS: startup sequence changed " + startupSequence + " ws " + startupSequence
                 if (!workspace._startupSequenceTimeoutId) {
                     workspace._startupSequenceTimeoutId = GLib.timeout_add(
                         GLib.PRIORITY_DEFAULT, 10000, () => {
+                            delete workspace._startupSequenceTimeoutId;
                             this._maybeRemoveWorkspace(workspace);
+
                             return GLib.SOURCE_REMOVE;
                         });
                 }
