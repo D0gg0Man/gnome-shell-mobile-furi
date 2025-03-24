@@ -525,10 +525,12 @@ log("WS: nope, its occupied");
         // than the workarea so it can at least be moved horizontally...
         // vertically that wouldnt really help because window can
         // only be grabbed on the headerbar, so impossible to move them up more
-        const frameRect = window.get_frame_rect();
-        const workArea = window.get_work_area_current_monitor();
-        if (frameRect.width > workArea.width || frameRect.height > workArea.height)
-            return true;
+        if (!window.fullscreen) {
+            const frameRect = window.get_frame_rect();
+            const workArea = window.get_work_area_current_monitor();
+            if (frameRect.width > workArea.width || frameRect.height > workArea.height)
+                return true;
+        }
 
         return false;
     }
@@ -649,21 +651,18 @@ log("WS: nope, its occupied");
                     }),
                     window.connect('notify::maximized-horizontally', () => {
                         this._maybeAnimateOutStartupOverlay(workspace, window);
-
-                        if (this._useSingleWindowWorkspaces)
-                            window.set_can_grab(this._windowShouldBeGrabbable(window));
                     }),
                     window.connect('notify::maximized-vertically', () => {
                         this._maybeAnimateOutStartupOverlay(workspace, window);
-
-                        if (this._useSingleWindowWorkspaces)
-                            window.set_can_grab(this._windowShouldBeGrabbable(window));
                     }),
                     window.connect('notify::fullscreen', () => {
                         this._maybeAnimateOutStartupOverlay(workspace, window);
 
-                        if (this._useSingleWindowWorkspaces)
-                            window.set_can_grab(this._windowShouldBeGrabbable(window));
+                        // Don't update window.set_can_grab() here even though
+                        // we check the fullscreen property in
+                        // _windowShouldBeGrabbable(): The fullscreen property
+                        // might already be false, but the frame rect isn't
+                        // updated yet, so we end up doing set_can_grab(true).
                     }),
                     window.connect('size-changed', () => {
                         this._maybeAnimateOutStartupOverlay(workspace, window);
