@@ -933,7 +933,8 @@ log("WS: added " + index);
 
         newWorkspace.connectObject(
             'window-added', this._windowAddedToWorkspace.bind(this),
-            'window-removed', this._windowRemovedFromWorkspace.bind(this), this);
+            'window-removed', this._windowRemovedFromWorkspace.bind(this),
+            this);
     }
 
     _workspaceRemoved(workspaceManager, index) {
