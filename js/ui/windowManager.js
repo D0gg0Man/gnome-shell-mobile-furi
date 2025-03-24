@@ -894,8 +894,10 @@ log("WS: we have 0, removing");
             newWorkspace = this._workspaces[0];
         } else {
             const workspaceManager = global.workspace_manager;
+            const activeWsIndex = workspaceManager.get_active_workspace_index();
 
             newWorkspace = workspaceManager.append_new_workspace(false, time);
+            workspaceManager.reorder_workspace(newWorkspace, activeWsIndex + 1);
         }
 
         newWorkspace.activate(time);
