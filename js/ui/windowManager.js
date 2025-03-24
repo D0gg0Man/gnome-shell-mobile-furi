@@ -425,11 +425,17 @@ log("WS: CHANGE single window: " + this._useSingleWindowWorkspaces);
 
     _moveWindowToNewWorkspace(window, workspaceIndex) {
         const workspaceManager = global.workspace_manager;
+        const timeRoundtrip = global.display.get_current_time_roundtrip();
+
+        // Don't activate yet: First append the workspace, then move it, then
+        // move the window, then activate!
         const newWorkspace =
-            workspaceManager.append_new_workspace(true, global.display.get_current_time_roundtrip());
+            workspaceManager.append_new_workspace(false, timeRoundtrip);
 
         workspaceManager.reorder_workspace(newWorkspace, workspaceIndex);
         window.change_workspace_by_index(workspaceIndex, false);
+
+        newWorkspace.activate(timeRoundtrip);
     }
 
     _maybeRemoveWorkspace(workspace) {
