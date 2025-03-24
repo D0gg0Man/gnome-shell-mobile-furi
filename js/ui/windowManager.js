@@ -891,17 +891,12 @@ log("WS: we have 0, removing");
             !this._workspaces[0]._splashscreenGraceTimeoutId &&
             !this._workspaces[0]._newTilingWorkspaceTimeoutId &&
             !this._workspaceHasOwnWindows(this._workspaces[0])) {
-            newWorkspaceIndex = 0;
+            newWorkspace = this._workspaces[0];
         } else {
             const workspaceManager = global.workspace_manager;
 
-            workspaceManager.append_new_workspace(false, time);
-            newWorkspaceIndex = workspaceManager.n_workspaces - 1;
+            newWorkspace = workspaceManager.append_new_workspace(false, time);
         }
-log("WS: created app workspace index " + newWorkspaceIndex);
-        const newWorkspace = this._workspaces[newWorkspaceIndex];
-        if (!newWorkspace)
-            throw new Error();
 
         newWorkspace.activate(time);
 
