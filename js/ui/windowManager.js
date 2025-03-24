@@ -482,7 +482,7 @@ log("WS: nope, its occupied");
 
             /* There must always be a default workspace, don't remove that one */
             if (this._workspaces.length > 1)
-                workspaceManager.remove_workspace(workspace, 0);
+                workspaceManager.remove_workspace(workspace, global.get_current_time());
             else
                 log("WS: nope, it's the default one");
         } else {
@@ -494,7 +494,7 @@ log("WS: nope, its occupied");
             if (workspace.workspace_index === this._workspaces.length - 1)
                 return;
 
-            workspaceManager.remove_workspace(workspace, 0);
+            workspaceManager.remove_workspace(workspace, global.get_current_time());
         }
     }
 
@@ -881,7 +881,7 @@ log("WS: we have 0, removing");
         if (!Meta.prefs_get_dynamic_workspaces())
             return null;
 
-        let newWorkspaceIndex;
+        let newWorkspace;
 
         /* The default workspace always exists, if it's empty and not
          * reserved already, use it.
