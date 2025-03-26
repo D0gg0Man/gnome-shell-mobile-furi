@@ -741,8 +741,14 @@ log("WS: WINDOW ADDED: removing grace timeout thingy");
                 delete workspace._newTilingWorkspaceTimeoutId;
             }
 
+            const transientForWorkspace = window.get_transient_for()?.get_workspace();
+            if (transientForWorkspace && workspace !== transientForWorkspace) {
+                window.change_workspace(transientForWorkspace);
+                return; // let the other workspaces 'window-added' handler take over
+            }
+
             if (this._maybeMoveToOwnWorkspace(window))
-                return; // let the new workspaces 'window-added' handler maximize the window
+                return; // let the other workspaces 'window-added' handler take over
 
             const vert = window.can_maximize_vertically();
             const horiz = window.can_maximize_horizontally();
