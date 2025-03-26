@@ -567,7 +567,8 @@ log("WS: nope, its occupied");
         }
     }
 
-    _maybeAnimateOutStartupOverlay(workspace, window) {
+    _maybeAnimateOutStartupOverlay(window) {
+        const workspace = window.get_workspace();
         const frameRect = window.get_frame_rect();
         const workArea = window.get_work_area_current_monitor();
         const rectGood = frameRect.width === workArea.width && frameRect.height === workArea.height;
@@ -650,13 +651,13 @@ log("WS: nope, its occupied");
                             window.set_can_grab(this._windowShouldBeGrabbable(window));
                     }),
                     window.connect('notify::maximized-horizontally', () => {
-                        this._maybeAnimateOutStartupOverlay(workspace, window);
+                        this._maybeAnimateOutStartupOverlay(window);
                     }),
                     window.connect('notify::maximized-vertically', () => {
-                        this._maybeAnimateOutStartupOverlay(workspace, window);
+                        this._maybeAnimateOutStartupOverlay(window);
                     }),
                     window.connect('notify::fullscreen', () => {
-                        this._maybeAnimateOutStartupOverlay(workspace, window);
+                        this._maybeAnimateOutStartupOverlay(window);
 
                         // Don't update window.set_can_grab() here even though
                         // we check the fullscreen property in
@@ -665,7 +666,7 @@ log("WS: nope, its occupied");
                         // updated yet, so we end up doing set_can_grab(true).
                     }),
                     window.connect('size-changed', () => {
-                        this._maybeAnimateOutStartupOverlay(workspace, window);
+                        this._maybeAnimateOutStartupOverlay(window);
 
                         if (this._useSingleWindowWorkspaces)
                             window.set_can_grab(this._windowShouldBeGrabbable(window));
@@ -688,27 +689,29 @@ log("WS: nope, its occupied");
                         this._windowData.delete(window);
                     }),
                     window.connect('shown', () => {
-                        if (!workspace._waitForWindowToShow)
-                            return;
-log("WindowManager: shown late, still waiting to max " + workspace._waitForWindowToMaximize);
-                        delete workspace._waitForWindowToShow;
+                        const ws = window.get_workspace();
 
-                        if (workspace._waitForWindowToMaximize) {
-                            if (workspace._animateOutTimeoutId)
+                        if (!ws._waitForWindowToShow)
+                            return;
+log("WindowManager: shown late, still waiting to max " + ws._waitForWindowToMaximize);
+                        delete ws._waitForWindowToShow;
+
+                        if (ws._waitForWindowToMaximize) {
+                            if (ws._animateOutTimeoutId)
                                 throw new Error();
 
                             // If we're still waiting for maximize, give window
                             // 1s to change size after showing.
-                            workspace._animateOutTimeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 5000, () => {
+                            ws._animateOutTimeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 5000, () => {
 log("WindowManager: shown maximize timed out");
-                                delete workspace._waitForWindowToMaximize;
-                                delete workspace._animateOutTimeoutId;
-                                this._animateOutStartupOverlay(workspace);
+                                delete ws._waitForWindowToMaximize;
+                                delete ws._animateOutTimeoutId;
+                                this._animateOutStartupOverlay(ws);
                                 return GLib.SOURCE_REMOVE;
                             });
                         } else {
 log("WindowManager: shown");
-                            this._animateOutStartupOverlay(workspace);
+                            this._animateOutStartupOverlay(ws);
                         }
                     }),
                 ],
