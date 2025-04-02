@@ -53,7 +53,7 @@ packages:
         - rm -fv .packit_rpm/sources
         # Add deps for building from git
         - "sed -i 's/BuildRequires:  git/BuildRequires:  git asciidoc sassc cmake pkgconfig(bash-completion)/' .packit_rpm/gnome-shell.spec"
-        - "sed -i 's/BuildRequires:  mutter-devel >= %{mutter_version}/BuildRequires:  mutter-devel = 48^mobile/' .packit_rpm/gnome-shell.spec"
+        - "sed -i 's/BuildRequires:  mutter-devel >= %{mutter_version}/BuildRequires:  mutter-devel = 48^mobile.devel/' .packit_rpm/gnome-shell.spec"
         # Drop all downstream patches
         - "sed -i '/^Patch:.*/d' .packit_rpm/gnome-shell.spec"
         # Add new files
