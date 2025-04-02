@@ -21,6 +21,7 @@ packages:
         - echo ".packit_rpm/meson-dist/gnome-shell-48^mobile.tar.xz"
       post-upstream-clone:
         # Use the Fedora 42 specfile
+        - rm -rf .packit_rpm
         - git clone https://src.fedoraproject.org/rpms/gnome-shell .packit_rpm --branch f42 --depth=1
         - rm -fv .packit_rpm/sources
         # Add deps for building from git
@@ -47,6 +48,7 @@ packages:
         - echo ".packit_rpm/meson-dist/gnome-shell-48^mobile-devel.tar.xz"
       post-upstream-clone:
         # Use the Fedora Rawhide specfile
+        - rm -rf .packit_rpm
         - git clone https://src.fedoraproject.org/rpms/gnome-shell .packit_rpm --depth=1
         - rm -fv .packit_rpm/sources
         # Add deps for building from git
