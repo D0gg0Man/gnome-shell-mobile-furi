@@ -16,9 +16,9 @@ packages:
         - "sed -i \"2s/.*/  version: '48^mobile',/\" subprojects/extensions-app/meson.build"
         - sed -i "/meson.add_dist_script('meson\/check-version.py', meson.project_version(), 'NEWS')/d" meson.build
         # Create archive
-        - meson setup .packit_rpm
-        - meson dist -C .packit_rpm --include-subprojects --no-tests --allow-dirty
-        - echo ".packit_rpm/meson-dist/gnome-shell-48^mobile.tar.xz"
+        - meson subprojects download
+        - bash -c 'tar -zvcf .packit_rpm/${PACKIT_PROJECT_NAME_VERSION}.tar.gz --exclude "*.rpm" --exclude .packit_rpm --exclude .git --transform "s|^|${PACKIT_PROJECT_NAME_VERSION}/|" .'
+        - bash -c 'echo ".packit_rpm/${PACKIT_PROJECT_NAME_VERSION}.tar.gz"'
       post-upstream-clone:
         # Use the Fedora 42 specfile
         - rm -rf .packit_rpm
@@ -43,9 +43,9 @@ packages:
         - "sed -i \"2s/.*/  version: '48^mobile-devel',/\" subprojects/extensions-app/meson.build"
         - sed -i "/meson.add_dist_script('meson\/check-version.py', meson.project_version(), 'NEWS')/d" meson.build
         # Create archive
-        - meson setup .packit_rpm
-        - meson dist -C .packit_rpm --include-subprojects --no-tests --allow-dirty
-        - echo ".packit_rpm/meson-dist/gnome-shell-48^mobile-devel.tar.xz"
+        - meson subprojects download
+        - bash -c 'tar -zvcf .packit_rpm/${PACKIT_PROJECT_NAME_VERSION}.tar.gz --exclude "*.rpm" --exclude .packit_rpm --exclude .git --transform "s|^|${PACKIT_PROJECT_NAME_VERSION}/|" .'
+        - bash -c 'echo ".packit_rpm/${PACKIT_PROJECT_NAME_VERSION}.tar.gz"'
       post-upstream-clone:
         # Use the Fedora Rawhide specfile
         - rm -rf .packit_rpm
