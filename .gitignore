@@ -10,3 +10,5 @@ subprojects/libshew
 .eslintcache
 .vscode
 node_modules
+.packit_rpm/
+*.rpm
