@@ -4,6 +4,8 @@ upstream_package_name: gnome-shell
 downstream_package_name: gnome-shell
 upstream_project_url: https://gitlab.gnome.org/verdre/gnome-shell-mobile
 issue_repository: https://gitlab.gnome.org/verdre/gnome-shell-mobile
+srpm_build_deps:
+  - meson
 packages:
   gnome-48-mobile:
     actions:
@@ -25,10 +27,8 @@ packages:
         - git clone https://src.fedoraproject.org/rpms/gnome-shell .packit_rpm --branch f42 --depth=1
         - rm -fv .packit_rpm/sources
         # Add deps for building from git
-        - "sed -i 's/BuildRequires:  git/BuildRequires:  git asciidoc sassc cmake pkgconfig(bash-completion)/' .packit_rpm/gnome-shell.spec"
-        - "sed -i 's/BuildRequires:  mutter-devel >= %{mutter_version}/BuildRequires:  mutter-devel = 48^mobile/' .packit_rpm/gnome-shell.spec"
-        # Drop all downstream patches
-        - "sed -i '/^Patch:.*/d' .packit_rpm/gnome-shell.spec"
+        - "sed -i 's/^BuildRequires:  git/BuildRequires:  git asciidoc sassc cmake pkgconfig(bash-completion)/' .packit_rpm/gnome-shell.spec"
+        - "sed -i 's/^BuildRequires:  mutter-devel >= %{mutter_version}/BuildRequires:  mutter-devel = 48^mobile/' .packit_rpm/gnome-shell.spec"
         # Add new files
         - sed -i "/^%files -f %{name}.lang$/a %{_datadir}/dbus-1/services/org.gnome.Shell.SensorDaemon.service" .packit_rpm/gnome-shell.spec
     specfile_path: .packit_rpm/gnome-shell.spec
@@ -52,29 +52,51 @@ packages:
         - git clone https://src.fedoraproject.org/rpms/gnome-shell .packit_rpm --depth=1
         - rm -fv .packit_rpm/sources
         # Add deps for building from git
-        - "sed -i 's/BuildRequires:  git/BuildRequires:  git asciidoc sassc cmake pkgconfig(bash-completion)/' .packit_rpm/gnome-shell.spec"
-        - "sed -i 's/BuildRequires:  mutter-devel >= %{mutter_version}/BuildRequires:  mutter-devel = 48^mobile.devel/' .packit_rpm/gnome-shell.spec"
-        # Drop all downstream patches
-        - "sed -i '/^Patch:.*/d' .packit_rpm/gnome-shell.spec"
+        - "sed -i 's/^BuildRequires:  git/BuildRequires:  git asciidoc sassc cmake pkgconfig(bash-completion)/' .packit_rpm/gnome-shell.spec"
+        - "sed -i 's/^BuildRequires:  mutter-devel >= %{mutter_version}/BuildRequires:  mutter-devel = 48^mobile.devel/' .packit_rpm/gnome-shell.spec"
         # Add new files
         - sed -i "/^%files -f %{name}.lang$/a %{_datadir}/dbus-1/services/org.gnome.Shell.SensorDaemon.service" .packit_rpm/gnome-shell.spec
     specfile_path: .packit_rpm/gnome-shell.spec
 jobs:
-- job: copr_build
-  branch: gnome-48-mobile
-  trigger: commit
-  owner: "@mobility"
-  project: gnome-mobile
-  targets:
-    - fedora-all
-  packages:
-    - gnome-48-mobile
-- job: copr_build
-  branch: mobile
-  trigger: commit
-  owner: "@mobility"
-  project: gnome-mobile
-  targets:
-    - fedora-all
-  packages:
-    - mobile-devel
+  - job: copr_build
+    trigger: pull_request
+    branch: gnome-48-mobile
+    packages:
+      - gnome-48-mobile
+    additional_repos:
+      - copr://@mobility/gnome-mobile
+    targets:
+      - fedora-42-x86_64
+  - job: copr_build
+    trigger: commit
+    branch: gnome-48-mobile
+    packages:
+      - gnome-48-mobile
+    owner: "@mobility"
+    project: gnome-mobile
+    targets:
+      - fedora-42-aarch64
+      - fedora-42-x86_64
+      - fedora-rawhide-aarch64
+      - fedora-rawhide-x86_64
+  - job: copr_build
+    trigger: pull_request
+    branch: mobile
+    packages:
+      - mobile-devel
+    additional_repos:
+      - copr://@mobility/gnome-mobile
+    targets:
+      - fedora-rawhide-x86_64
+  - job: copr_build
+    trigger: commit
+    branch: mobile
+    packages:
+      - mobile-devel
+    owner: "@mobility"
+    project: gnome-mobile
+    targets:
+      - fedora-42-aarch64
+      - fedora-42-x86_64
+      - fedora-rawhide-aarch64
+      - fedora-rawhide-x86_64
