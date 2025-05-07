@@ -29,6 +29,9 @@ packages:
         # Add deps for building from git
         - "sed -i 's/^BuildRequires:  git/BuildRequires:  git asciidoc sassc cmake pkgconfig(bash-completion)/' .packit_rpm/gnome-shell.spec"
         - "sed -i 's/^BuildRequires:  mutter-devel >= %{mutter_version}/BuildRequires:  mutter-devel = 48^mobile/' .packit_rpm/gnome-shell.spec"
+        # Add runtime deps
+        - "sed -i 's/^Requires:       mutter%{?_isa} >= %{mutter_version}/Requires:  mutter%{?_isa} = 48^mobile/' .packit_rpm/gnome-shell.spec"
+        - "sed -i 's/^Requires:       gnome-settings-daemon%{?_isa} >= %{gnome_settings_daemon_version}/Requires:  gnome-settings-daemon%{?_isa} = 48^mobile/' .packit_rpm/gnome-shell.spec"
         # Add new files
         - sed -i "/^%files -f %{name}.lang$/a %{_datadir}/dbus-1/services/org.gnome.Shell.SensorDaemon.service" .packit_rpm/gnome-shell.spec
     specfile_path: .packit_rpm/gnome-shell.spec
