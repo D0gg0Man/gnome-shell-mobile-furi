@@ -1,3 +1,7 @@
+48.mobile.1
+
+ - Rebased on top of mutter 48.3 and gnome-shell 48.2
+
 48.mobile.0
 
  - Rebased on GNOME 48
