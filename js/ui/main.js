@@ -251,7 +251,7 @@ async function _initializeUI() {
     magnifier = new Magnifier.Magnifier();
     locatePointer = new LocatePointer.LocatePointer();
 
-    if (LoginManager.canLock())
+//    if (LoginManager.canLock())
         screenShield = new ScreenShield.ScreenShield();
 
     inputMethod = new InputMethod.InputMethod();
