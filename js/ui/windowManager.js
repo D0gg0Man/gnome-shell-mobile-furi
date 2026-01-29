@@ -432,12 +432,12 @@ const WorkspaceTracker = GObject.registerClass({
                     const horiz = w.can_maximize_horizontally();
 
                     if (vert && horiz)
-                        w.maximize(Meta.MaximizeFlags.BOTH);
+                        w.set_maximize_flags(Meta.MaximizeFlags.BOTH);
                     else if (vert) {
-                        w.maximize(Meta.MaximizeFlags.VERTICAL);
+                        w.set_maximize_flags(Meta.MaximizeFlags.VERTICAL);
                         w.move_frame(false, 0, 0);
                     } else if (horiz) {
-                        w.maximize(Meta.MaximizeFlags.HORIZONTAL);
+                        w.set_maximize_flags(Meta.MaximizeFlags.HORIZONTAL);
                         w.move_frame(false, 0, 0);
                     }
                 }
@@ -731,12 +731,12 @@ const WorkspaceTracker = GObject.registerClass({
                         const horiz = window.can_maximize_horizontally();
 
                         if (vert && horiz)
-                            window.maximize(Meta.MaximizeFlags.BOTH);
+                            window.set_maximize_flags(Meta.MaximizeFlags.BOTH);
                         else if (vert) {
-                            window.maximize(Meta.MaximizeFlags.VERTICAL);
+                            window.set_maximize_flags(Meta.MaximizeFlags.VERTICAL);
                             window.move_frame(false, 0, 0);
                         } else if (horiz) {
-                            window.maximize(Meta.MaximizeFlags.HORIZONTAL);
+                            window.set_maximize_flags(Meta.MaximizeFlags.HORIZONTAL);
                             window.move_frame(false, 0, 0);
                         }
                     }),
@@ -807,12 +807,12 @@ const WorkspaceTracker = GObject.registerClass({
             const horiz = window.can_maximize_horizontally();
 
             if (vert && horiz)
-                window.maximize(Meta.MaximizeFlags.BOTH);
+                window.set_maximize_flags(Meta.MaximizeFlags.BOTH);
             else if (vert) {
-                window.maximize(Meta.MaximizeFlags.VERTICAL);
+                window.set_maximize_flags(Meta.MaximizeFlags.VERTICAL);
                 window.move_frame(false, 0, 0);
             } else if (horiz) {
-                window.maximize(Meta.MaximizeFlags.HORIZONTAL);
+                window.set_maximize_flags(Meta.MaximizeFlags.HORIZONTAL);
                 window.move_frame(false, 0, 0);
             }
 
