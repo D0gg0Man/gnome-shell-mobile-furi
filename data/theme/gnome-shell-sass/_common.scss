@@ -83,7 +83,7 @@ stage {
 // icon tiles
 %tile {
   border-radius: $base_border_radius * 2;
-  padding: $base_padding;
+  padding: 3px;
   spacing: $base_padding;
   text-align: center;
   transition-duration: 100ms;

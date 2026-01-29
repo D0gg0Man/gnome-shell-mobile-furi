@@ -193,11 +193,19 @@ export class Overview extends Signals.EventEmitter {
 
     _sessionUpdated() {
         const {hasOverview} = Main.sessionMode;
-        if (!hasOverview)
+
+        if (this._visible && !hasOverview) {
+            this._wasVisible = true;
             this.hide();
+        }
 
         this.isDummy = !hasOverview;
         this._createOverview();
+
+        if (hasOverview && this._wasVisible) {
+            delete this._wasVisible;
+            this.show(2);
+        }
     }
 
     // The members we construct that are implemented in JS might
@@ -409,11 +417,6 @@ export class Overview extends Signals.EventEmitter {
     }
 
     _relayout() {
-        // To avoid updating the position and size of the workspaces
-        // we just hide the overview. The positions will be updated
-        // when it is next shown.
-        this.hide();
-
         this._coverPane.set_position(0, 0);
         this._coverPane.set_size(global.screen_width, global.screen_height);
         Main.layoutManager.overviewGroup.set_child_above_sibling(

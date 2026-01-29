@@ -1,18 +1,23 @@
 /* App Grid */
 
 $app_icon_size: 96px;
-$app_folder_size: 720px;
+$app_folder_size: 640px;
 
 // app icons
 .icon-grid {
-  row-spacing: $base_padding * 2;
-  column-spacing: $base_padding * 2;
+  row-spacing: $base_padding * 4;
+  column-spacing: $base_padding * 4;
   max-row-spacing: $base_padding * 6;
-  max-column-spacing: $base_padding * 6;
-  page-padding-top: $base_padding * 4;
-  page-padding-bottom: $base_padding * 4;
-  page-padding-left: $base_padding * 3;
-  page-padding-right: $base_padding * 3;
+  max-column-spacing: $base_padding * 4;
+  page-padding-top: 0;
+  page-padding-bottom: 0;
+  page-padding-left: $base_padding;
+  page-padding-right: $base_padding;
+}
+
+#uiGroup.mobile .icon-grid {
+    row-spacing: 0;
+    column-spacing: 0;
 }
 
 /* App Icons */
@@ -22,17 +27,19 @@ $app_folder_size: 720px;
   @include tile_button($bg:$system_base_color);
 
   // override the %tile style
-  border-radius: $base_border_radius*3;
-  padding: $base_padding * 2;
+  border-radius: $base_border_radius*2;
 
   // the icon itself
   .overview-icon {
     // item with a label
     &.overview-icon-with-label {
-      > StBoxLayout {
-        spacing: $base_padding;
-      }
+      text-shadow: 0px 1px 3px 1px rgba(0,0,0,0.4);
+
+      spacing: 2px;
+      StLabel { @extend %caption; }
     }
+    border-radius: $base_border_radius * 3;
+    color: $system_fg_color;
   }
 }
 
@@ -51,6 +58,8 @@ $app_folder_size: 720px;
 }
 
 .app-folder-dialog-container {
+  margin: $base_margin*6;
+
   // pad the top with panel height so the folder doesn't overlap the panel on smaller resolutions
   padding-top: $panel_height;
 }
@@ -60,7 +69,7 @@ $app_folder_size: 720px;
   width: $app_folder_size;
   height: $app_folder_size;
 
-  border-radius: $modal_radius * 4;
+  border-radius: $modal_radius * 3;
   background-color: $system_overlay_bg_color;
   color: $system_fg_color;
 
@@ -73,17 +82,18 @@ $app_folder_size: 720px;
   }
 
   & .folder-name-container {
-    padding: $base_padding * 4 $base_padding * 6;
+    padding: 12px 22px;
     padding-bottom: 0;
+    spacing: 6px;
 
     & .folder-name-label,
     & .folder-name-entry {
       @extend %title_1;
+      @include fontsize(16pt);
     }
 
     & .folder-name-entry {
       @extend %system_entry;
-      width: 12em;
     }
   }
 
@@ -108,6 +118,11 @@ $app_folder_size: 720px;
   }
 }
 
+#uiGroup.mobile .app-folder-dialog {
+  width: 360px;
+  height: 430px;
+}
+
 // Rename popup for app folders
 .rename-folder-popup {
   .rename-folder-popup-item {
@@ -119,7 +134,7 @@ $app_folder_size: 720px;
 // App Grid pagination indicators
 $page_indicator_size: 10px;
 .page-indicator {
-  padding: $base_padding $base_padding * 2 0;
+  padding: $base_padding $base_padding 0;
   transition-duration:400ms;
 
   .page-indicator-icon {
@@ -129,6 +144,15 @@ $page_indicator_size: 10px;
     background-color: $system_fg_color;
     transition-duration: 400ms;
   }
+}
+
+// the osk also has page indicators, we only want margin here
+#overviewGroup .page-indicators {
+  margin-top: 12px;
+}
+
+#uiGroup.mobile #overviewGroup .page-indicators {
+  margin-bottom: 18px;
 }
 
 .apps-scroll-view {

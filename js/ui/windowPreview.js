@@ -28,6 +28,10 @@ const ICON_TITLE_SPACING = 6;
 
 export const WindowPreview = GObject.registerClass({
     Properties: {
+        'overlay-hidden': GObject.ParamSpec.boolean(
+            'overlay-hidden', 'overlay-hidden', 'overlay-hidden',
+            GObject.ParamFlags.READWRITE,
+            false),
         'overlay-enabled': GObject.ParamSpec.boolean(
             'overlay-enabled', null, null,
             GObject.ParamFlags.READWRITE,
@@ -125,7 +129,6 @@ export const WindowPreview = GObject.registerClass({
 
         longPressGesture.can_not_cancel(this._draggable.startGesture);
 
-        this._overlayEnabled = true;
         this._overlayShown = false;
         this._closeRequested = false;
         this._idleHideOverlayId = 0;
@@ -234,6 +237,9 @@ export const WindowPreview = GObject.registerClass({
             this._title.ensure_style();
             this._icon.ensure_style();
         });
+
+        this.connect('notify::overlay-enabled', this._syncOverlay.bind(this));
+        this.connect('notify::hide-overlay', this._syncOverlay.bind(this));
     }
 
     _updateIconScale() {
@@ -244,8 +250,9 @@ export const WindowPreview = GObject.registerClass({
         const {currentState, initialState, finalState} =
             this._overviewAdjustment.getStateTransitionParams();
         const visible =
-            initialState === ControlsState.WINDOW_PICKER ||
-            finalState === ControlsState.WINDOW_PICKER;
+            this.overlayEnabled &&
+            (initialState === ControlsState.WINDOW_PICKER ||
+             finalState === ControlsState.WINDOW_PICKER);
         const scale = visible
             ? 1 - Math.abs(ControlsState.WINDOW_PICKER - currentState) : 0;
 
@@ -253,6 +260,13 @@ export const WindowPreview = GObject.registerClass({
             scale_x: scale,
             scale_y: scale,
         });
+    }
+
+    _syncOverlay() {
+        if (!this.overlayEnabled || this.overlayHidden)
+            this.hideOverlay(false);
+        else if (this['has-pointer'] || global.stage.key_focus === this)
+            this.showOverlay(true);
     }
 
     _windowCanClose() {
@@ -270,6 +284,9 @@ export const WindowPreview = GObject.registerClass({
     }
 
     overlapHeights() {
+        if (!this.overlayEnabled)
+            return [0, 0];
+
         const [, titleHeight] = this._title.get_preferred_height(-1);
 
         const topOverlap = 0;
@@ -287,6 +304,9 @@ export const WindowPreview = GObject.registerClass({
         const topOversize = closeButtonHeight / 2;
         const bottomOversize = (1 - ICON_OVERLAP) * iconHeight;
 
+        if (!this.overlayEnabled)
+            return [0, bottomOversize];
+
         return [
             topOversize + activeExtraSize,
             bottomOversize + activeExtraSize,
@@ -294,6 +314,9 @@ export const WindowPreview = GObject.registerClass({
     }
 
     chromeWidths() {
+        if (!this.overlayEnabled)
+            return [0, 0];
+
         const [, closeButtonWidth] = this._closeButton.get_preferred_width(-1);
         const {scaleFactor} = St.ThemeContext.get_for_stage(global.stage);
         const activeExtraSize = WINDOW_ACTIVE_SIZE_INC * scaleFactor;
@@ -312,7 +335,7 @@ export const WindowPreview = GObject.registerClass({
     }
 
     showOverlay(animate) {
-        if (!this._overlayEnabled)
+        if (!this.overlayEnabled || this.overlayHidden)
             return;
 
         if (this._overlayShown)
@@ -488,23 +511,6 @@ export const WindowPreview = GObject.registerClass({
             x: this._cachedBoundingBox.x + this._cachedBoundingBox.width / 2,
             y: this._cachedBoundingBox.y + this._cachedBoundingBox.height / 2,
         };
-    }
-
-    get overlayEnabled() {
-        return this._overlayEnabled;
-    }
-
-    set overlayEnabled(enabled) {
-        if (this._overlayEnabled === enabled)
-            return;
-
-        this._overlayEnabled = enabled;
-        this.notify('overlay-enabled');
-
-        if (!enabled)
-            this.hideOverlay(false);
-        else if (this['has-pointer'] || global.stage.key_focus === this)
-            this.showOverlay(true);
     }
 
     // Find the actor just below us, respecting reparenting done by DND code
