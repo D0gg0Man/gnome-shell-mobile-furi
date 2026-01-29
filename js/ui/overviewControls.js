@@ -488,6 +488,8 @@ class ControlsManager extends St.Widget {
 
         const updateBgManager = () => {
             this._bgManager?.destroy();
+            if (Main.layoutManager.primaryIndex === -1)
+                return;
 
             this._bgManager = new Background.BackgroundManager({
                 container: wallpaper,
