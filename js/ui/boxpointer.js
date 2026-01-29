@@ -43,10 +43,10 @@ export const BoxPointer = GObject.registerClass({
         this._arrowActor = null;
         this.bin = new St.Bin(binProperties);
         this.add_child(this.bin);
-        this._border = new St.DrawingArea();
-        this._border.connect('repaint', this._drawBorder.bind(this));
-        this.add_child(this._border);
-        this.set_child_above_sibling(this.bin, this._border);
+       // this._border = new St.DrawingArea();
+    //    this._border.connect('repaint', this._drawBorder.bind(this));
+       // this.add_child(this._border);
+       // this.set_child_above_sibling(this.bin, this._border);
         this._sourceAlignment = 0.5;
         this._muteKeys = true;
         this._muteInput = true;
@@ -248,7 +248,7 @@ export const BoxPointer = GObject.registerClass({
         childBox.y1 = 0;
         childBox.x2 = availWidth;
         childBox.y2 = availHeight;
-        this._border.allocate(childBox);
+      //  this._border.allocate(childBox);
 
         childBox.x1 = borderWidth;
         childBox.y1 = borderWidth;
@@ -493,7 +493,7 @@ export const BoxPointer = GObject.registerClass({
         this._workArea = Main.layoutManager.getWorkAreaForMonitor(monitorIndex);
 
         // Position correctly relative to the sourceActor
-        const sourceAllocation = sourceActor.get_allocation_box();
+        const sourceAllocation = sourceActor.allocation;
         const sourceContentBox = sourceActor instanceof St.Widget
             ? sourceActor.get_theme_node().get_content_box(sourceAllocation)
             : new Clutter.ActorBox({
@@ -616,7 +616,7 @@ export const BoxPointer = GObject.registerClass({
     setArrowOrigin(origin) {
         if (this._arrowOrigin !== origin) {
             this._arrowOrigin = origin;
-            this._border.queue_repaint();
+      //      this._border.queue_repaint();
         }
     }
 
@@ -626,7 +626,7 @@ export const BoxPointer = GObject.registerClass({
     setArrowActor(actor) {
         if (this._arrowActor !== actor) {
             this._arrowActor = actor;
-            this._border.queue_repaint();
+     //       this._border.queue_repaint();
         }
     }
 
@@ -674,7 +674,7 @@ export const BoxPointer = GObject.registerClass({
 
     updateArrowSide(side) {
         this._arrowSide = side;
-        this._border.queue_repaint();
+    //    this._border.queue_repaint();
 
         this.emit('arrow-side-changed');
     }

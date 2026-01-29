@@ -29,7 +29,7 @@ $submenu_bg_color: if($variant == 'light', darken($menu_bg_color, 17%),  lighten
   background-color: $bg_color;
   border-radius: $modal_radius * 1.25;
   border: 1px solid $outer_borders_color;
-  box-shadow: 0 2px 4px 0 $shadow_color;
+//  box-shadow: 0 2px 4px 0 $shadow_color;
 }
 
 // menu items
