@@ -163,6 +163,13 @@ export const Lightbox = GObject.registerClass({
         this._highlighted = null;
     }
 
+    vfunc_captured_event(event) {
+        if (event.type() === Clutter.EventType.ENTER || event.type() === Clutter.EventType.LEAVE)
+            return Clutter.EVENT_PROPAGATE;
+
+        return Clutter.EVENT_STOP;
+    }
+
     get active() {
         return this._active;
     }
@@ -194,29 +201,36 @@ export const Lightbox = GObject.registerClass({
 
         let easeProps = {
             duration: fadeInTime || 0,
-            mode: Clutter.AnimationMode.EASE_OUT_QUAD,
+            mode: Clutter.AnimationMode.EASE_IN_QUAD,
         };
 
-        let onComplete = () => {
-            this._active = true;
-            this.notify('active');
-        };
+        return new Promise((resolve, reject) => {
+            const onStopped = (complete) => {
+                if (complete) {
+                    this._active = true;
+                    this.notify('active');
+                    resolve();
+                } else {
+                    reject();
+                }
+            };
 
-        this.show();
+            this.show();
 
-        if (this._radialEffect) {
-            this.ease_property(
-                '@effects.radial.brightness', VIGNETTE_BRIGHTNESS, easeProps);
-            this.ease_property(
-                '@effects.radial.sharpness', VIGNETTE_SHARPNESS,
-                {onComplete, ...easeProps});
-        } else {
-            this.ease({
-                ...easeProps,
-                opacity: 255 * this._fadeFactor,
-                onComplete,
-            });
-        }
+            if (this._radialEffect) {
+                this.ease_property(
+                    '@effects.radial.brightness', VIGNETTE_BRIGHTNESS, easeProps);
+                this.ease_property(
+                    '@effects.radial.sharpness', VIGNETTE_SHARPNESS,
+                    {onStopped, ...easeProps});
+            } else {
+                this.ease({
+                    ...easeProps,
+                    opacity: 255 * this._fadeFactor,
+                    onStopped,
+                });
+            }
+        });
     }
 
     lightOff(fadeOutTime) {
@@ -230,16 +244,26 @@ export const Lightbox = GObject.registerClass({
             mode: Clutter.AnimationMode.EASE_OUT_QUAD,
         };
 
-        let onComplete = () => this.hide();
+        return new Promise((resolve, reject) => {
+            const onStopped = (complete) => {
+                if (complete) {
+                    this.hide();
+                    resolve();
+                } else {
+log("lightbox: lightOff() got cancelled");
+                    reject();
+                }
+            }
 
-        if (this._radialEffect) {
-            this.ease_property(
-                '@effects.radial.brightness', 1.0, easeProps);
-            this.ease_property(
-                '@effects.radial.sharpness', 0.0, {onComplete, ...easeProps});
-        } else {
-            this.ease({...easeProps, opacity: 0, onComplete});
-        }
+            if (this._radialEffect) {
+                this.ease_property(
+                    '@effects.radial.brightness', 1.0, easeProps);
+                this.ease_property(
+                    '@effects.radial.sharpness', 0.0, {onStopped, ...easeProps});
+            } else {
+                this.ease({...easeProps, opacity: 0, onStopped});
+            }
+        });
     }
 
     _childRemoved(container, child) {

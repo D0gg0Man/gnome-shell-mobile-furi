@@ -49,6 +49,7 @@ import * as PointerA11yTimeout from './pointerA11yTimeout.js';
 import {formatError} from '../misc/errorUtils.js';
 import * as ParentalControlsManager from '../misc/parentalControlsManager.js';
 import * as Util from '../misc/util.js';
+import * as PowerManager from '../misc/powerManager.js';
 
 const WELCOME_DIALOG_LAST_SHOWN_VERSION = 'welcome-dialog-last-shown-version';
 // Make sure to mention the point release, otherwise it will show every time
@@ -100,6 +101,7 @@ export let timeLimitsManager = null;
 export let timeLimitsDispatcher = null;
 export let brightnessManager = null;
 export let brightnessDBus = null;
+export let powerManager = null;
 
 let _startDate;
 let _defaultCssStylesheet = null;
@@ -188,12 +190,22 @@ export async function start() {
     shellDBusService = new ShellDBus.GnomeShell();
     shellMountOpDBusService = new ShellMountOperation.GnomeShellMountOpHandler();
 
+    powerManager = new PowerManager.PowerManager();
+
     const watchId = Gio.DBus.session.watch_name('org.gnome.Shell.Notifications',
         Gio.BusNameWatcherFlags.AUTO_START,
         bus => bus.unwatch_name(watchId),
         bus => bus.unwatch_name(watchId));
 
+
+    const swatchId = Gio.DBus.session.watch_name('org.gnome.Shell.SensorDaemon',
+        Gio.BusNameWatcherFlags.AUTO_START,
+        bus => bus.unwatch_name(swatchId),
+        bus => bus.unwatch_name(swatchId));
+
     _sessionUpdated();
+
+
 }
 
 /** @private */
@@ -656,6 +668,8 @@ export function notify(msg, details = null) {
         isTransient: true,
     });
     source.addNotification(notification);
+
+    return source;
 }
 
 /**

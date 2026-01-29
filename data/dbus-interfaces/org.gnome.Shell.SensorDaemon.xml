@@ -1,0 +1,31 @@
+<node>
+
+  <!--
+      org.gnome.Shell.SensorDaemon:
+      @short_description: Screencast interface
+
+      The interface used to record screen contents.
+  -->
+  <interface name="org.gnome.Shell.SensorDaemon">
+    <method name="StartProximityMonitoring"/>
+    <method name="StopProximityMonitoring"/>
+    <method name="InhibitAdaptiveBacklight"/>
+    <method name="UninhibitAdaptiveBacklight">
+      <arg type="b" direction="in"/>
+    </method>
+    <method name="GetProximityOnce">
+      <arg type="b" direction="out"/>
+    </method>
+    <method name="UndimBacklight">
+      <arg type="u" direction="in"/>
+    </method>
+    <method name="DimBacklight">
+      <arg type="d" direction="in"/>
+      <arg type="u" direction="in"/>
+    </method>
+    <method name="SetBacklightManually">
+      <arg type="d" direction="in"/>
+    </method>
+    <property name="BacklightBrightness" type="d" access="read"/>
+  </interface>
+</node>

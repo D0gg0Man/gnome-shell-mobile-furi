@@ -326,7 +326,7 @@ export const InputMethod = GObject.registerClass({
         if (this._context)
             this._context.set_content_type(this._purpose, this._hints);
     }
-
+/*
     vfunc_filter_key_event(event) {
         if (!this._context)
             return false;
@@ -358,6 +358,7 @@ export const InputMethod = GObject.registerClass({
             });
         return true;
     }
+*/
 
     getSurroundingText() {
         return [

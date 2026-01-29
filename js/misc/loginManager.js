@@ -163,6 +163,20 @@ class LoginManagerSystemd extends Signals.EventEmitter {
         return {canSuspend, needsAuth};
     }
 
+    async canHibernate() {
+        let canHibernate, needsAuth;
+
+        try {
+            const [result] = await this._proxy.CanSuspendAsync();
+            needsAuth = result === 'challenge';
+            canHibernate = needsAuth || result === 'yes';
+        } catch (error) {
+            canHibernate = false;
+            needsAuth = false;
+        }
+        return {canHibernate, needsAuth};
+    }
+
     async canRebootToBootLoaderMenu() {
         let canRebootToBootLoaderMenu, needsAuth;
 
@@ -195,15 +209,29 @@ class LoginManagerSystemd extends Signals.EventEmitter {
         return new SystemdLoginSession(Gio.DBus.system, 'org.freedesktop.login1', objectPath);
     }
 
-    suspend() {
-        this._proxy.SuspendAsync(true);
+    async suspend() {
+        await this._proxy.SuspendAsync(true);
     }
 
-    async inhibit(reason, cancellable) {
+    async hibernate() {
+        await this._proxy.HibernateAsync(true);
+    }
+
+    async inhibit(what, mode, reason, cancellable) {
         const inVariant = new GLib.Variant('(ssss)',
-            ['sleep', 'GNOME Shell', reason, 'delay']);
+            [what, 'GNOME Shell', reason, mode]);
         const [outVariant_, fdList] =
             await this._proxy.call_with_unix_fd_list('Inhibit',
+                inVariant, 0, -1, null, cancellable);
+        const [fd] = fdList.steal_fds();
+        return new GioUnix.InputStream({fd});
+    }
+
+    inhibitSync(what, mode, reason, cancellable) {
+        const inVariant = new GLib.Variant('(ssss)',
+            [what, 'GNOME Shell', reason, mode]);
+        const [outVariant_, fdList] =
+            this._proxy.call_with_unix_fd_list_sync('Inhibit',
                 inVariant, 0, -1, null, cancellable);
         const [fd] = fdList.steal_fds();
         return new GioUnix.InputStream({fd});
@@ -257,6 +285,13 @@ class LoginManagerDummy extends Signals.EventEmitter  {
         }));
     }
 
+    canHibernate() {
+        return new Promise(resolve => resolve({
+            canSuspend: false,
+            needsAuth: false,
+        }));
+    }
+
     canRebootToBootLoaderMenu() {
         return new Promise(resolve => resolve({
             canRebootToBootLoaderMenu: false,
@@ -284,6 +319,11 @@ class LoginManagerDummy extends Signals.EventEmitter  {
 
     get preparingForSleep() {
         return this._preparingForSleep;
+    }
+
+    hibernate() {
+        this.emit('prepare-for-sleep', true);
+        this.emit('prepare-for-sleep', false);
     }
 
     /* eslint-disable-next-line require-await */

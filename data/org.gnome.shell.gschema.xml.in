@@ -302,6 +302,10 @@
       <default>['&lt;Shift&gt;XF86MonBrightnessCycle']</default>
       <summary>Screen brightness cycle on current monitor</summary>
     </key>
+    <key name="power-button" type="as">
+      <default>["PowerOff"]</default>
+      <summary>Keybinding that acts as the power button</summary>
+    </key>
   </schema>
 
   <schema id="org.gnome.shell.app-switcher"

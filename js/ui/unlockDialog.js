@@ -509,7 +509,6 @@ class UnlockDialogLayout extends Clutter.LayoutManager {
 
 export const UnlockDialog = GObject.registerClass({
     Signals: {
-        'failed': {},
         'wake-up-screen': {},
     },
 }, class UnlockDialog extends St.Widget {
@@ -661,8 +660,9 @@ export const UnlockDialog = GObject.registerClass({
     }
 
     vfunc_key_press_event(event) {
-        if (this._activePage === this._promptBox ||
-            (this._promptBox && this._promptBox.visible))
+        const focus = global.stage.key_focus;
+        if (this._activePage === this._promptBox &&
+            this._authPrompt && this._authPrompt.contains(focus))
             return Clutter.EVENT_PROPAGATE;
 
         const keyval = event.get_key_symbol();
@@ -826,7 +826,6 @@ export const UnlockDialog = GObject.registerClass({
 
     _fail() {
         this._showClock();
-        this.emit('failed');
     }
 
     _onReset(authPrompt, beginRequest) {
