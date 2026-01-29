@@ -10,6 +10,11 @@
 .quick-settings-grid {
   spacing-rows: $base_padding * 2;
   spacing-columns: $base_padding * 2;
+  n-columns: 2;
+}
+
+#uiGroup.mobile.horizontal .quick-settings-grid {
+  n-columns: 4;
 }
 
 .quick-toggle, .quick-toggle-has-menu {
