@@ -171,6 +171,10 @@ class IBusManager extends Signals.EventEmitter {
                 await this._ibus.list_engines_async(-1, this._cancellable);
             for (let i = 0; i < enginesList.length; ++i) {
                 let name = enginesList[i].get_name();
+
+                if (name === TYPING_BOOSTER_ENGINE)
+                    this._candidatePopup.typingBoosterAvailable();
+
                 this._engines.set(name, enginesList[i]);
             }
             this._updateReadiness();

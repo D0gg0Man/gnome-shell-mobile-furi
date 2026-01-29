@@ -67,6 +67,7 @@
     <file preprocess="xml-stripblanks">scalable/status/osk-zwnj-symbolic.svg</file>
     <file preprocess="xml-stripblanks">scalable/status/screen-privacy-disabled-symbolic.svg</file>
     <file preprocess="xml-stripblanks">scalable/status/screen-privacy-symbolic.svg</file>
+    <file preprocess="xml-stripblanks">scalable/status/smile-symbolic.svg</file>
     <file preprocess="xml-stripblanks">scalable/status/switch-off-symbolic.svg</file>
     <file preprocess="xml-stripblanks">scalable/status/switch-on-symbolic.svg</file>
     <file preprocess="xml-stripblanks">scalable/status/wellbeing-symbolic.svg</file>

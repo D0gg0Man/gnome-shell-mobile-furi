@@ -242,14 +242,14 @@
             "label": "Alt"
           },
           {
+            "action": "emoji",
+            "iconName": "osk-emoji-picker-symbolic"
+          },
+          {
             "strings": [
               " "
             ],
             "width": 4
-          },
-          {
-            "action": "emoji",
-            "iconName": "osk-emoji-picker-symbolic"
           },
           {
             "action": "languageMenu",
@@ -516,14 +516,14 @@
             "label": "Alt"
           },
           {
+            "action": "emoji",
+            "iconName": "osk-emoji-picker-symbolic"
+          },
+          {
             "strings": [
               " "
             ],
             "width": 4
-          },
-          {
-            "action": "emoji",
-            "iconName": "osk-emoji-picker-symbolic"
           },
           {
             "action": "languageMenu",
@@ -553,6 +553,11 @@
       "mode": "locked",
       "rows": [
         [
+          {
+            "keyval": "0xff09",
+            "label": "Tab",
+            "width": 1
+          },
           {
             "strings": [
               "1",
@@ -621,12 +626,12 @@
           {
             "action": "delete",
             "iconName": "osk-delete-symbolic",
-            "width": 1.5
+            "width": 2
           }
         ],
         [
           {
-            "leftOffset": 0.5,
+            "leftOffset": 1.5,
             "strings": [
               "@"
             ]
@@ -691,7 +696,7 @@
           {
             "iconName": "osk-enter-symbolic",
             "keyval": "0xff0d",
-            "width": 2
+            "width": 2.5
           }
         ],
         [
@@ -699,9 +704,10 @@
             "action": "levelSwitch",
             "label": "=/<",
             "level": "opt+shift",
-            "width": 1.5
+            "width": 2
           },
           {
+            "leftOffset": 1,
             "strings": [
               "*",
               "†",
@@ -750,18 +756,28 @@
             ]
           },
           {
+            "leftOffset": 1,
             "action": "levelSwitch",
             "label": "=/<",
             "level": "opt+shift",
-            "width": 3
+            "width": 2
           }
         ],
         [
           {
+            "action": "modifier",
+            "keyval": "0xffe3",
+            "label": "Ctrl"
+          },
+          {
             "action": "levelSwitch",
             "label": "ABC",
-            "level": "default",
-            "width": 1.5
+            "level": "default"
+          },
+          {
+            "action": "modifier",
+            "keyval": "0xffe9",
+            "label": "Alt"
           },
           {
             "strings": [
@@ -810,6 +826,11 @@
       "mode": "locked",
       "rows": [
         [
+          {
+            "keyval": "0xff09",
+            "label": "Tab",
+            "width": 1
+          },
           {
             "strings": [
               "~"
@@ -870,12 +891,12 @@
           {
             "action": "delete",
             "iconName": "osk-delete-symbolic",
-            "width": 1.5
+            "width": 2
           }
         ],
         [
           {
-            "leftOffset": 0.5,
+            "leftOffset": 1.5,
             "strings": [
               "£"
             ]
@@ -932,7 +953,7 @@
           {
             "iconName": "osk-enter-symbolic",
             "keyval": "0xff0d",
-            "width": 2
+            "width": 2.5
           }
         ],
         [
@@ -940,9 +961,10 @@
             "action": "levelSwitch",
             "label": "?123",
             "level": "opt",
-            "width": 1.5
+            "width": 2
           },
           {
+            "leftOffset": 1,
             "strings": [
               "\\"
             ]
@@ -978,18 +1000,28 @@
             ]
           },
           {
+            "leftOffset": 1,
             "action": "levelSwitch",
             "label": "?123",
             "level": "opt",
-            "width": 3
+            "width": 2
           }
         ],
         [
           {
+            "action": "modifier",
+            "keyval": "0xffe3",
+            "label": "Ctrl"
+          },
+          {
             "action": "levelSwitch",
             "label": "ABC",
-            "level": "default",
-            "width": 1.5
+            "level": "default"
+          },
+          {
+            "action": "modifier",
+            "keyval": "0xffe9",
+            "label": "Alt"
           },
           {
             "strings": [
