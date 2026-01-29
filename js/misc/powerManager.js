@@ -334,6 +334,7 @@ export class PowerManager {
 
             switch (ongoingAction) {
             case 'dim':
+                this._cursorTracker.uninhibit_cursor_visibility();
                 this._lightbox.lightOff(0).catch();
                 this._sensorDaemonProxy.UndimBacklightAsync(0).catch(e =>
                     log("POWERMANAGER: Undim backlight failed: " + e));
@@ -627,7 +628,7 @@ log("POWERMANAGER: turn on this._fadeInTimeout " + this._fadeInTimeout + " this.
 
         this._fadingOut = true;
 
-        this._cursorTracker.set_pointer_visible(false);
+        this._cursorTracker.inhibit_cursor_visibility();
         Main.uiGroup.set_child_above_sibling(this._lightbox, null);
         this._lightbox._fadeFactor = 1;
         this._lightbox.reactive = true;
@@ -653,6 +654,7 @@ log("POWERMANAGER: turn on this._fadeInTimeout " + this._fadeInTimeout + " this.
         this._fadingIn = true;
 
         this._lightbox.reactive = false;
+        this._cursorTracker.uninhibit_cursor_visibility();
 
         try {
             await this._lightbox.lightOff(350);
@@ -734,7 +736,7 @@ log("POWERMANAGER: turn on this._fadeInTimeout " + this._fadeInTimeout + " this.
                 this._sensorDaemonProxy.DimBacklightAsync(0.2, 500).catch(e =>
                     log("POWERMANAGER: Dim backlight failed: " + e));
 
-                this._cursorTracker.set_pointer_visible(false);
+                this._cursorTracker.inhibit_cursor_visibility();
                 Main.uiGroup.set_child_above_sibling(this._lightbox, null);
                 this._lightbox._fadeFactor = wantLightboxEffect ? 0.5 : 0;
                 this._lightbox.reactive = true;
