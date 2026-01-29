@@ -8,7 +8,7 @@ import St from 'gi://St';
 import * as Params from '../misc/params.js';
 import * as Main from './main.js';
 
-const ICON_SIZE = 96;
+const ICON_SIZE = 64;
 
 const PAGE_SWITCH_TIME = 300;
 
