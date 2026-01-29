@@ -1,12 +1,22 @@
 /* Scrollbars */
 
 StScrollView {
-  &.vfade { -st-vfade-offset: 68px; }
+  &.vfade { -st-vfade-offset: 36px; }
   &.hfade { -st-hfade-offset: 68px; }
 }
 
 StScrollBar {
   padding: 0;
+
+  &.vertical {
+    margin-left: $base_padding;
+    margin-right: $base_padding;
+  }
+
+  &.horizontal {
+    margin-top: $base_padding;
+    margin-bottom: $base_padding;
+  }
 
   StScrollView & {
     min-width: 8px;

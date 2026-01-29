@@ -10,11 +10,13 @@ import Shell from 'gi://Shell';
 import St from 'gi://St';
 
 import * as Background from './background.js';
+import * as Calendar from './calendar.js';
 import * as Layout from './layout.js';
 import * as Main from './main.js';
 import * as MessageTray from './messageTray.js';
 import * as SwipeTracker from './swipeTracker.js';
 import {formatDateWithCFormatString} from '../misc/dateUtils.js';
+import {wiggle} from '../misc/animationUtils.js';
 import * as AuthPrompt from '../gdm/authPrompt.js';
 import {AuthPromptStatus} from '../gdm/authPrompt.js';
 import {MprisSource} from './mpris.js';
@@ -27,331 +29,11 @@ const IDLE_TIMEOUT = 2 * 60;
 const HINT_TIMEOUT = 4;
 
 const CROSSFADE_TIME = 300;
-const FADE_OUT_TRANSLATION = 200;
+const FADE_OUT_TRANSLATION = 500;
 const FADE_OUT_SCALE = 0.3;
 
 const BLUR_BRIGHTNESS = 0.65;
 const BLUR_RADIUS = 90;
-
-const NotificationsBox = GObject.registerClass({
-    Signals: {'wake-up-screen': {}},
-}, class NotificationsBox extends St.BoxLayout {
-    _init() {
-        super._init({
-            orientation: Clutter.Orientation.VERTICAL,
-            name: 'unlockDialogNotifications',
-        });
-
-        this._notificationBox = new St.BoxLayout({
-            orientation: Clutter.Orientation.VERTICAL,
-            style_class: 'unlock-dialog-notifications-container',
-        });
-
-        this._scrollView = new St.ScrollView({
-            child: this._notificationBox,
-        });
-        this.add_child(this._scrollView);
-
-        this._players = new Map();
-        this._mediaSource = new MprisSource();
-        this._mediaSource.connectObject(
-            'player-added', (o, player) => this._addPlayer(player),
-            'player-removed', (o, player) => this._removePlayer(player),
-            this);
-        this._mediaSource.players.forEach(player => {
-            this._addPlayer(player);
-        });
-
-        this._settings = new Gio.Settings({
-            schema_id: 'org.gnome.desktop.notifications',
-        });
-
-        this._sources = new Map();
-        Main.messageTray.getSources().forEach(source => {
-            this._sourceAdded(Main.messageTray, source, true);
-        });
-        this._updateVisibility();
-
-        Main.messageTray.connectObject('source-added',
-            this._sourceAdded.bind(this), this);
-
-        this.connect('destroy', this._onDestroy.bind(this));
-    }
-
-    _onDestroy() {
-        let items = this._sources.entries();
-        for (let [source, obj] of items)
-            this._removeSource(source, obj);
-
-        for (const player of this._players.keys())
-            this._removePlayer(player);
-    }
-
-    _updateVisibility() {
-        this._notificationBox.visible =
-            this._notificationBox.get_children().some(a => a.visible);
-
-        this.visible = this._notificationBox.visible;
-    }
-
-    _makeNotificationSource(source, box) {
-        let iconActor = new St.Icon({
-            style_class: 'unlock-dialog-notification-icon',
-            fallback_icon_name: 'application-x-executable',
-        });
-        source.bind_property('icon', iconActor, 'gicon', GObject.BindingFlags.SYNC_CREATE);
-        box.add_child(iconActor);
-
-        let textBox = new St.BoxLayout({
-            x_expand: true,
-            y_expand: true,
-            y_align: Clutter.ActorAlign.CENTER,
-        });
-        box.add_child(textBox);
-
-        let title = new St.Label({
-            style_class: 'unlock-dialog-notification-label',
-            x_expand: true,
-            x_align: Clutter.ActorAlign.START,
-        });
-        source.bind_property('title',
-            title, 'text',
-            GObject.BindingFlags.SYNC_CREATE);
-        textBox.add_child(title);
-
-        let count = source.unseenCount;
-        let countLabel = new St.Label({
-            text: `${count}`,
-            visible: count > 1,
-            style_class: 'unlock-dialog-notification-count-text',
-        });
-        textBox.add_child(countLabel);
-
-        box.visible = count !== 0;
-        return [title, countLabel];
-    }
-
-    _makeNotificationDetailedSource(source, box) {
-        let iconActor = new St.Icon({
-            style_class: 'unlock-dialog-notification-icon',
-            fallback_icon_name: 'application-x-executable',
-        });
-        source.bind_property('icon', iconActor, 'gicon', GObject.BindingFlags.SYNC_CREATE);
-        box.add_child(iconActor);
-
-        const textBox = new St.BoxLayout({
-            orientation: Clutter.Orientation.VERTICAL,
-        });
-        box.add_child(textBox);
-
-        let title = new St.Label({
-            style_class: 'unlock-dialog-notification-label',
-        });
-        source.bind_property_full('title',
-            title, 'text',
-            GObject.BindingFlags.SYNC_CREATE,
-            (bind, sourceVal) => [true, sourceVal?.replace(/\n/g, ' ') ?? ''],
-            null);
-        textBox.add_child(title);
-
-        let visible = false;
-        for (let i = 0; i < source.notifications.length; i++) {
-            let n = source.notifications[i];
-
-            if (n.acknowledged)
-                continue;
-
-            let body = '';
-            if (n.body) {
-                const bodyText = n.body.replace(/\n/g, ' ');
-                body = n.useBodyMarkup
-                    ? bodyText
-                    : GLib.markup_escape_text(bodyText, -1);
-            }
-
-            let label = new St.Label({style_class: 'unlock-dialog-notification-count-text'});
-            label.clutter_text.set_markup(`<b>${n.title}</b> ${body}`);
-            textBox.add_child(label);
-
-            visible = true;
-        }
-
-        box.visible = visible;
-        return [title, null];
-    }
-
-    _shouldShowDetails(source) {
-        return source.policy.detailsInLockScreen ||
-               source.narrowestPrivacyScope === MessageTray.PrivacyScope.SYSTEM;
-    }
-
-    _updateSourceBoxStyle(source, obj, box) {
-        let hasCriticalNotification =
-            source.notifications.some(n => n.urgency === MessageTray.Urgency.CRITICAL);
-
-        if (hasCriticalNotification !== obj.hasCriticalNotification) {
-            obj.hasCriticalNotification = hasCriticalNotification;
-
-            if (hasCriticalNotification)
-                box.add_style_class_name('critical');
-            else
-                box.remove_style_class_name('critical');
-        }
-    }
-
-    _showSource(source, obj, box) {
-        if (obj.detailed)
-            [obj.titleLabel, obj.countLabel] = this._makeNotificationDetailedSource(source, box);
-        else
-            [obj.titleLabel, obj.countLabel] = this._makeNotificationSource(source, box);
-
-        box.visible = obj.visible && (source.unseenCount > 0);
-
-        this._updateSourceBoxStyle(source, obj, box);
-    }
-
-    _wakeUpScreenForSource(source) {
-        if (!this._settings.get_boolean('show-banners'))
-            return;
-        const obj = this._sources.get(source);
-        if (obj?.sourceBox.visible)
-            this.emit('wake-up-screen');
-    }
-
-    _addPlayer(player) {
-        const message = new MediaMessage(player);
-        this._players.set(player, message);
-        this._notificationBox.insert_child_at_index(message, 0);
-        this._updateVisibility();
-    }
-
-    _removePlayer(player) {
-        const message = this._players.get(player);
-        this._players.delete(player);
-        message.destroy();
-        this._updateVisibility();
-    }
-
-    _sourceAdded(tray, source, initial) {
-        let obj = {
-            visible: source.policy.showInLockScreen,
-            detailed: this._shouldShowDetails(source),
-            sourceBox: null,
-            titleLabel: null,
-            countLabel: null,
-            hasCriticalNotification: false,
-        };
-
-        obj.sourceBox = new St.BoxLayout({
-            style_class: 'unlock-dialog-notification-source',
-            x_expand: true,
-        });
-        this._showSource(source, obj, obj.sourceBox);
-        this._notificationBox.insert_child_at_index(obj.sourceBox, this._players.size);
-
-        source.connectObject(
-            'notify::count', () => this._countChanged(source, obj),
-            'notify::title', () => this._titleChanged(source, obj),
-            'destroy', () => {
-                this._removeSource(source, obj);
-                this._updateVisibility();
-            }, this);
-        obj.policyChangedId = source.policy.connect('notify', (policy, pspec) => {
-            if (pspec.name === 'show-in-lock-screen')
-                this._visibleChanged(source, obj);
-            else
-                this._detailedChanged(source, obj);
-        });
-
-        this._sources.set(source, obj);
-
-        if (!initial) {
-            // block scrollbars while animating, if they're not needed now
-            let boxHeight = this._notificationBox.height;
-            if (this._scrollView.height >= boxHeight)
-                this._scrollView.vscrollbar_policy = St.PolicyType.NEVER;
-
-            let widget = obj.sourceBox;
-            let [, natHeight] = widget.get_preferred_height(-1);
-            widget.height = 0;
-            widget.ease({
-                height: natHeight,
-                mode: Clutter.AnimationMode.EASE_OUT_QUAD,
-                duration: 250,
-                onComplete: () => {
-                    this._scrollView.vscrollbar_policy = St.PolicyType.AUTOMATIC;
-                    widget.set_height(-1);
-                },
-            });
-
-            this._updateVisibility();
-            this._wakeUpScreenForSource(source);
-        }
-    }
-
-    _titleChanged(source, obj) {
-        obj.titleLabel.text = source.title;
-    }
-
-    _countChanged(source, obj) {
-        // A change in the number of notifications may change whether we show
-        // details.
-        let newDetailed = this._shouldShowDetails(source);
-        let oldDetailed = obj.detailed;
-
-        obj.detailed = newDetailed;
-
-        if (obj.detailed || oldDetailed !== newDetailed) {
-            // A new notification was pushed, or a previous notification was destroyed.
-            // Give up, and build the list again.
-
-            obj.sourceBox.destroy_all_children();
-            obj.titleLabel = obj.countLabel = null;
-            this._showSource(source, obj, obj.sourceBox);
-        } else {
-            let count = source.unseenCount;
-            obj.countLabel.text = `${count}`;
-            obj.countLabel.visible = count > 1;
-        }
-
-        obj.sourceBox.visible = obj.visible && (source.unseenCount > 0);
-
-        this._updateVisibility();
-        this._wakeUpScreenForSource(source);
-    }
-
-    _visibleChanged(source, obj) {
-        if (obj.visible === source.policy.showInLockScreen)
-            return;
-
-        obj.visible = source.policy.showInLockScreen;
-        obj.sourceBox.visible = obj.visible && source.unseenCount > 0;
-
-        this._updateVisibility();
-        this._wakeUpScreenForSource(source);
-    }
-
-    _detailedChanged(source, obj) {
-        let newDetailed = this._shouldShowDetails(source);
-        if (obj.detailed === newDetailed)
-            return;
-
-        obj.detailed = newDetailed;
-
-        obj.sourceBox.destroy_all_children();
-        obj.titleLabel = obj.countLabel = null;
-        this._showSource(source, obj, obj.sourceBox);
-    }
-
-    _removeSource(source, obj) {
-        obj.sourceBox.destroy();
-        obj.sourceBox = obj.titleLabel = obj.countLabel = null;
-
-        source.policy.disconnect(obj.policyChangedId);
-
-        this._sources.delete(source);
-    }
-});
 
 const Clock = GObject.registerClass(
 class UnlockDialogClock extends St.BoxLayout {
@@ -369,38 +51,14 @@ class UnlockDialogClock extends St.BoxLayout {
             style_class: 'unlock-dialog-clock-date',
             x_align: Clutter.ActorAlign.CENTER,
         });
-        this._hint = new St.Label({
-            style_class: 'unlock-dialog-clock-hint',
-            x_align: Clutter.ActorAlign.CENTER,
-            opacity: 0,
-        });
 
         this.add_child(this._time);
         this.add_child(this._date);
-        this.add_child(this._hint);
 
         this._wallClock = new GnomeDesktop.WallClock({time_only: true});
         this._wallClock.connect('notify::clock', this._updateClock.bind(this));
 
-        const backend = this.get_context().get_backend();
-        this._seat = backend.get_default_seat();
-        this._seat.connectObject('notify::touch-mode',
-            this._updateHint.bind(this), this);
-
-        this._monitorManager = global.backend.get_monitor_manager();
-        this._monitorManager.connectObject('power-save-mode-changed',
-            () => (this._hint.opacity = 0), this);
-
-        this._idleMonitor = global.backend.get_core_idle_monitor();
-        this._idleWatchId = this._idleMonitor.add_idle_watch(HINT_TIMEOUT * 1000, () => {
-            this._hint.ease({
-                opacity: 255,
-                duration: CROSSFADE_TIME,
-            });
-        });
-
         this._updateClock();
-        this._updateHint();
 
         this.connect('destroy', this._onDestroy.bind(this));
     }
@@ -415,102 +73,119 @@ class UnlockDialogClock extends St.BoxLayout {
         this._date.text = formatDateWithCFormatString(date, dateFormat);
     }
 
+    _onDestroy() {
+        this._wallClock.run_dispose();
+    }
+});
+
+var UnlockDialogSwipeHint = GObject.registerClass(
+class UnlockDialogSwipeHint extends St.Label {
+    _init() {
+        super._init({
+            style_class: 'unlock-dialog-clock-hint',
+            x_align: Clutter.ActorAlign.CENTER,
+            opacity: 255,//0,
+        });
+
+        const backend = this.get_context().get_backend();
+        this._seat = backend.get_default_seat();
+        this._seat.connectObject('notify::touch-mode',
+            this._updateHint.bind(this), this);
+
+//        this._monitorManager = global.backend.get_monitor_manager();
+  //      this._monitorManager.connectObject('power-save-mode-changed',
+    //        () => (this.opacity = 0), this);
+
+        this._idleMonitor = global.backend.get_core_idle_monitor();
+        this._idleWatchId = this._idleMonitor.add_idle_watch(HINT_TIMEOUT * 1000, () => {
+            this.ease({
+                opacity: 255,
+                duration: CROSSFADE_TIME,
+            });
+        });
+
+        this._updateHint();
+
+        this.connect('destroy', this._onDestroy.bind(this));
+    }
+
     _updateHint() {
-        this._hint.text = this._seat.touch_mode
+        this.text = this._seat.touch_mode
             ? _('Swipe up to unlock')
             : _('Click or press a key to unlock');
     }
 
     _onDestroy() {
-        this._wallClock.run_dispose();
-
         this._idleMonitor.remove_watch(this._idleWatchId);
     }
 });
 
 const UnlockDialogLayout = GObject.registerClass(
 class UnlockDialogLayout extends Clutter.LayoutManager {
-    _init(stack, notifications, switchUserButton) {
+    _init(clock, notifications) {
         super._init();
 
-        this._stack = stack;
+        this._clock = clock;
         this._notifications = notifications;
-        this._switchUserButton = switchUserButton;
     }
 
     vfunc_get_preferred_width(container, forHeight) {
-        return this._stack.get_preferred_width(forHeight);
+        return this._clock.get_preferred_width(forHeight);
     }
 
     vfunc_get_preferred_height(container, forWidth) {
-        return this._stack.get_preferred_height(forWidth);
+        return this._clock.get_preferred_height(forWidth);
     }
 
     vfunc_allocate(container, box) {
-        let [width, height] = box.get_size();
+        let [availWidth, availHeight] = box.get_size();
 
-        let tenthOfHeight = height / 10.0;
-        let thirdOfHeight = height / 3.0;
+        let tenthOfHeight = availHeight / 10.0;
+        let thirdOfHeight = availHeight / 3.0;
 
-        let [, , stackWidth, stackHeight] =
-            this._stack.get_preferred_size();
+        let [, , clockWidth, clockHeight] =
+            this._clock.get_preferred_size();
+
+      //  if (this._clock.needs_expand(Clutter.Orientation.HORIZONTAL))
+        //    clockWidth = availWidth;
+    //    if (this._clock.needs_expand(Clutter.Orientation.VERTICAL))
+      //      clockHeight = availHeight;
 
         let [, , notificationsWidth, notificationsHeight] =
             this._notifications.get_preferred_size();
 
-        let columnWidth = Math.max(stackWidth, notificationsWidth);
-
-        let columnX1 = Math.floor((width - columnWidth) / 2.0);
+        let columnX1 = 0;
         let actorBox = new Clutter.ActorBox();
 
         // Notifications
         let maxNotificationsHeight = Math.min(
             notificationsHeight,
-            height - tenthOfHeight - stackHeight);
+            availHeight - clockHeight);
 
         actorBox.x1 = columnX1;
-        actorBox.y1 = height - maxNotificationsHeight;
-        actorBox.x2 = columnX1 + columnWidth;
+        actorBox.y1 = availHeight - maxNotificationsHeight;
+        actorBox.x2 = columnX1 + availWidth;
         actorBox.y2 = actorBox.y1 + maxNotificationsHeight;
-
         this._notifications.allocate(actorBox);
 
         // Authentication Box
-        let stackY = Math.min(
-            thirdOfHeight,
-            height - stackHeight - maxNotificationsHeight);
+        let clockY = Math.min(
+            tenthOfHeight,
+            availHeight - clockHeight - maxNotificationsHeight);
 
         actorBox.x1 = columnX1;
-        actorBox.y1 = stackY;
-        actorBox.x2 = columnX1 + columnWidth;
-        actorBox.y2 = stackY + stackHeight;
+        actorBox.y1 = clockY;
+        actorBox.x2 = columnX1 + availWidth;
+        actorBox.y2 = clockY + clockHeight;
 
-        this._stack.allocate(actorBox);
-
-        // Switch User button
-        if (this._switchUserButton.visible) {
-            let [, , natWidth, natHeight] =
-                this._switchUserButton.get_preferred_size();
-
-            const textDirection = this._switchUserButton.get_text_direction();
-            if (textDirection === Clutter.TextDirection.RTL)
-                actorBox.x1 = box.x1 + natWidth;
-            else
-                actorBox.x1 = box.x2 - (natWidth * 2);
-
-            actorBox.y1 = box.y2 - (natHeight * 2);
-            actorBox.x2 = actorBox.x1 + natWidth;
-            actorBox.y2 = actorBox.y1 + natHeight;
-
-            this._switchUserButton.allocate(actorBox);
-        }
+        this._clock.allocate(actorBox);
     }
 });
 
 export const UnlockDialog = GObject.registerClass({
     Signals: {
-        'failed': {},
         'wake-up-screen': {},
+        'show-emergency-calls': {},
     },
 }, class UnlockDialog extends St.Widget {
     _init(parentActor) {
@@ -532,20 +207,9 @@ export const UnlockDialog = GObject.registerClass({
         } catch {
         }
 
-        this._adjustment = new St.Adjustment({
-            actor: this,
-            lower: 0,
-            upper: 2,
-            page_size: 1,
-            page_increment: 1,
-        });
-        this._adjustment.connect('notify::value', () => {
-            this._setTransitionProgress(this._adjustment.value);
-        });
-
         this._swipeTracker = new SwipeTracker.SwipeTracker(this,
             Clutter.Orientation.VERTICAL,
-            Shell.ActionMode.UNLOCK_SCREEN,
+            Shell.ActionMode.ALL,
             {
                 name: 'UnlockDialog swipe tracker',
             });
@@ -567,9 +231,12 @@ export const UnlockDialog = GObject.registerClass({
 
         this._activePage = null;
 
-        const clickGesture = new Clutter.ClickGesture();
-        clickGesture.connect('recognize', () => this._showPrompt());
-        this.add_action(clickGesture);
+        this._clickGesture = new Clutter.ClickGesture();
+        this._clickGesture.connect('should-handle-sequence', (_gesture, event) => {
+            return event.type() === Clutter.EventType.BUTTON_PRESS;
+        });
+        this._clickGesture.connect('recognize', () => this._showPrompt());
+        this.add_action(this._clickGesture);
 
         // Background
         this._backgroundGroup = new Clutter.Actor();
@@ -591,26 +258,97 @@ export const UnlockDialog = GObject.registerClass({
 
         // Authentication & Clock stack
         this._stack = new Shell.Stack();
+        this._stack.x_expand = true;
+        this._stack.y_expand = true;
 
-        this._promptBox = new St.BoxLayout({
-            orientation: Clutter.Orientation.VERTICAL,
+        this._clockNotificationsBox = new St.BoxLayout({
+            style_class: 'clock-notifications-box',
+            vertical: true,
         });
-        this._promptBox.set_pivot_point(0.5, 0.5);
-        this._promptBox.hide();
-        this._stack.add_child(this._promptBox);
+        this._clockNotificationsBox.set_pivot_point(0.5, 0.5);
 
         this._clock = new Clock();
-        this._clock.set_pivot_point(0.5, 0.5);
-        this._stack.add_child(this._clock);
+        this._clock.x_expand = true;
+
+        this._notificationsBox = new Calendar.CalendarMessageList({
+            isOnLockscreen: true,
+        });
+        this._notificationsSettings = new Gio.Settings({
+            schema_id: 'org.gnome.desktop.notifications',
+        });
+        Main.messageTray.connectObject('source-added', (tray, source) => {
+            const policyChangedId = source.policy.connect('notify', () =>
+                this._maybeWakeUpScreenForSource(source));
+
+            source.connectObject(
+                'notification-added', (source, notification) =>
+                    this._maybeWakeUpScreenForSource(source),
+                'destroy', () => source.policy.disconnect(policyChangedId),
+                this);
+        }, this);
+
+        this._swipeUpHint = new UnlockDialogSwipeHint();
+
+        this._buttonRow = new St.BoxLayout({
+            x_align: Clutter.ActorAlign.CENTER,
+            style_class: 'unlock-dialog-button-row',
+        });
+        const cameraButton = new St.Button({
+            style_class: 'icon-button',
+            can_focus: true,
+            icon_name: 'screenshooter-symbolic',
+            visible: !Main.sessionMode.isGreeter,
+            accessible_name: _('Take Screenshot'),
+        });
+        let cameraApp = Shell.AppSystem.get_default().lookup_app('org.gnome.Snapshot.desktop');
+        if (!cameraApp)
+            cameraApp = Shell.AppSystem.get_default().lookup_app('org.gnome.Snapshot.Devel.desktop');
+        if (!cameraApp)
+            cameraButton.add_style_class_name('unavailable');
+        cameraButton.connect('clicked', () => {
+            if (cameraApp) {
+                cameraApp.activate_full(-1, 0);
+                this.emit('show-emergency-calls');
+            }
+        });
+        this._buttonRow.add_child(cameraButton);
+
+        this._clockNotificationsBox.add_child(this._clock);
+        this._clockNotificationsBox.add_child(this._notificationsBox);
+        this._clockNotificationsBox.add_child(this._swipeUpHint);
+        this._clockNotificationsBox.add_child(this._buttonRow);
+        this._stack.add_child(this._clockNotificationsBox);
+
+        this._promptBox = new St.BoxLayout({
+            style_class: 'prompt-box',
+            orientation: Clutter.Orientation.VERTICAL,
+            y_align: Clutter.ActorAlign.END,
+        });
+        this._promptBox.set_pivot_point(0.5, 0.5);
+        this._stack.add_child(this._promptBox);
+
+        this._promptBoxHidden = true;
+        this._promptBoxHeight = 0;
+        this._promptBox.connect('notify::size', () => {
+            this._promptBoxHeight = this._promptBox.allocation.get_height();
+            if (this._promptBoxHidden)
+                this._promptBox.translation_y = this._promptBoxHeight;
+        });
+
+        this._ensureAuthPrompt();
+
         this._showClock();
 
+    /*    this._clockNotificationsBox.layout_manager = new UnlockDialogLayout(
+            this._clock,
+            this._notificationsBox,
+            this._swipeUpHint,
+            this._buttonRow);
+*/
         this.allowCancel = false;
 
         Main.ctrlAltTabManager.addGroup(this, _('Unlock Window'), 'dialog-password-symbolic');
 
-        // Notifications
-        this._notificationsBox = new NotificationsBox();
-        this._notificationsBox.connect('wake-up-screen', () => this.emit('wake-up-screen'));
 
         // Switch User button
         this._otherUserButton = new St.Button({
@@ -643,15 +381,11 @@ export const UnlockDialog = GObject.registerClass({
         this._updateUserSwitchVisibility();
 
         // Main Box
-        let mainBox = new St.Widget();
+        let mainBox = new St.BoxLayout();
         mainBox.add_constraint(new Layout.MonitorConstraint({primary: true}));
         mainBox.add_child(this._stack);
-        mainBox.add_child(this._notificationsBox);
         mainBox.add_child(this._otherUserButton);
-        mainBox.layout_manager = new UnlockDialogLayout(
-            this._stack,
-            this._notificationsBox,
-            this._otherUserButton);
+
         this.add_child(mainBox);
 
         this._idleMonitor = global.backend.get_core_idle_monitor();
@@ -660,24 +394,45 @@ export const UnlockDialog = GObject.registerClass({
         this.connect('destroy', this._onDestroy.bind(this));
     }
 
-    vfunc_key_press_event(event) {
-        if (this._activePage === this._promptBox ||
-            (this._promptBox && this._promptBox.visible))
+    _maybeWakeUpScreenForSource(source) {
+        if (!this._notificationsSettings.get_boolean('show-banners'))
+            return;
+
+        if (!source.policy.showInLockScreen)
+            return;
+
+log("UNLOCKDIALOG: waking up screen on notification");
+        this.emit('wake-up-screen');
+    }
+
+    vfunc_captured_event(event) {
+        if (event.type() === Clutter.EventType.KEY_PRESS) {
+            const keyval = event.get_key_symbol();
+            if (keyval === Clutter.KEY_Shift_L ||
+                keyval === Clutter.KEY_Shift_R ||
+                keyval === Clutter.KEY_Shift_Lock ||
+                keyval === Clutter.KEY_Caps_Lock)
+                return Clutter.EVENT_PROPAGATE;
+
+            if (keyval === Clutter.KEY_Escape) {
+                this._authPrompt.clear();
+                this._showClock();
+                return Clutter.EVENT_STOP;
+            }
+
+            if (this._activePage !== this._promptBox)
+                this._showPrompt();
+
+            const focus = global.stage.key_focus;
+            if (focus === this._authPrompt._entry.clutter_text)
+                return Clutter.EVENT_PROPAGATE;
+
+            const unichar = event.get_key_unicode();
+            if (GLib.unichar_isgraph(unichar))
+                this._authPrompt.addCharacter(unichar);
+
             return Clutter.EVENT_PROPAGATE;
-
-        const keyval = event.get_key_symbol();
-        if (keyval === Clutter.KEY_Shift_L ||
-            keyval === Clutter.KEY_Shift_R ||
-            keyval === Clutter.KEY_Shift_Lock ||
-            keyval === Clutter.KEY_Caps_Lock)
-            return Clutter.EVENT_PROPAGATE;
-
-        let unichar = event.get_key_unicode();
-
-        this._showPrompt();
-
-        if (GLib.unichar_isgraph(unichar))
-            this._authPrompt.addCharacter(unichar);
+        }
 
         return Clutter.EVENT_PROPAGATE;
     }
@@ -733,12 +488,87 @@ export const UnlockDialog = GObject.registerClass({
 
     _ensureAuthPrompt() {
         if (!this._authPrompt) {
+            const pinEntryIndicator = new AuthPrompt.PinEntryIndicator(6);
+      //      pinEntryIndicator.y_expand = true;
+            pinEntryIndicator.y_align = Clutter.ActorAlign.END;
+            pinEntryIndicator.x_align = Clutter.ActorAlign.CENTER;
+            this._pinEntryIndicator = pinEntryIndicator;
+
+            this._pinUnlockKeyboard = new AuthPrompt.PinUnlockKeyboard();
+            this._pinUnlockKeyboard.y_align = Clutter.ActorAlign.CENTER;
+            this._pinUnlockKeyboard.x_align = Clutter.ActorAlign.CENTER;
+
             this._authPrompt = new AuthPrompt.AuthPrompt(this._gdmClient,
                 AuthPrompt.AuthPromptMode.UNLOCK_ONLY);
-            this._authPrompt.connect('failed', this._fail.bind(this));
             this._authPrompt.connect('cancelled', this._fail.bind(this));
             this._authPrompt.connect('reset', this._onReset.bind(this));
+            this._authPrompt.connect('failed', () => {
+                wiggle(pinEntryIndicator);
+            });
+
+            this._authPrompt._entry.clutter_text.connect('text-changed', () => {
+                const textLen = this._authPrompt._entry.clutter_text.buffer.get_length();
+                pinEntryIndicator.setActiveDigits(textLen);
+
+                if (textLen === 6 && pinEntryIndicator.visible) {
+                    pinEntryIndicator.setIsLoading(true);
+                    this._authPrompt._entry.clutter_text.activate();
+                }
+            });
+
+            this._pinUnlockKeyboard.connect('char', (k, char) => {
+                this._authPrompt.addCharacter(char);
+            });
+            this._pinUnlockKeyboard.connect('delete-last', () => {
+                this._authPrompt.deleteLastCharacter();
+            });
+            this._pinUnlockKeyboard.connect('delete-all', () => {
+                this._authPrompt.clear();
+            });
+            this._pinUnlockKeyboard.connect('show-full-keyboard', () => {
+                if (pinEntryIndicator.visible) {
+                    this._authPrompt.mayShowEntry = true;
+                    pinEntryIndicator.hide();
+                } else {
+                    this._authPrompt.mayShowEntry = false;
+                    pinEntryIndicator.show();
+                }
+            });
+
+            this._promptBox.add_child(pinEntryIndicator);
             this._promptBox.add_child(this._authPrompt);
+            this._promptBox.add_child(this._pinUnlockKeyboard);
+
+            this._emergencyButton = new St.Button({
+                style_class: 'emergency-call-button',
+                label: 'Emergency',
+                x_align: Clutter.ActorAlign.CENTER,
+            });
+            const callsApp = Shell.AppSystem.get_default().lookup_app('org.gnome.Calls.desktop');
+            if (!callsApp)
+                this._emergencyButton.add_style_class_name('unavailable');
+            this._emergencyButton.connect('clicked', () => {
+                if (callsApp) {
+                    callsApp.activate_full(-1, 0);
+                    this.emit('show-emergency-calls');
+                }
+            });
+            this._promptBox.add_child(this._emergencyButton);
+
+            if (Main.layoutManager.isPhone) {
+                this._pinUnlockKeyboard.show();
+                this._emergencyButton.show();
+                pinEntryIndicator.show();
+                this._authPrompt.y_align = Clutter.ActorAlign.END;
+                this._authPrompt.y_expand = false;
+                this._authPrompt.user_info_visible = false;
+                this._authPrompt.mayShowEntry = false;
+            } else {
+                this._authPrompt.y_align = Clutter.ActorAlign.CENTER;
+                this._pinUnlockKeyboard.hide();
+                this._emergencyButton.hide();
+                pinEntryIndicator.hide();
+            }
         }
 
         const {verificationStatus} = this._authPrompt;
@@ -763,73 +593,77 @@ export const UnlockDialog = GObject.registerClass({
             this._authPrompt.destroy();
             this._authPrompt = null;
         }
+
+        if (this._pinUnlockKeyboard) {
+            this._pinUnlockKeyboard.destroy();
+            this._pinUnlockKeyboard = null;
+        }
+
+        if (this._pinEntryIndicator) {
+            this._pinEntryIndicator.destroy();
+            this._pinEntryIndicator = null;
+        }
+
+        if (this._emergencyButton) {
+            this._emergencyButton.destroy();
+            this._emergencyButton = null;
+        }
     }
 
     _showClock() {
-        if (this._activePage === this._clock)
+        if (this._activePage === this._clockNotificationsBox)
             return;
 
-        this._activePage = this._clock;
+        this._activePage = this._clockNotificationsBox;
 
-        this._adjustment.ease(0, {
-            duration: CROSSFADE_TIME,
-            mode: Clutter.AnimationMode.EASE_OUT_QUAD,
-            onComplete: () => this._maybeDestroyAuthPrompt(),
+        this._clickGesture.enabled = true;
+
+        this._promptBox.ease({
+            translation_y: this._promptBoxHeight,
+            mode: Clutter.AnimationMode.EASE_OUT_CUBIC,
+            duration: 250,
+            onStopped: () => {
+                this._promptBoxHidden = this._activePage === this._clockNotificationsBox;
+                if (this._promptBoxHidden)
+                    this._authPrompt.clear();
+            },
         });
     }
 
     _showPrompt() {
-        this._ensureAuthPrompt();
-
-        if (this._activePage === this._promptBox)
+        if (this._activePage === this._promptBox) {
             return;
+}
 
         this._activePage = this._promptBox;
 
-        this._adjustment.ease(1, {
-            duration: CROSSFADE_TIME,
-            mode: Clutter.AnimationMode.EASE_OUT_QUAD,
-        });
-    }
+        this._clickGesture.enabled = false;
+        this._promptBoxHidden = false;
 
-    _setTransitionProgress(progress) {
-        this._promptBox.visible = progress > 0;
-        this._clock.visible = progress < 1;
-
-        this._otherUserButton.set({
-            reactive: progress > 0,
-            can_focus: progress > 0,
-        });
-
-        const {scaleFactor} = St.ThemeContext.get_for_stage(global.stage);
-
-        this._promptBox.set({
-            opacity: 255 * progress,
-            scale_x: FADE_OUT_SCALE + (1 - FADE_OUT_SCALE) * progress,
-            scale_y: FADE_OUT_SCALE + (1 - FADE_OUT_SCALE) * progress,
-            translation_y: FADE_OUT_TRANSLATION * (1 - progress) * scaleFactor,
-        });
-
-        this._clock.set({
-            opacity: 255 * (1 - progress),
-            scale_x: FADE_OUT_SCALE + (1 - FADE_OUT_SCALE) * (1 - progress),
-            scale_y: FADE_OUT_SCALE + (1 - FADE_OUT_SCALE) * (1 - progress),
-            translation_y: -FADE_OUT_TRANSLATION * progress * scaleFactor,
-        });
-
-        this._otherUserButton.set({
-            opacity: 255 * progress,
-            scale_x: FADE_OUT_SCALE + (1 - FADE_OUT_SCALE) * progress,
-            scale_y: FADE_OUT_SCALE + (1 - FADE_OUT_SCALE) * progress,
+        this._promptBox.ease({
+            translation_y: 0,
+            mode: Clutter.AnimationMode.EASE_OUT_CUBIC,
+            duration: 250,
+            onStopped: () => {
+                this._promptBoxHidden = this._activePage === this._clockNotificationsBox;
+                if (this._promptBoxHidden)
+                    this._authPrompt.clear();
+            },
         });
     }
 
     _fail() {
+        this._pinEntryIndicator.setIsLoading(false);
+
         this._showClock();
-        this.emit('failed');
+
+        this._authPrompt.reset();
+        this._authPrompt.updateSensitivity(true);
     }
 
     _onReset(authPrompt, beginRequest) {
+        this._pinEntryIndicator.setIsLoading(false);
+
         let userName;
         if (beginRequest === AuthPrompt.BeginRequestType.PROVIDE_USERNAME) {
             this._authPrompt.setUser(this._user);
@@ -842,40 +676,50 @@ export const UnlockDialog = GObject.registerClass({
     }
 
     _escape() {
-        if (this._authPrompt && this.allowCancel)
-            this._authPrompt.cancel();
+        log("UNLOCKDIALOG: auto cancelling auth prompt because user idle");
+
+        this._showClock();
+    }
+
+    cancelUnlock() {
+        this._showClock();
     }
 
     _swipeBegin(tracker, monitor) {
         if (monitor !== Main.layoutManager.primaryIndex)
             return;
 
-        this._adjustment.remove_transition('value');
+        this._promptBox.remove_transition('translation-y');
 
-        this._ensureAuthPrompt();
-
-        let progress = this._adjustment.value;
-        tracker.confirmSwipe(this._stack.height,
-            [0, 1],
+        const progress = 1 - (this._promptBox.translation_y / this._promptBoxHeight);
+        tracker.confirmSwipe(this._promptBoxHeight,
+            [0, 1], 
             progress,
-            Math.round(progress));
+            progress);
     }
 
     _swipeUpdate(tracker, progress) {
-        this._adjustment.value = progress;
+        this._promptBox.translation_y = (1 - progress) * this._promptBoxHeight;
     }
 
     _swipeEnd(tracker, duration, endProgress, endCb) {
         this._activePage = endProgress
             ? this._promptBox
-            : this._clock;
+            : this._clockNotificationsBox;
 
-        this._adjustment.ease(endProgress, {
+        this._clickGesture.enabled = this._activePage === this._clockNotificationsBox;
+
+        this._promptBox.ease({
+            translation_y: (1 - endProgress) * this._promptBoxHeight,
             mode: Clutter.AnimationMode.EASE_OUT_CUBIC,
             duration,
             onStopped: () => {
-                if (this._activePage === this._clock)
-                    this._maybeDestroyAuthPrompt();
+                this._promptBoxHidden = this._activePage === this._clockNotificationsBox;
+                if (this._promptBoxHidden)
+                    this._authPrompt.clear();
+
+//                if (this._activePage === this._clockNotificationsBox)
+         //           this._maybeDestroyAuthPrompt();
 
                 endCb();
             },
@@ -903,15 +747,12 @@ export const UnlockDialog = GObject.registerClass({
     }
 
     _updateUserSwitchVisibility() {
-        this._otherUserButton.visible = this._userManager.can_switch() &&
+        this._otherUserButton.visible =
+            !Main.layoutManager.is_phone &&
+            this._userManager.can_switch() &&
             this._userManager.has_multiple_users &&
             this._screenSaverSettings.get_boolean('user-switch-enabled') &&
             !this._lockdownSettings.get_boolean('disable-user-switching');
-    }
-
-    cancel() {
-        if (this._authPrompt)
-            this._authPrompt.cancel();
     }
 
     finish(onComplete) {

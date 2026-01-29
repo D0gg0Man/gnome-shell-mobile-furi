@@ -51,3 +51,69 @@
   background-color: st-transparentize(-st-accent-color,0.5);
   border: 1px solid -st-accent-color;
 }
+
+.pin-unlock-keyboard {
+  margin-left: 32px;
+  margin-right: 32px;
+
+  .pin-button {
+    border-radius: 99px;
+    width: 72px;
+    height: 72px;
+    margin: 6px;
+    transition-duration: 200ms;
+
+    &.icon {
+      background-color: rgba(255,255,255,0.12);
+      icon-size: $base_icon_size * 1.5;
+    }
+
+    &.number {
+      background-color: rgba(255,255,255,0.3);
+      font-size: 18pt;
+      font-weight: bold;
+    }
+  }
+
+  .pin-button-container:active .pin-button {
+    background-color: rgba(255,255,255,0.6);
+    transition-duration: 0ms;
+  }
+}
+
+.pin-entry-indicator {
+  margin-top: 12px;
+
+  .digit {
+    width: 10px;
+    height: 10px;
+    border-radius: 999px;
+    border: solid 2px white;
+    margin: 10px;
+    transition-duration: 200ms;
+
+    &.filled {
+      background-color: white;
+      transition-duration: 0ms;
+    }
+  }
+}
+
+.emergency-call-button {
+  background-color: rgba(255,255,255,0.3);
+  border-radius: 99px;
+  font-size: 10pt;
+  font-weight: bold;
+  padding: 10px 10px;
+  margin-top: 6px;
+  margin-bottom: 10px;
+
+  &:active {
+    background-color: rgba(255,255,255,0.6);
+  }
+
+  &.unavailable {
+    background-color: rgba(255,255,255,0.09);
+    color: $insensitive_fg_color;
+  }
+}

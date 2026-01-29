@@ -39,8 +39,6 @@ import {ScreenRecordingIndicator, ScreenSharingIndicator} from './status/remoteA
 
 const BUTTON_DND_ACTIVATION_TIMEOUT = 250;
 
-const N_QUICK_SETTINGS_COLUMNS = 2;
-
 const INACTIVE_WORKSPACE_DOT_SCALE = 0.75;
 
 const WorkspaceDot = GObject.registerClass({
@@ -218,6 +216,11 @@ class ActivitiesButton extends PanelMenu.Button {
             this);
 
         this._xdndTimeOut = 0;
+
+        const clickGesture = new Clutter.ClickGesture();
+        clickGesture.connect('may-recognize', () => Main.overview.shouldToggleByCornerOrButton());
+        clickGesture.connect('recognize', () => Main.overview.toggle());
+        this.add_action(clickGesture);
     }
 
     handleDragOver(source, _actor, _x, _y, _time) {
@@ -235,12 +238,6 @@ class ActivitiesButton extends PanelMenu.Button {
     }
 
     vfunc_event(event) {
-        if (event.type() === Clutter.EventType.TOUCH_END ||
-            event.type() === Clutter.EventType.BUTTON_RELEASE) {
-            if (Main.overview.shouldToggleByCornerOrButton())
-                Main.overview.toggle();
-        }
-
         return Main.wm.handleWorkspaceScroll(event);
     }
 
@@ -293,7 +290,7 @@ class QuickSettings extends PanelMenu.Button {
         });
         this.add_child(this._indicators);
 
-        this.setMenu(new QuickSettingsMenu(this, N_QUICK_SETTINGS_COLUMNS));
+        this.setMenu(new QuickSettingsMenu(this));
 
         this._setupIndicators().catch(error =>
             logError(error, 'Failed to setup quick settings'));
@@ -364,13 +361,13 @@ class QuickSettings extends PanelMenu.Button {
         // add our quick settings items before any external ones
         const sibling = this.menu.getFirstItem();
         this._addItemsBefore(this._system.quickSettingsItems,
-            sibling, N_QUICK_SETTINGS_COLUMNS);
+            sibling, 2);
         this._addItemsBefore(this._volumeOutput.quickSettingsItems,
-            sibling, N_QUICK_SETTINGS_COLUMNS);
+            sibling, 2);
         this._addItemsBefore(this._volumeInput.quickSettingsItems,
-            sibling, N_QUICK_SETTINGS_COLUMNS);
+            sibling, 2);
         this._addItemsBefore(this._brightness.quickSettingsItems,
-            sibling, N_QUICK_SETTINGS_COLUMNS);
+            sibling, 2);
 
         this._addItemsBefore(this._camera.quickSettingsItems, sibling);
         this._addItemsBefore(this._remoteAccess.quickSettingsItems, sibling);
@@ -391,7 +388,7 @@ class QuickSettings extends PanelMenu.Button {
 
         // append background apps
         this._backgroundApps.quickSettingsItems.forEach(
-            item => this.menu.addItem(item, N_QUICK_SETTINGS_COLUMNS));
+            item => this.menu.addItem(item, -1));
     }
 
     _addItemsBefore(items, sibling, colSpan = 1) {
@@ -468,6 +465,16 @@ class Panel extends St.Widget {
             () => this.remove_style_pseudo_class('overview'),
             this);
 
+        this._panGesture = new Clutter.PanGesture({
+            pan_axis: Clutter.PanAxis.Y,
+            max_n_points: 1,
+        });
+        this._panGesture.connect('recognize', this._panBegin.bind(this));
+        this._panGesture.connect('pan-update', this._panUpdate.bind(this));
+        this._panGesture.connect('end', this._panEnd.bind(this));
+        this._panGesture.connect('cancel', this._panCancel.bind(this));
+        this.add_action(this._panGesture);
+
         Main.layoutManager.panelBox.add_child(this);
         Main.ctrlAltTabManager.addGroup(this,
             _('Top Bar'), 'shell-focus-top-bar-symbolic',
@@ -481,6 +488,24 @@ class Panel extends St.Widget {
             () => this.queue_relayout(),
             this);
         this._updatePanel();
+    }
+
+    _panBegin(gesture) {
+        this.statusArea.quickSettings.menu.panelPanBegin(gesture);
+    }
+
+    _panUpdate(gesture) {
+        const [latestDeltaVec, totalDeltaVec] = gesture.get_delta();
+        this.statusArea.quickSettings.menu.panelPanUpdate(gesture,
+            latestDeltaVec.get_x(), latestDeltaVec.get_y(), totalDeltaVec.length());
+    }
+
+    _panEnd(gesture) {
+        this.statusArea.quickSettings.menu.panelPanEnd(gesture);
+    }
+
+    _panCancel(gesture) {
+        this.statusArea.quickSettings.menu.panelPanCancel(gesture);
     }
 
     vfunc_get_preferred_width(_forHeight) {

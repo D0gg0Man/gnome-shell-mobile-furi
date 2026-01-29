@@ -445,6 +445,7 @@ export const Message = GObject.registerClass({
         'close': {
             flags: GObject.SignalFlags.RUN_LAST,
         },
+        'hide-message': {},
         'expanded': {},
         'unexpanded': {},
     },
@@ -521,6 +522,30 @@ export const Message = GObject.registerClass({
             child: this._bodyLabel,
         });
         contentBox.add_child(this._bodyBin);
+
+        this._gestureWasStarted = false;
+
+        this._closeGesture = new Clutter.PanGesture({
+            pan_axis: Clutter.PanAxis.X,
+            max_n_points: 1,
+        });
+        this._closeGesture.connect('may-recognize', () => this.canClose());
+        this._closeGesture.connect('recognize', this._panBegin.bind(this));
+        this._closeGesture.connect('pan-update', this._panUpdate.bind(this));
+        this._closeGesture.connect('end', this._panEnd.bind(this));
+        this._closeGesture.connect('cancel', this._panCancel.bind(this));
+        this.add_action(this._closeGesture);
+
+        this._hideGesture = new Clutter.PanGesture({
+            pan_axis: Clutter.PanAxis.Y,
+            max_n_points: 1,
+        });
+        this._hideGesture.connect('may-recognize', () => this.canHide());
+        this._hideGesture.connect('recognize', this._hidePanBegin.bind(this));
+        this._hideGesture.connect('pan-update', this._hidePanUpdate.bind(this));
+        this._hideGesture.connect('end', this._hidePanEnd.bind(this));
+        this._hideGesture.connect('cancel', this._panCancel.bind(this));
+        this.add_action(this._hideGesture);
 
         this._header.closeButton.connect('clicked', this.close.bind(this));
         this._header.closeButton.visible = this.canClose();
@@ -602,6 +627,10 @@ export const Message = GObject.registerClass({
         return this._useBodyMarkup;
     }
 
+    get closeGesture() {
+        return this._closeGesture
+    }
+
     setActionArea(actor) {
         this._actionBin.child = actor;
         this._actionBin.visible = actor && this.expanded;
@@ -676,6 +705,10 @@ export const Message = GObject.registerClass({
         return false;
     }
 
+    canHide() {
+        return false;
+    }
+
     vfunc_key_press_event(event) {
         let keysym = event.get_key_symbol();
 
@@ -688,6 +721,102 @@ export const Message = GObject.registerClass({
             }
         }
         return super.vfunc_key_press_event(event);
+    }
+
+    _panBegin(gesture) {
+        this._gestureWasStarted = true;
+
+        this.remove_transition('translation-x');
+        this.remove_transition('opacity');
+
+        this._panWidth = this.get_transformed_extents().size.width;
+    }
+
+    _panUpdate(gesture) {
+        const [latestDeltaVec] = gesture.get_delta();
+
+        this.translation_x += latestDeltaVec.get_x();
+        this.opacity = 255 * (1 - Math.min(Math.abs(this.translation_x / (this._panWidth * 0.7)), 1));
+    }
+
+    _panEnd(gesture) {
+        const velocityX = gesture.get_velocity().get_x();
+
+        const panDirection = this.translation_x > 0 ? this._panWidth : -this._panWidth;
+        const remainingWidth = Math.abs(panDirection - this.translation_x);
+        const velocity = Math.abs(velocityX);
+
+        if (velocity > 0.9 || (remainingWidth < Math.abs(panDirection * 0.5) && velocity > 0.5) || this.opacity === 0) {
+            this.ease({
+                translation_x: panDirection,
+                opacity: 0,
+                duration: Math.clamp(velocity / remainingWidth, 100, 350),
+                mode: Clutter.AnimationMode.LINEAR,
+                onComplete: () => this.close(),
+            });
+        } else {
+            this.ease({
+                translation_x: 0,
+                opacity: 255,
+                duration: Math.clamp((1 - (remainingWidth / panDirection)) * 250, 100, 350),
+                mode: Clutter.AnimationMode.EASE_OUT_QUAD,
+            });
+        }
+    }
+
+    _panCancel(gesture) {
+
+    }
+
+    _hidePanBegin(gesture) {
+        this._gestureWasStarted = true;
+
+        this.remove_transition('translation-y');
+       // this.remove_transition('opacity');
+
+        this._panHeight = this.get_transformed_extents().size.height;
+    }
+
+    _hidePanUpdate(gesture) {
+        const [latestDeltaVec] = gesture.get_delta();
+
+        if (this.translation_y + latestDeltaVec.get_y() > 0)
+          this.translation_y = 0;
+        else
+          this.translation_y += latestDeltaVec.get_y();
+    }
+
+    _hidePanEnd(gesture) {
+        const velocityY = gesture.get_velocity().get_y();
+
+        const remainingHeight = this._panHeight - Math.abs(this.translation_y);
+        const velocity = Math.abs(velocityY);
+
+        if (velocity > 0.55 || (remainingHeight < this._panHeight * 0.25 && velocity > 0.3)) {
+            this.ease({
+                translation_y: -this._panHeight,
+                duration: Math.clamp(velocity / remainingHeight, 100, 350),
+                mode: Clutter.AnimationMode.LINEAR,
+                onComplete: () => this.emit('hide-message'),
+            });
+        } else {
+            this.ease({
+                translation_y: 0,
+                duration: Math.clamp((1 - (remainingHeight / this._panHeight)) * 250, 100, 350),
+                mode: Clutter.AnimationMode.EASE_OUT_QUAD,
+            });
+        }
+    }
+
+    get interactedWithTouchGesture() {
+        return this._gestureWasStarted;
+    }
+
+    setShowDetails(showDetails) {
+        if (showDetails)
+            this._bodyBin.show();
+        else
+            this._bodyBin.hide();
     }
 });
 
@@ -740,6 +869,10 @@ class NotificationMessage extends Message {
 
     canClose() {
         return true;
+    }
+
+    canHide() {
+        return this.has_style_class_name('notification-banner');
     }
 
     _addAction(action) {
@@ -876,13 +1009,17 @@ export const NotificationMessageGroup = GObject.registerClass({
             'focus-child', null, null,
             GObject.ParamFlags.READABLE,
             Message),
+        'is-on-lockscreen': GObject.ParamSpec.boolean(
+            'is-on-lockscreen', null, null,
+            GObject.ParamFlags.READWRITE | GObject.ParamFlags.CONSTRUCT_ONLY,
+            false),
     },
     Signals: {
         'notification-added': {},
         'expand-toggle-requested': {},
     },
 }, class NotificationMessageGroup extends St.Widget {
-    constructor(source) {
+    constructor(source, params) {
         const action =  new Clutter.ClickGesture();
 
         // A widget that covers stacked messages so that they don't receive events
@@ -903,6 +1040,8 @@ export const NotificationMessageGroup = GObject.registerClass({
             layout_manager: new MessageGroupExpanderLayout(cover, header),
             actions: action,
             reactive: true,
+            offscreen_redirect: Clutter.OffscreenRedirect.AUTOMATIC_FOR_OPACITY,
+            ...params,
         });
 
         // The cover is always the second child to prevent interaction
@@ -945,10 +1084,27 @@ export const NotificationMessageGroup = GObject.registerClass({
         this.add_child(this._headerBox);
         this.add_child(this._cover);
 
+        const policyChangedId = source.policy.connect('notify', () => {
+            this._notificationToMessage.forEach(message =>
+                this._updateMessageDetailsForLockscreen(message));
+        });
+
         source.connectObject(
             'notification-added', (_, notification) => this._addNotification(notification),
             'notification-removed', (_, notification) => this._removeNotification(notification),
+            'destroy', () => source.policy.disconnect(policyChangedId), // FIXME: hmm, why isn't there more stuff done on this signal, this object seems to per-source, so in theory the whole object should go away?
             this);
+
+        this._closeGesture = new Clutter.PanGesture({
+            pan_axis: Clutter.PanAxis.X,
+            max_n_points: 1,
+        });
+        this._closeGesture.connect('may-recognize', () => this.canClose());
+        this._closeGesture.connect('recognize', this._panBegin.bind(this));
+        this._closeGesture.connect('pan-update', this._panUpdate.bind(this));
+        this._closeGesture.connect('end', this._panEnd.bind(this));
+        this._closeGesture.connect('cancel', this._panCancel.bind(this));
+        this.add_action(this._closeGesture);
 
         source.notifications.forEach(notification => {
             this._addNotification(notification);
@@ -985,6 +1141,11 @@ export const NotificationMessageGroup = GObject.registerClass({
         this.notify('expanded');
         this._cover.hide();
 
+        this._notificationToMessage.forEach(message => {
+            message.closeGesture.enabled = true;
+        });
+        this._closeGesture.enabled = false;
+
         await new Promise((resolve, _) => {
             this.ease_property('@layout.expansion', 1, {
                 progress_mode: Clutter.AnimationMode.EASE_OUT_QUAD,
@@ -998,7 +1159,11 @@ export const NotificationMessageGroup = GObject.registerClass({
         if (!this._expanded)
             return;
 
-        this._notificationToMessage.forEach(message => message.unexpand(true));
+        this._notificationToMessage.forEach(message => {
+            message.closeGesture.enabled = false;
+            message.unexpand(true);
+        });
+        this._closeGesture.enabled = true;
 
         // Give focus to the fully visible message
         if (this.focusChild?.has_key_focus())
@@ -1100,6 +1265,8 @@ export const NotificationMessageGroup = GObject.registerClass({
         if (isUrgent)
             this._nUrgent++;
 
+        this._updateMessageDetailsForLockscreen(message);
+
         const wasExpanded = this.expanded;
         const item = new St.Bin({
             child: message,
@@ -1138,6 +1305,7 @@ export const NotificationMessageGroup = GObject.registerClass({
         this.insert_child_at_index(item, index);
         this._ensureCoverPosition();
         this._updateStackedMessagesFade();
+        message.closeGesture.enabled = false;
 
         item.layout_manager.scalingEnabled = this._expanded;
 
@@ -1252,6 +1420,65 @@ export const NotificationMessageGroup = GObject.registerClass({
             message.disconnectObject(this);
             message.close();
         });
+    }
+
+    _panBegin(gesture) {
+        this.remove_transition('translation-x');
+        this.remove_transition('opacity');
+
+        this._panWidth = this.get_transformed_extents().size.width;
+    }
+
+    _panUpdate(gesture) {
+        const [latestDeltaVec] = gesture.get_delta();
+
+        this.translation_x += latestDeltaVec.get_x();
+        this.opacity = 255 * (1 - Math.min(Math.abs(this.translation_x / (this._panWidth * 0.7)), 1));
+    }
+
+    _panEnd(gesture) {
+        const velocityX = gesture.get_velocity().get_x();
+
+        const panDirection = this.translation_x > 0 ? this._panWidth : -this._panWidth;
+        const remainingWidth = Math.abs(panDirection - this.translation_x);
+        const velocity = Math.abs(velocityX);
+
+        if (velocity > 0.9 || (remainingWidth < Math.abs(panDirection * 0.5) && velocity > 0.5) || this.opacity === 0) {
+            this.ease({
+                translation_x: panDirection,
+                opacity: 0,
+                duration: Math.clamp(velocity / remainingWidth, 100, 350),
+                mode: Clutter.AnimationMode.LINEAR,
+                onComplete: () => this.close(),
+            });
+        } else {
+            this.ease({
+                translation_x: 0,
+                opacity: 255,
+                duration: Math.clamp((1 - (remainingWidth / panDirection)) * 250, 100, 350),
+                mode: Clutter.AnimationMode.EASE_OUT_QUAD,
+            });
+        }
+    }
+
+    _panCancel(gesture) {
+
+    }
+
+    _updateMessageDetailsForLockscreen(message) {
+        if (!this.isOnLockscreen)
+            return;
+
+        const show = this.source.policy.showInLockScreen;
+        const showDetails = this.source.policy.detailsInLockScreen ||
+            this.source.narrowestPrivacyScope === MessageTray.PrivacyScope.SYSTEM;
+
+        if (show)
+            message.show();
+        else
+            message.hide();
+
+        message.setShowDetails(showDetails);
     }
 });
 
@@ -1490,6 +1717,10 @@ export const MessageView = GObject.registerClass({
             'expanded-group', null, null,
             GObject.ParamFlags.READABLE,
             Clutter.Actor),
+        'is-on-lockscreen': GObject.ParamSpec.boolean(
+            'is-on-lockscreen', null, null,
+            GObject.ParamFlags.READWRITE | GObject.ParamFlags.CONSTRUCT_ONLY,
+            false),
     },
     Signals: {
         'message-focused': {param_types: [Message]},
@@ -1504,7 +1735,7 @@ export const MessageView = GObject.registerClass({
     _playerToMessage = new Map();
     _mediaSource = new Mpris.MprisSource();
 
-    constructor() {
+    constructor(params) {
         // Add an overlay that will be placed below the expanded group message
         // to block interaction with other messages.
         // Unfortunately there isn't a much better way to block
@@ -1521,6 +1752,7 @@ export const MessageView = GObject.registerClass({
             effect: new FadeEffect({name: 'highlight'}),
             x_expand: true,
             y_expand: true,
+            ...params,
         });
 
         this._overlay = overlay;
@@ -1813,7 +2045,8 @@ export const MessageView = GObject.registerClass({
     }
 
     _addNotificationSource(source) {
-        const group = new NotificationMessageGroup(source);
+        const group = new NotificationMessageGroup(source,
+            { isOnLockscreen: this.isOnLockscreen });
 
         this._notificationSourceToGroup.set(source, group);
 

@@ -9,30 +9,11 @@ import {Slider} from '../slider.js';
 
 const BRIGHTNESS_NAME = _('Brightness');
 
-class BrightnessSliderMenu extends PopupMenu.PopupMenuSection {
-    addSlider(scale) {
-        const text = new PopupMenu.PopupMenuItem(scale.name, {reactive: false});
-        this.addMenuItem(text);
+const BUS_NAME = 'org.gnome.Shell.SensorDaemon';
+const OBJECT_PATH = '/org/gnome/Shell/SensorDaemon';
 
-        const slider = new Slider(0);
-        slider.accessible_name = scale.name;
-
-        const sliderBin = new St.Bin({
-            style_class: 'slider-bin',
-            child: slider,
-            reactive: true,
-            can_focus: true,
-            x_expand: true,
-            y_align: Clutter.ActorAlign.CENTER,
-        });
-
-        const sliderMenuItem = new PopupMenu.PopupBaseMenuItem({reactive: false});
-        sliderMenuItem.add_child(sliderBin);
-        this.addMenuItem(sliderMenuItem);
-
-        return slider;
-    }
-}
+const BrightnessInterface = loadInterfaceXML('org.gnome.Shell.SensorDaemon');
+const BrightnessProxy = Gio.DBusProxy.makeProxyWrapper(BrightnessInterface);
 
 const BrightnessItem = GObject.registerClass(
 class BrightnessItem extends QuickSlider {
@@ -42,52 +23,35 @@ class BrightnessItem extends QuickSlider {
             menuButtonAccessibleName: _('Open brightness menu'),
         });
 
-        this.slider.accessible_name = BRIGHTNESS_NAME;
+        this._proxy = new BrightnessProxy(Gio.DBus.session, BUS_NAME, OBJECT_PATH,
+            (proxy, error) => {
+                if (error)
+                    console.error(error.message);
+                else
+                    this._proxy.connect('g-properties-changed', () => this._sync());
+                this._sync();
+            });
 
-        this.menu.setHeader('display-brightness-symbolic', BRIGHTNESS_NAME);
-        this._monitorBrightnessSection = new BrightnessSliderMenu();
-        this.menu.addMenuItem(this._monitorBrightnessSection);
+        this._sliderChangedId = this.slider.connect('notify::value',
+            this._sliderChanged.bind(this));
+        this.slider.accessible_name = _('Brightness');
+    }
 
-        this._manager = Main.brightnessManager;
-        this._manager.connectObject('changed',
-            this._sync.bind(this), this);
-        this._sync();
+    _sliderChanged() {
+        this._proxy.SetBacklightManuallyAsync(this.slider.value);
+    }
+
+    _changeSlider(value) {
+        this.slider.block_signal_handler(this._sliderChangedId);
+        this.slider.value = value;
+        this.slider.unblock_signal_handler(this._sliderChangedId);
     }
 
     _sync() {
-        const {globalScale} = this._manager;
-        this.set({
-            visible: globalScale,
-            menuEnabled: this._manager.scales.length > 1,
-        });
-
-        if (!this.visible)
-            return;
-
-        this._monitorBrightnessSection.removeAll();
-
-        this._connectSlider(this.slider, globalScale);
-        for (const scale of this._manager.scales) {
-            const slider = this._monitorBrightnessSection.addSlider(scale);
-            this._connectSlider(slider, scale);
-        }
-    }
-
-    _connectSlider(slider, scale) {
-        slider.disconnectObject(scale);
-        slider.connectObject('notify::value', () => {
-            if (slider._blockBrightnessAdjust)
-                return;
-            scale.value = slider.value;
-        }, scale);
-
-        const changeBrightness = () => {
-            slider._blockBrightnessAdjust = true;
-            slider.value = scale.value;
-            slider._blockBrightnessAdjust = false;
-        };
-        scale.connectObject('notify::value', changeBrightness, slider);
-        changeBrightness();
+        const brightness = this._proxy.BacklightBrightness;
+        this.visible = brightness >= 0;
+        if (this.visible)
+            this._changeSlider(brightness);
     }
 });
 

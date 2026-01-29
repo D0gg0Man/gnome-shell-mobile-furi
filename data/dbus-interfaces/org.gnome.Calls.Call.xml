@@ -1,0 +1,17 @@
+<node>
+  <interface name="org.gnome.Calls.Call">
+    <method name="Accept"/>
+    <method name="Hangup"/>
+    <method name="SendDtmf">
+      <arg name="Tone" type="s" direction="in"/>
+    </method>
+    <property name="Inbound" type="b" access="read"/>
+    <property name="State" type="u" access="read"/>
+    <property name="Id" type="s" access="read"/>
+    <property name="DisplayName" type="s" access="read"/>
+    <property name="ImagePath" type="s" access="read"/>
+    <property name="Protocol" type="s" access="read"/>
+    <property name="Encrypted" type="b" access="read"/>
+    <property name="CanDtmf" type="b" access="read"/>
+  </interface>
+</node>

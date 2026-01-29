@@ -44,7 +44,188 @@ export const BeginRequestType = {
     REUSE_USERNAME: 2,
 };
 
+export const PinUnlockKeyboard = GObject.registerClass({
+    Signals: {
+        'char': { param_types: [GObject.TYPE_STRING] },
+        'delete-last': {},
+        'delete-all': {},
+        'show-full-keyboard': {},
+    },
+}, class PinUnlockKeyboard extends St.Widget {
+    _init(gdmClient, mode) {
+        super._init({
+            style_class: 'pin-unlock-keyboard',
+        });
+
+        this.layout_manager = new Clutter.GridLayout({
+            orientation: Clutter.Orientation.HORIZONTAL,
+            column_homogeneous: true,
+            row_homogeneous: true,
+        });
+
+        this._createGrid();
+    }
+
+    _createGrid() {
+        let number = 1;
+        const buttons = [];
+
+        for (let row = 0; row < 4; row++) {
+            for (let col = 0; col < 3; col++) {
+                let label;
+
+                const button = new St.Button({
+                    style_class: 'pin-button-container',
+                    x_expand: true,
+                    y_expand: true,
+                });
+                buttons.push(button);
+
+                const isSpecialKey = number === 10 || number === 12;
+                const numericKeyval = number === 11 ? 0 : number;
+
+                if (isSpecialKey) {
+                    label = new St.Icon({
+                        x_align: Clutter.ActorAlign.CENTER,
+                        y_align: Clutter.ActorAlign.CENTER,
+                        icon_name: number === 10 ? 'input-keyboard-symbolic' : 'edit-clear-symbolic',
+                        style_class: 'pin-button icon',
+                    });
+
+                    if (number === 10) {
+                        button.connect('clicked',
+                            () => this.emit('show-full-keyboard'));
+                    } else {
+                        button.connect('clicked',
+                            () => this.emit('delete-last'));
+
+                        const longPressGesture = new Clutter.LongPressGesture();
+                        longPressGesture.connect('recognize',
+                            () => this.emit('delete-all'));
+
+                        button.add_action(longPressGesture);
+                    }
+                } else {
+                    label = new St.Label({
+                        x_align: Clutter.ActorAlign.CENTER,
+                        y_align: Clutter.ActorAlign.CENTER,
+                        text: `${numericKeyval}`,
+                        style_class: 'pin-button number',
+                    });
+
+                    label.clutter_text.x_align = Clutter.ActorAlign.CENTER;
+                    label.clutter_text.y_align = Clutter.ActorAlign.CENTER;
+
+                    button.connect('clicked',
+                        () => this.emit('char', `${numericKeyval}`));
+                }
+
+                button.child = label;
+
+                this.layout_manager.attach(button, col, row, 1, 1);
+
+                number++;
+            }
+        }
+
+        buttons.forEach(button => {
+            buttons.forEach(other => {
+                if (other === button)
+                    return;
+
+                button.get_click_gesture().can_not_cancel(other.get_click_gesture());
+                button.get_click_gesture().recognize_independently_from(other.get_click_gesture());
+            });
+        });
+    }
+});
+
+export const PinEntryIndicator = GObject.registerClass({
+}, class PinEntryIndicator extends St.BoxLayout {
+    _init(nDigits) {
+        super._init({
+            style_class: 'pin-entry-indicator',
+            vertical: false,
+        });
+
+        this._totalNDigits = nDigits;
+
+        for (let i = 0; i < nDigits; i++) {
+            const digitWidget = new St.Widget({
+                style_class: 'digit',
+            });
+
+            this.add_child(digitWidget);
+        }
+    }
+
+    setActiveDigits(nDigits) {
+        if (nDigits < this._totalNDigits)
+            this.setIsLoading(false);
+
+        for (let i = 0; i < this._totalNDigits; i++) {
+            const digit = this.get_child_at_index(i);
+
+            if (i < nDigits)
+                digit.add_style_class_name('filled');
+            else
+                digit.remove_style_class_name('filled');
+        }
+    }
+
+    setIsLoading(loading) {
+        if (!loading) {
+            if (this._loadingAnimation) {
+                GLib.source_remove(this._loadingAnimation);
+                delete this._loadingAnimation;
+            }
+
+            return;
+        }
+
+        const playAnimation = () => {
+            let delay = 0;
+            for (let i = 0; i < this._totalNDigits; i++) {
+                const digit = this.get_child_at_index(i);
+
+                digit.ease({
+                    delay,
+                    duration: 170,
+                    translation_y: -7,
+                    onStopped: () => {
+                        digit.ease({
+                            duration: 200,
+                            translation_y: 0,
+                            onStopped: () => {
+                                digit.translation_y = 0;
+                            },
+                        });
+                    },
+                });
+
+                delay += 80;
+            }
+        }
+
+        this._loadingAnimation = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 200, () => {
+            playAnimation();
+            this._loadingAnimation = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 1000, () => {
+                playAnimation();
+                return GLib.SOURCE_CONTINUE;
+            });
+
+            return GLib.SOURCE_REMOVE;
+        });
+    }
+});
+
 export const AuthPrompt = GObject.registerClass({
+    Properties: {
+        'user-info-visible': GObject.ParamSpec.boolean(
+            'user-info-visible', 'user-info-visible', 'user-info-visible',
+            GObject.ParamFlags.READWRITE,
+            true),
+    },
     Signals: {
         'cancelled': {},
         'failed': {},
@@ -68,6 +249,8 @@ export const AuthPrompt = GObject.registerClass({
         this._mode = mode;
         this._defaultButtonWellActor = null;
         this._cancelledRetries = 0;
+        this._userInfoVisible = true;
+        this._mayShowEntry = true;
 
         let reauthenticationOnly;
         if (this._mode === AuthPromptMode.UNLOCK_ONLY)
@@ -90,6 +273,7 @@ export const AuthPrompt = GObject.registerClass({
         this.connect('destroy', this._onDestroy.bind(this));
 
         this._userWell = new St.Bin({
+            visible: this._userInfoVisible,
             x_expand: true,
             y_expand: true,
         });
@@ -105,6 +289,7 @@ export const AuthPrompt = GObject.registerClass({
         this._capsLockWarningLabel = new ShellEntry.CapsLockWarning({
             x_expand: true,
             x_align: Clutter.ActorAlign.CENTER,
+            visible: false,
         });
         this.add_child(this._capsLockWarningLabel);
 
@@ -115,13 +300,12 @@ export const AuthPrompt = GObject.registerClass({
         this._message = new St.Label({
             opacity: 0,
             styleClass: 'login-dialog-message',
-            y_expand: true,
-            x_expand: true,
             y_align: Clutter.ActorAlign.START,
             x_align: Clutter.ActorAlign.CENTER,
+visible:false,
         });
         this._message.clutter_text.line_wrap = true;
-        this._message.clutter_text.ellipsize = Pango.EllipsizeMode.NONE;
+        this._message.clutter_text.ellipsize = Pango.EllipsizeMode.END;
         this.add_child(this._message);
     }
 
@@ -135,14 +319,6 @@ export const AuthPrompt = GObject.registerClass({
         this._userVerifier.destroy();
         this._userVerifier = null;
         this._entry = null;
-    }
-
-    on_key_press_event(event) {
-        if (event.get_key_symbol() === Clutter.KEY_Escape) {
-            this.cancel();
-            return Clutter.EVENT_STOP;
-        }
-        return Clutter.EVENT_PROPAGATE;
     }
 
     _initInputRow() {
@@ -205,7 +381,8 @@ export const AuthPrompt = GObject.registerClass({
 
         this._entry = this._passwordEntry;
         this._mainBox.add_child(this._entry);
-        this._entry.grab_key_focus();
+        if (this._entry.visible)
+            this._entry.grab_key_focus();
         this._inactiveEntry = this._textEntry;
 
         this._timedLoginIndicator = new St.Bin({
@@ -312,6 +489,7 @@ export const AuthPrompt = GObject.registerClass({
             this._entry.clutterText.set({text, cursorPosition, selectionBound});
         }
 
+        this._entry.visible = false;
         this._capsLockWarningLabel.visible = secret;
     }
 
@@ -393,26 +571,32 @@ export const AuthPrompt = GObject.registerClass({
                 wiggleParameters.duration * (wiggleParameters.wiggleCount + 2));
         }
 
-        this.setMessage(message, type, wiggleParameters);
+        // urgh.. even though this text comes from gdm, it seems there's no way to
+        // detect that it's *this* message particularly other than checking the string
+        // let's at least make the experience nice for english.
+        if (message !== 'Sorry, password authentication didn’t work. Please try again.')
+            this.setMessage(message, type, wiggleParameters);
         this.emit('prompted');
     }
 
     _onVerificationFailed(userVerifier, serviceName, canRetry) {
         const wasQueryingService = this._queryingService === serviceName;
-
-        if (wasQueryingService) {
+        if (wasQueryingService)
             this._queryingService = null;
-            this.clear();
-        }
+
+        if (!canRetry)
+            this.verificationStatus = AuthPromptStatus.VERIFICATION_FAILED;
+        else
+            this.verificationStatus = AuthPromptStatus.VERIFYING;
 
         this.updateSensitivity(canRetry);
         this.setActorInDefaultButtonWell(null);
 
-        if (!canRetry)
-            this.verificationStatus = AuthPromptStatus.VERIFICATION_FAILED;
-
-        if (wasQueryingService)
+        if (wasQueryingService) {
+            this.clear();
+            this.emit('failed');
             wiggle(this._entry);
+        }
     }
 
     _onVerificationComplete() {
@@ -501,6 +685,9 @@ export const AuthPrompt = GObject.registerClass({
     }
 
     clear() {
+        if (this.verificationStatus === AuthPromptStatus.VERIFICATION_IN_PROGRESS)
+            return;
+
         this._entry.text = '';
         this._inactiveEntry.text = '';
         this.stopSpinning();
@@ -512,8 +699,12 @@ export const AuthPrompt = GObject.registerClass({
         this._entry.hint_text = question;
 
         this._authList.hide();
-        this._entry.show();
-        this._entry.grab_key_focus();
+        this._entryShouldShow = true;
+
+        if (this._mayShowEntry) {
+            this._entry.show();
+            this._entry.grab_key_focus();
+        }
     }
 
     _fadeInChoiceList() {
@@ -538,7 +729,9 @@ export const AuthPrompt = GObject.registerClass({
             this._authList.addItem(key, text);
         }
 
+        this._entryShouldShow = false;
         this._entry.hide();
+        this.grab_key_focus();
         if (this._message.text === '')
             this._message.hide();
         this._fadeInChoiceList();
@@ -565,6 +758,7 @@ export const AuthPrompt = GObject.registerClass({
             opacity: 0,
             duration: MESSAGE_FADE_OUT_ANIMATION_TIME,
             mode: Clutter.AnimationMode.EASE_OUT_QUAD,
+            onStopped: () => this._message.hide(),
         });
     }
 
@@ -579,14 +773,46 @@ export const AuthPrompt = GObject.registerClass({
         else
             this._message.remove_style_class_name('login-dialog-message-hint');
 
-        this._message.show();
+        this._message.remove_all_transitions();
+
         if (message) {
-            this._message.remove_all_transitions();
+            this._message.show();
             this._message.text = message;
-            this._message.opacity = 255;
             this.get_accessible().emit('notification', message, Atk.Live.ASSERTIVE);
+
+            const {naturalHeightSet} = this._message;
+            this._message.natural_height_set = false;
+            let [, height] = this._message.get_preferred_height(-1);
+            this._message.natural_height_set = naturalHeightSet;
+
+            this._message.ease({
+                duration: 250,
+                height,
+                onComplete: () => {
+                    this._message.height = -1;
+                    this._message.ease({
+                        duration: 250,
+                        opacity: 255,
+                    });
+                },
+            });
         } else {
-            this._message.opacity = 0;
+            this._message.ease({
+                duration: 250,
+                opacity: 0,
+                onComplete: () => {
+                    this._message.ease({
+                        duration: 250,
+                        height: 0,
+                        onComplete: () => {
+                            this._message.hide();
+                        },
+                    });
+                },
+            });
+
+
+
         }
 
         wiggle(this._message, wiggleParameters);
@@ -606,7 +832,8 @@ export const AuthPrompt = GObject.registerClass({
         authWidget.reactive = sensitive;
 
         if (sensitive) {
-            authWidget.grab_key_focus();
+            if (this._entry.visible)
+                authWidget.grab_key_focus();
         } else {
             this.grab_key_focus();
 
@@ -684,11 +911,20 @@ export const AuthPrompt = GObject.registerClass({
     }
 
     addCharacter(unichar) {
-        if (!this._entry.visible)
+        if (!this._entry.reactive)
             return;
 
-        this._entry.grab_key_focus();
+        if (this._entry.visible)
+            this._entry.grab_key_focus();
         this._entry.clutter_text.insert_unichar(unichar);
+    }
+
+    deleteLastCharacter() {
+        if (!this._entry.reactive)
+            return;
+
+        const len = this._entry.clutter_text.buffer.get_length();
+        this._entry.clutter_text.delete_text(len - 1, len);
     }
 
     begin(params) {
@@ -734,5 +970,35 @@ export const AuthPrompt = GObject.registerClass({
         }
 
         this.reset();
+    }
+
+    set user_info_visible(visible) {
+        if (this._userInfoVisible === visible)
+            return;
+
+        this._userInfoVisible = visible;
+        this._userWell.visible = this._userInfoVisible;
+
+        this.notify('user-info-visible');
+    }
+
+    set mayShowEntry(mayShow) {
+        this._mayShowEntry = mayShow;
+
+        if (mayShow && this._entryShouldShow) {
+            this._spinner.show();
+            this._entry.show();
+            if (!this._hasCancelButton)
+                this.cancelButton.show();
+            this._entry.grab_key_focus();
+        }
+
+        if (!mayShow) {
+            this._entry.hide();
+            this._spinner.hide();
+            if (!this._hasCancelButton)
+                this.cancelButton.hide();
+            this.grab_key_focus();
+        }
     }
 });

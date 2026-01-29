@@ -1,6 +1,6 @@
 $_gdm_bg: $system_base_color;
 $_gdm_fg: $system_fg_color;
-$_gdm_dialog_width: 25em;
+$_gdm_dialog_width: 21em;
 
 // common style for login and lockscreen
 .login-dialog,
@@ -15,6 +15,21 @@ $_gdm_dialog_width: 25em;
   .login-dialog-prompt-layout {
     width: $_gdm_dialog_width;
     spacing: $base_padding * 1.5;
+  }
+}
+
+
+
+#uiGroup.mobile {
+  .login-dialog-prompt-layout {
+    width: 22em;
+    spacing: 0px;
+    margin-bottom: 10px;
+
+    .login-dialog-prompt-entry {
+      margin-top: 14px;
+      margin-bottom: 10px;
+    }
   }
 }
 
@@ -42,6 +57,10 @@ $_gdm_dialog_width: 25em;
     @extend %system_button;
 
     padding: to_em(16px);
+  }
+
+  &.switch-user-button {
+    margin: 24px;
   }
 
   &.cancel-button {
@@ -236,17 +255,17 @@ $_gdm_dialog_width: 25em;
 
 // Clock
 .unlock-dialog-clock {
+  margin-top: 56px;
   color: $_gdm_fg;
-  spacing: 2em;
 
   .unlock-dialog-clock-time {
     @extend %numeric;
-    @include fontsize(72pt);
+    @include fontsize(56pt);
     font-weight: 800;
   }
 
   .unlock-dialog-clock-date {
-    @extend %title_1;
+    @extend %title_2;
     font-weight: 400;
   }
 
@@ -258,69 +277,25 @@ $_gdm_dialog_width: 25em;
   }
 }
 
-// Notifications
-#unlockDialogNotifications {
-  > .vhandle, > .hhandle {
-    background-color: transparentize($bg_color,0.7);
-    &:hover, &:focus { background-color: transparentize($bg_color,0.5); }
-    &:active { background-color: st-transparentize(-st-accent-color,0.5); }
-  }
-}
-
-.unlock-dialog-notifications-container {
-  margin: $base_margin * 3;
-  spacing: $base_padding;
-  width: $_gdm_dialog_width;
-  background-color: transparent;
-
-  .summary-notification-stack-scrollview {
-    padding-top: 0;
-    padding-bottom: 0;
-  }
-
-  .message,
-  .unlock-dialog-notification-source {
-    padding: $base_margin * 3 $base_margin * 4;
-    border: none;
-    background-color: transparentize($_gdm_fg,0.9);
-    color: $_gdm_fg;
-    border-radius: $modal_radius;
-
-    &.critical { background-color: transparentize($_gdm_fg,0.8) }
-    &:active { background-color: transparentize($_gdm_fg,0.9); }
-
-    & StButton {
-         @extend %lockscreen_button;
-         background-color: transparent;
-         &:insensitive { background-color: transparent; opacity: 0.5; }
-    }
-    .message-header {
-        color: $_gdm_fg;
-    }
-  }
-}
-
-.unlock-dialog-notification-icon {
-  icon-size: $large_icon_size;
-}
-
-.unlock-dialog-notification-label {
-  padding-left: $base_padding * 2;
-  padding-right: 0;
-  &:rtl { padding-right: $base_padding * 2; padding-left: 0; }
-}
-
-.unlock-dialog-notification-count-text {
-  font-weight: bold;
-  padding: 0 $base_padding * 2;
-  color: $_gdm_fg;
-  background-color: transparentize($_gdm_fg, .9);
-  border-radius: $forced_circular_radius;
-}
-
-
 .login-dialog,
 .unlock-dialog {
+
+// Notifications
+.message-list {
+  margin-top: 32px;
+
+  .message {
+    background-color: if($variant == 'light', $card_bg_color, lighten($card_bg_color, 10%));
+
+    &:second-in-stack {
+      background-color: if($variant == 'light', $card_bg_color, lighten($card_bg_color, 5%));
+    }
+
+    &:lower-in-stack {
+      background-color: if($variant == 'light', darken($card_bg_color, 4%), darken($card_bg_color, 1%));
+    }
+  }
+}
 
   // User Widget
   .user-widget {
@@ -368,4 +343,14 @@ $_gdm_dialog_width: 25em;
       }
     }
   }
+}
+
+.prompt-box {
+  background-color: #191919;
+  border-radius: 18px 18px 0px 0px;
+}
+
+.unlock-dialog-button-row {
+  margin-top: 12px;
+  margin-bottom: 12px;
 }

@@ -529,8 +529,8 @@ export const ConflictingSessionDialog = GObject.registerClass({
 
 export const LoginDialog = GObject.registerClass({
     Signals: {
-        'failed': {},
         'wake-up-screen': {},
+        'show-emergency-calls': {},
     },
 }, class LoginDialog extends St.Widget {
     _init(parentActor) {
@@ -1581,5 +1581,8 @@ export const LoginDialog = GObject.registerClass({
 
     finish(onComplete) {
         this._authPrompt.finish(onComplete);
+    }
+
+    cancelUnlock() {
     }
 });

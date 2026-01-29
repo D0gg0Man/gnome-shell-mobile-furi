@@ -12,5 +12,10 @@
     <method name="SetLockedHint">
       <arg type="b" direction="in"/>
     </method>
+    <method name="SetBrightness">
+      <arg type="s" direction="in"/>
+      <arg type="s" direction="in"/>
+      <arg type="u" direction="in"/>
+    </method>
   </interface>
 </node>

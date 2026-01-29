@@ -1,4 +1,5 @@
 import AccountsService from 'gi://AccountsService';
+import Cogl from 'gi://Cogl';
 import Clutter from 'gi://Clutter';
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
@@ -12,6 +13,7 @@ import * as Signals from '../misc/signals.js';
 import * as GnomeSession from '../misc/gnomeSession.js';
 import * as OVirt from '../gdm/oVirt.js';
 import * as LoginManager from '../misc/loginManager.js';
+import * as LayoutManager from './layout.js';
 import * as Lightbox from './lightbox.js';
 import * as Main from './main.js';
 import * as Overview from './overview.js';
@@ -30,14 +32,8 @@ const DISABLE_LOCK_KEY = 'disable-lock-screen';
 
 const LOCKED_STATE_STR = 'screenShield.locked';
 
-// ScreenShield animation time
-// - STANDARD_FADE_TIME is used when the session goes idle
-// - MANUAL_FADE_TIME is used for lowering the shield when asked by the user,
-//   or when cancelling the dialog
-// - CURTAIN_SLIDE_TIME is used when raising the shield before unlocking
-const STANDARD_FADE_TIME = 10000;
-const MANUAL_FADE_TIME = 300;
-const CURTAIN_SLIDE_TIME = 300;
+const USER_IDLE_FADE_OUT_TIME_FROM_SESSION = 10000;
+const SHIELD_SLIDE_UP_TIME = 300;
 
 /**
  * If you are setting org.gnome.desktop.session.idle-delay directly in dconf,
@@ -52,6 +48,8 @@ export class ScreenShield extends Signals.EventEmitter {
         super();
 
         this.actor = Main.layoutManager.screenShieldGroup;
+        this.actor.reactive = true;
+        this.actor.style="background-color: #191919;";
 
         this._lockScreenState = MessageTray.State.HIDDEN;
         this._lockScreenGroup = new St.Widget({
@@ -73,19 +71,6 @@ export class ScreenShield extends Signals.EventEmitter {
         });
 
         this.actor.add_child(this._lockScreenGroup);
-        this.actor.add_child(this._lockDialogGroup);
-
-        this._presence = new GnomeSession.Presence((proxy, error) => {
-            if (error) {
-                logError(error, 'Error while reading gnome-session presence');
-                return;
-            }
-
-            this._onStatusChanged(proxy.status);
-        });
-        this._presence.connectSignal('StatusChanged', (proxy, senderName, [status]) => {
-            this._onStatusChanged(status);
-        });
 
         this._screenSaverDBus = new ShellDBus.ScreenSaverDBus(this);
 
@@ -100,46 +85,164 @@ export class ScreenShield extends Signals.EventEmitter {
         this.addCredentialManager(OVirt.SERVICE_NAME, OVirt.getOVirtCredentialsManager());
 
         this._loginManager = LoginManager.getLoginManager();
-        this._loginManager.connect('prepare-for-sleep',
-            this._prepareForSleep.bind(this));
 
         this._loginSession = null;
         this._getLoginSession();
 
         this._settings = new Gio.Settings({schema_id: SCREENSAVER_SCHEMA});
-        this._settings.connect(`changed::${LOCK_ENABLED_KEY}`, this._syncInhibitor.bind(this));
 
         this._lockSettings = new Gio.Settings({schema_id: LOCKDOWN_SCHEMA});
-        this._lockSettings.connect(`changed::${DISABLE_LOCK_KEY}`, this._syncInhibitor.bind(this));
 
         this._isModal = false;
         this._isGreeter = false;
         this._isActive = false;
         this._isLocked = false;
-        this._inUnlockAnimation = false;
-        this._inhibited = false;
         this._activationTime = 0;
-        this._becameActiveId = 0;
-        this._lockTimeoutId = 0;
 
-        // The "long" lightbox is used for the longer (20 seconds) fade from session
-        // to idle status, the "short" is used for quickly fading to black when locking
-        // manually
-        this._longLightbox = new Lightbox.Lightbox(Main.uiGroup, {
-            inhibitEvents: true,
-            fadeFactor: 1,
+        this._windowTracker = Shell.WindowTracker.get_default();
+        this._windowTracker.connect('tracked-windows-changed', this._appStateChanged.bind(this));
+
+        global.display.connect('window-created', () => GLib.idle_add(0, () => {
+            this._appStateChanged();
+
+            return GLib.SOURCE_REMOVE;
+        }));
+
+        this._lockscreenOverlayStack = [];
+        this._lockscreenOverlayGroup = new Clutter.Actor({
+
         });
-        this._longLightbox.connect('notify::active', this._onLongLightbox.bind(this));
-        this._shortLightbox = new Lightbox.Lightbox(Main.uiGroup, {
-            inhibitEvents: true,
-            fadeFactor: 1,
+        this._lockscreenOverlayGroup.add_constraint(new LayoutManager.MonitorConstraint({
+            primary: true,
+            work_area: true,
+        }));
+        this._lockDialogGroup.connect('notify::translation-x', () => {
+            this._lockscreenOverlayGroup.translation_x = this._lockDialogGroup.translation_x + Main.layoutManager.primaryMonitor.width;
         });
-        this._shortLightbox.connect('notify::active', this._onShortLightbox.bind(this));
+        this._lockscreenOverlayGroup.translation_x = this._lockDialogGroup.translation_x + Main.layoutManager.primaryMonitor.width;
 
-        this.idleMonitor = global.backend.get_core_idle_monitor();
-        this._cursorTracker = global.backend.get_cursor_tracker();
+        this.actor.add_child(this._lockscreenOverlayGroup);
+        this.actor.add_child(this._lockDialogGroup);
 
-        this._syncInhibitor();
+        this._showingOverlayGroup = false;
+
+        this._panGesture = new Clutter.PanGesture({
+            pan_axis: Clutter.PanAxis.X,
+            max_n_points: 1,
+            name: 'lockscreen window pan gesture',
+        });
+        this._panGesture.connect('may-recognize', this._panMayRecognize.bind(this));
+        this._panGesture.connect('recognize', this._panBegin.bind(this));
+        this._panGesture.connect('pan-update', this._panUpdate.bind(this));
+        this._panGesture.connect('end', this._panEnd.bind(this));
+        this._panGesture.connect('cancel', this._panCancel.bind(this));
+        this.actor.add_action(this._panGesture);
+
+        Main.wm.addKeybinding(
+            'power-button',
+            new Gio.Settings({schema_id: 'org.gnome.shell.keybindings'}),
+            Meta.KeyBindingFlags.BINDING_BUILTIN |
+            Meta.KeyBindingFlags.BINDING_NON_MASKABLE |
+            Meta.KeyBindingFlags.TRIGGER_RELEASE,
+            Shell.ActionMode.ALL,
+            this._handlePowerButtonEvent.bind(this),
+        );
+    }
+
+    _handlePowerButtonEvent(display, window, event, binding) {
+        log('_powerButtonEvent', display, window, event, binding)
+
+        if (event.get_flags() !== Clutter.EventFlags.NONE)
+            return;
+
+        const type = event.type();
+        if (type !== Clutter.EventType.KEY_PRESS && type !== Clutter.EventType.KEY_RELEASE)
+            return;
+
+        Main.powerManager.powerButtonEvent(event);
+    }
+
+    _panMayRecognize(gesture) {
+        if (this._showingOverlayGroup) {
+            const beginX = gesture.get_begin_centroid().x;
+            return beginX < Main.layoutManager.primaryMonitor.x + 30;
+        } else {
+            if (this._lockscreenOverlayStack.length === 0)
+                return false;
+
+//            this._prepareLockscreenOverlay();
+            return this._lockscreenOverlayStack[this._lockscreenOverlayStack.length - 1].activeData != undefined;
+        }
+
+        return true;
+    }
+
+    _panBegin(gesture) {
+        this._panWidth = Main.layoutManager.primaryMonitor.width;
+    }
+
+    _panUpdate(gesture) {
+        const [latestDeltaVec] = gesture.get_delta();
+
+        this._lockDialogGroup.translation_x += latestDeltaVec.get_x();
+        if (this._lockDialogGroup.translation_x > 0)
+            this._lockDialogGroup.translation_x = 0;
+    }
+
+    _panEnd(gesture) {
+        const velocityX = gesture.get_velocity().get_x();
+
+        if (this._showingOverlayGroup) {
+            const remainingWidth = this._panWidth - (this._panWidth + this._lockDialogGroup.translation_x);
+            const gestureSuccess =
+                velocityX > 0.9 || (remainingWidth < this._panWidth * 0.75 && velocityX >= 0);
+
+            if (gestureSuccess) {
+                this._lockDialogGroup.ease({
+                    translation_x: 0,
+                    duration: Math.clamp(remainingWidth / Math.abs(velocityX), 160, 450),
+                    mode: Clutter.AnimationMode.EASE_OUT_EXPO,
+                    onComplete: () => {
+                        this._showingOverlayGroup = false;
+//                        overlay.emit_closed();
+                    },
+                });
+            } else {
+                this._lockDialogGroup.ease({
+                    translation_x: -this._panWidth,
+                    duration: Math.clamp((this._panWidth - remainingWidth) / Math.abs(velocityX), 100, 250),
+                    mode: Clutter.AnimationMode.EASE_OUT_QUINT,
+                });
+            }
+        } else {
+            const remainingWidth = this._panWidth + this._lockDialogGroup.translation_x;
+            const gestureSuccess =
+                velocityX < -0.9 || (remainingWidth < this._panWidth * 0.75 && velocityX <= 0);
+
+            if (gestureSuccess) {
+                this._lockDialogGroup.ease({
+                    translation_x: -this._panWidth,
+                    duration: Math.clamp(remainingWidth / Math.abs(velocityX), 160, 450),
+                    mode: Clutter.AnimationMode.EASE_OUT_EXPO,
+                    onComplete: () => {
+                        this._showingOverlayGroup = true;
+                    },
+                });
+            } else {
+                this._lockDialogGroup.ease({
+                    translation_x: 0,
+                    duration: Math.clamp((this._panWidth - remainingWidth) / Math.abs(velocityX), 100, 250),
+                    mode: Clutter.AnimationMode.EASE_OUT_QUINT,
+                });
+            }
+        }
+    }
+
+    _panCancel(gesture) {
+        if (this._showingOverlayGroup)
+            this._lockDialogGroup.translation_x = -this._panWidth;
+        else
+            this._lockDialogGroup.translation_x = 0;
     }
 
     async _getLoginSession() {
@@ -148,9 +251,220 @@ export class ScreenShield extends Signals.EventEmitter {
             () => this.lock(false));
         this._loginSession.connectSignal('Unlock',
             () => this.deactivate(false));
-        this._loginSession.connect('g-properties-changed',
-            () => this._syncInhibitor());
-        this._syncInhibitor();
+    }
+
+    _showSurfaceOverlayView(show, animate = true) {
+        this._lockDialogGroup.ease({
+            translation_x: show ? -Main.layoutManager.primaryMonitor.width : 0,
+            duration: animate ? 350 : 0,
+            mode: Clutter.AnimationMode.EASE_OUT_EXPO,
+            onComplete: () => {
+                this._showingOverlayGroup = show;
+            },
+        });
+    }
+
+    _lockscreenOverlayCreated(overlay) {
+        this._lockscreenOverlayStack.push(overlay);
+
+        overlay.surface.connect('destroy', () => {
+log("SURFACEOVERLAY: destroyyyyyy");
+            if (overlay.activeData) {
+                // let's not reparent during destroy
+                delete overlay.activeData;
+
+                //this._deactivateLockscreenOverlay(overlay);
+            }
+
+            this._lockscreenOverlayStack.splice(this._lockscreenOverlayStack.indexOf(overlay), 1);
+
+            if (this._showingOverlayGroup)
+                this._showSurfaceOverlayView(false);
+        });
+
+/*
+        overlay.connect('disallowed', () => {
+            if (overlay.activeData)
+                this._deactivateLockscreenOverlay(overlay);
+
+            this._lockscreenOverlayStack.splice(this._lockscreenOverlayStack.indexOf(overlay), 1);
+
+            if (this._showingOverlayGroup) {
+                this._lockDialogGroup.ease({
+                    translation_x: 0,
+                    duration: 350,
+                    mode: Clutter.AnimationMode.EASE_OUT_EXPO,
+                    onComplete: () => {
+                        this._showingOverlayGroup = false;
+                    },
+                });
+            }
+        });
+*/
+        log("OVERLAY created: locked " + this._isLocked + " screen off " + (this._becameActiveId !== 0));
+
+        if (!this._isLocked)
+            return;
+
+        // If we're locked and the screen is off, wake the screen. This will
+        // in turn show the lockscreen overlay.
+        if (this._becameActiveId !== 0) {
+            this._prepareLockscreenOverlay().catch()
+                .then(() => this._showSurfaceOverlayView(true, false))
+                .finally(() => this._wakeUpScreen());
+        } else
+            this._prepareLockscreenOverlay().catch().then(() => this._showSurfaceOverlayView(true));
+    }
+
+    _removeLockscreenOverlay(surface) {
+
+    }
+
+    _reparentToOriginalParent(overlay) {
+        if (!overlay.activeData.origParent)
+            throw new Error('This is an important one');
+
+        this._lockscreenOverlayGroup.remove_child(overlay.surface);
+        overlay.activeData.origParent.add_child(overlay.surface);
+
+        overlay.activeData.origParent.disconnect(overlay.activeData.origParentDestroyId);
+    }
+
+    _reparentToOverlayGroup(overlay) {
+        if (overlay.activeData.origParent)
+            throw new Error('This is an important one');
+
+        if (overlay.surface.get_parent() === this._lockscreenOverlayGroup)
+            throw new Error('This is an important one');
+
+        overlay.activeData.origParent = overlay.surface.get_parent();
+        overlay.activeData.origParentDestroyId = overlay.activeData.origParent.connect('destroy', () => {
+            log("SURFACEOVERLAY: orig parent destroyyyyyy");
+            overlay.surface.destroy();
+        });
+
+        overlay.activeData.origParent.remove_child(overlay.surface);
+        this._lockscreenOverlayGroup.add_child(overlay.surface);
+    }
+
+    _prepareLockscreenOverlay() {
+log("LOCKSCREENOVERLAY: preparing length " + this._lockscreenOverlayStack.length);
+        if (this._lockscreenOverlayStack.length === 0)
+            return Promise.reject();
+
+        const overlay = this._lockscreenOverlayStack[this._lockscreenOverlayStack.length - 1];
+        if (overlay.activeData)
+            return Promise.resolve();
+
+        return new Promise((resolve, reject) => {
+            let disallowedId, readyId;
+/*
+            disallowedId = overlay.connect('disallowed', () => {
+                overlay.disconnect(readyId);
+                overlay.disconnect(disallowedId);
+
+                reject();
+            });
+
+            readyId = overlay.connect('ready', () => {
+                overlay.disconnect(readyId);
+                overlay.disconnect(disallowedId);
+
+                const reqAuthId = overlay.connect('request-authenticate', () => {
+                    this._showSurfaceOverlayView(false);
+                });
+
+                const reqCloseId = overlay.connect('close', async () => {
+                    await this._showSurfaceOverlayView(false);
+                    overlay.emit_closed();
+                });
+*/
+
+                overlay.activeData = {
+                    connections: [/*reqAuthId, reqCloseId*/],
+                }
+                this._reparentToOverlayGroup(overlay);
+
+                global.display.set_forward_to_wayland_while_grabbed(true);
+
+              /*   const vert = overlay.window.can_maximize_vertically();
+                const horiz = overlay.window.can_maximize_horizontally();
+                if (vert && horiz)
+                    overlay.window.maximize(Meta.MaximizeFlags.BOTH);
+                else if (vert) {
+                    overlay.window.maximize(Meta.MaximizeFlags.VERTICAL);
+                } else if (horiz) {
+                    overlay.window.maximize(Meta.MaximizeFlags.HORIZONTAL);
+                }
+*/
+                // Don't ask me why, but this is the only thing that works to make the window appear focused lol
+                GLib.timeout_add(0, 400, () => {
+           /*         this._dialog._promptBox.visible = false;
+                    this._dialog._promptBox.visible = true;
+                    this._dialog._notificationsBox.visible = false;
+                    this._dialog._notificationsBox.visible = true;
+*/
+                    overlay.window.get_workspace().activate_with_focus(overlay.window, global.get_current_time());
+
+                    return GLib.SOURCE_REMOVE;
+                });
+
+                resolve();
+//            });
+
+//            overlay.emit_begin_show('left');
+        });
+    }
+
+    _deactivateLockscreenOverlay(overlay) {
+        if (!overlay.activeData)
+            throw new Error('This is an important one');
+
+//        overlay.activeData.connections.forEach(c => overlay.disconnect(c));
+        this._reparentToOriginalParent(overlay);
+
+        global.display.set_forward_to_wayland_while_grabbed(false);
+
+        delete overlay.activeData;
+    }
+
+    _appStateChanged() {
+        const windows = global.get_window_actors();
+
+        for (const window of windows) {
+            const app = this._windowTracker.get_window_app(window.metaWindow);
+
+            if (app && (app.id === 'org.gnome.Calls.desktop' || app.id === 'org.gnome.Snapshot.desktop' || app.id === 'org.gnome.Snapshot.Devel.desktop')) {
+                const window = app.get_windows()[0];
+                if (!window)
+                    return;
+
+                const actor = window.get_compositor_private();
+                if (!actor)
+                    return;
+
+                const surfaceContainer = actor.get_first_child();
+//                const surfaceContainer = actor;
+                if (!surfaceContainer)
+                    return;
+                log("SURFACEOVERLAY: putting a calls window on top of unlockDialog, container: " + surfaceContainer);
+
+                if (this._lockscreenOverlayStack.findIndex((o) => o.surface === surfaceContainer) !== -1)
+                    return;
+
+                const fakeOverlay = {
+                    surface: surfaceContainer,
+                    window,
+                }
+
+                this._lockscreenOverlayCreated(fakeOverlay);
+            }
+        }
+    }
+
+    _showEmergencyCalls() {
+        if (this._lockscreenOverlayStack.length > 0)
+            this._prepareLockscreenOverlay().catch().then(() => this._showSurfaceOverlayView(true));
     }
 
     _setActive(active) {
@@ -159,8 +473,6 @@ export class ScreenShield extends Signals.EventEmitter {
 
         if (prevIsActive !== this._isActive)
             this.emit('active-changed');
-
-        this._syncInhibitor();
     }
 
     _setLocked(locked) {
@@ -183,13 +495,6 @@ export class ScreenShield extends Signals.EventEmitter {
         }
     }
 
-    _maybeCancelDialog() {
-        if (!this._dialog)
-            return;
-
-        this._dialog.cancel();
-    }
-
     _becomeModal() {
         if (this._isModal)
             return true;
@@ -206,138 +511,6 @@ export class ScreenShield extends Signals.EventEmitter {
         return this._isModal;
     }
 
-    async _syncInhibitor() {
-        const lockEnabled = this._settings.get_boolean(LOCK_ENABLED_KEY);
-        const lockLocked = this._lockSettings.get_boolean(DISABLE_LOCK_KEY);
-        const inhibit = !!this._loginSession && this._loginSession.Active &&
-                         !this._isActive && lockEnabled && !lockLocked &&
-                         !!Main.sessionMode.unlockDialog;
-
-        if (inhibit === this._inhibited)
-            return;
-
-        this._inhibited = inhibit;
-
-        this._inhibitCancellable?.cancel();
-        this._inhibitCancellable = new Gio.Cancellable();
-
-        if (inhibit) {
-            try {
-                this._inhibitor = await this._loginManager.inhibit(
-                    _('GNOME needs to lock the screen'),
-                    this._inhibitCancellable);
-            } catch (e) {
-                if (!e.matches(Gio.IOErrorEnum, Gio.IOErrorEnum.CANCELLED))
-                    log('Failed to inhibit suspend: %s'.format(e.message));
-            }
-        } else {
-            this._inhibitor?.close(null);
-            this._inhibitor = null;
-        }
-    }
-
-    _prepareForSleep(loginManager, aboutToSuspend) {
-        if (aboutToSuspend) {
-            this._dialog?.cancel();
-            if (this._settings.get_boolean(LOCK_ENABLED_KEY))
-                this.lock(true);
-        } else {
-            this._wakeUpScreen();
-        }
-    }
-
-    _onStatusChanged(status) {
-        if (status !== GnomeSession.PresenceStatus.IDLE)
-            return;
-
-        this._maybeCancelDialog();
-
-        if (this._longLightbox.visible) {
-            // We're in the process of showing.
-            return;
-        }
-
-        if (!this._becomeModal()) {
-            // We could not become modal, so we can't activate the
-            // screenshield. The user is probably very upset at this
-            // point, but any application using global grabs is broken
-            // Just tell them to stop using this app
-            //
-            // XXX: another option is to kick the user into the gdm login
-            // screen, where we're not affected by grabs
-            Main.notifyError(
-                _('Unable to lock'),
-                _('Lock was blocked by an app'));
-            return;
-        }
-
-        if (this._activationTime === 0)
-            this._activationTime = GLib.get_monotonic_time();
-
-        let shouldLock = this._settings.get_boolean(LOCK_ENABLED_KEY) && !this._isLocked;
-
-        if (shouldLock) {
-            let lockTimeout = Math.max(
-                adjustAnimationTime(STANDARD_FADE_TIME),
-                this._settings.get_uint(LOCK_DELAY_KEY) * 1000);
-            this._lockTimeoutId = GLib.timeout_add(
-                GLib.PRIORITY_DEFAULT,
-                lockTimeout,
-                () => {
-                    this._lockTimeoutId = 0;
-                    this.lock(false);
-                    return GLib.SOURCE_REMOVE;
-                });
-            GLib.Source.set_name_by_id(this._lockTimeoutId, '[gnome-shell] this.lock');
-        }
-
-        this._activateFade(this._longLightbox, STANDARD_FADE_TIME);
-    }
-
-    _activateFade(lightbox, time) {
-        Main.uiGroup.set_child_above_sibling(lightbox, null);
-        lightbox.lightOn(time);
-
-        if (this._becameActiveId === 0)
-            this._becameActiveId = this.idleMonitor.add_user_active_watch(this._onUserBecameActive.bind(this));
-    }
-
-    _onUserBecameActive() {
-        // This function gets called here when the user becomes active
-        // after we activated a lightbox
-        // There are two possibilities here:
-        // - we're called when already locked; we just go back to the lock screen curtain
-        // - we're called because the session is IDLE but before the lightbox
-        //   is fully shown; at this point isActive is false, so we just hide
-        //   the lightbox, reset the activationTime and go back to the unlocked
-        //   desktop
-        //   using deactivate() is a little of overkill, but it ensures we
-        //   don't forget of some bit like modal, DBus properties or idle watches
-        //
-        // Note: if the (long) lightbox is shown then we're necessarily
-        // active, because we call activate() without animation.
-
-        this.idleMonitor.remove_watch(this._becameActiveId);
-        this._becameActiveId = 0;
-
-        if (this._isLocked) {
-            this._longLightbox.lightOff();
-            this._shortLightbox.lightOff();
-        } else {
-            this.deactivate(false);
-        }
-    }
-
-    _onLongLightbox(lightBox) {
-        if (lightBox.active)
-            this.activate(false);
-    }
-
-    _onShortLightbox(lightBox) {
-        if (lightBox.active)
-            this._setActive(true);
-    }
-
     showDialog() {
         if (!this._becomeModal()) {
             // In the login screen, this is a hard error. Fail-whale
@@ -351,77 +524,6 @@ export class ScreenShield extends Signals.EventEmitter {
         this._isGreeter = Main.sessionMode.isGreeter;
         this._isLocked = true;
         this._ensureUnlockDialog(true);
-    }
-
-    _hideLockScreenComplete() {
-        this._lockScreenState = MessageTray.State.HIDDEN;
-        this._lockScreenGroup.hide();
-
-        if (this._dialog) {
-            this._dialog.grab_key_focus();
-            this._dialog.navigate_focus(null, St.DirectionType.TAB_FORWARD, false);
-        }
-    }
-
-    _showPointer() {
-        if (this._cursorVisibleInhibited) {
-            const seat = global.stage.context.get_backend().get_default_seat();
-            this._cursorTracker.uninhibit_cursor_visibility();
-            seat.uninhibit_unfocus();
-            this._cursorVisibleInhibited = false;
-        }
-
-        if (this._motionId) {
-            this._lockDialogGroup.disconnect(this._motionId);
-            this._motionId = 0;
-        }
-    }
-
-    _hidePointer() {
-        if (!this._cursorVisibleInhibited) {
-            const seat = global.stage.context.get_backend().get_default_seat();
-            seat.inhibit_unfocus();
-            this._cursorTracker.inhibit_cursor_visibility();
-            this._cursorVisibleInhibited = true;
-        }
-    }
-
-    _hidePointerUntilMotion() {
-        const eventActor = this._lockDialogGroup;
-        this._motionId = eventActor.connect('captured-event', (_, event) => {
-            if (event.type() === Clutter.EventType.MOTION)
-                this._showPointer();
-
-            return Clutter.EVENT_PROPAGATE;
-        });
-        this._hidePointer();
-    }
-
-    _hideLockScreen(animate) {
-        if (this._lockScreenState === MessageTray.State.HIDDEN)
-            return;
-
-        this._lockScreenState = MessageTray.State.HIDING;
-
-        this._lockDialogGroup.remove_all_transitions();
-
-        // Animate the lock screen out of screen
-        // if velocity is not specified (i.e. we come here from pressing ESC),
-        // use the same speed regardless of original position
-        // if velocity is specified, it's in pixels per milliseconds
-        const height = global.stage.height;
-        const delta = height + this._lockDialogGroup.translation_y;
-        const velocity = height / CURTAIN_SLIDE_TIME;
-        const duration = animate ? delta / velocity : 0;
-
-        this._lockDialogGroup.ease({
-            translation_y: -height,
-            duration,
-            mode: Clutter.AnimationMode.EASE_OUT_QUAD,
-            onComplete: () => this._hideLockScreenComplete(),
-        });
-
-        this._showPointer();
     }
 
     _ensureUnlockDialog(allowCancel) {
@@ -443,7 +545,9 @@ export class ScreenShield extends Signals.EventEmitter {
                 return false;
             }
 
-            this._dialog.connect('failed', this._onUnlockFailed.bind(this));
+            this._dialog.connect('show-emergency-calls',
+                this._showEmergencyCalls.bind(this));
+
             this._wakeUpScreenId = this._dialog.connect(
                 'wake-up-screen', this._wakeUpScreen.bind(this));
         }
@@ -456,75 +560,32 @@ export class ScreenShield extends Signals.EventEmitter {
         return true;
     }
 
-    _onUnlockFailed() {
-        this._resetLockScreen({
-            animateLockScreen: true,
-            fadeToBlack: false,
-        });
+    cancelUnlock() {
+        this._dialog?.cancelUnlock();
     }
 
-    _resetLockScreen(params) {
-        // Don't reset the lock screen unless it is completely hidden
-        // This prevents the shield going down if the lock-delay timeout
-        // fires while the user is dragging (which has the potential
-        // to confuse our state)
-        if (this._lockScreenState !== MessageTray.State.HIDDEN)
-            return;
-
-        this._lockScreenGroup.show();
-        this._lockScreenState = MessageTray.State.SHOWING;
-
-        let fadeToBlack = params.fadeToBlack;
-
-        if (params.animateLockScreen) {
-            this._lockDialogGroup.translation_y = -global.screen_height;
-            this._lockDialogGroup.remove_all_transitions();
-            this._lockDialogGroup.ease({
-                translation_y: 0,
-                duration: Overview.ANIMATION_TIME,
-                mode: Clutter.AnimationMode.EASE_OUT_QUAD,
-                onComplete: () => {
-                    this._lockScreenShown({fadeToBlack, animateFade: true});
-                },
-            });
-        } else {
-            this._lockDialogGroup.translation_y = 0;
-            this._lockScreenShown({fadeToBlack, animateFade: false});
-        }
-
-        if (this._isGreeter)
-            this._dialog.activate();
-        else
-            this._dialog.grab_key_focus();
-    }
-
-    _lockScreenShown(params) {
-        this._hidePointerUntilMotion();
-
+    _lockScreenShown() {
+        this.actor.translation_y = 0;
         this._lockScreenState = MessageTray.State.SHOWN;
 
-        if (params.fadeToBlack && params.animateFade) {
-            // Take a beat
+        this._dialog.grab_key_focus();
 
-            let id = GLib.timeout_add(GLib.PRIORITY_DEFAULT, MANUAL_FADE_TIME, () => {
-                this._activateFade(this._shortLightbox, MANUAL_FADE_TIME);
-                return GLib.SOURCE_REMOVE;
-            });
-            GLib.Source.set_name_by_id(id, '[gnome-shell] this._activateFade');
-        } else {
-            if (params.fadeToBlack)
-                this._activateFade(this._shortLightbox, 0);
-
-            this._setActive(true);
-        }
-
-        this.emit('lock-screen-shown');
+        this._setActive(true);
     }
 
-    _wakeUpScreen() {
+    async _wakeUpScreen() {
         if (!this.active)
             return; // already woken up, or not yet asleep
-        this._onUserBecameActive();
+
+/*
+        if (this._isLocked) {
+            try {
+                await this._prepareLockscreenOverlay();
+                this._showSurfaceOverlayView(true, false);
+            } catch {}
+        }
+*/
+
         this.emit('wake-up-screen');
     }
 
@@ -548,7 +609,10 @@ export class ScreenShield extends Signals.EventEmitter {
     }
 
     _continueDeactivate(animate) {
-        this._hideLockScreen(animate);
+        if (this._lockScreenState === MessageTray.State.HIDDEN)
+            throw new Error("ScreenShield is already in state HIDDEN");
+
+        this._lockScreenState = MessageTray.State.HIDING;
 
         if (Main.sessionMode.currentMode === 'unlock-dialog')
             Main.sessionMode.popMode('unlock-dialog');
@@ -563,12 +627,23 @@ export class ScreenShield extends Signals.EventEmitter {
             // gnome-session will reset the idle counter, and
             // gnome-settings-daemon will stop blanking the screen
 
-            this._activationTime = 0;
-            this._setActive(false);
+            this.actor.ease({
+                translation_y: -global.stage.height,
+                duration: animate ? SHIELD_SLIDE_UP_TIME : 0,
+                mode: Clutter.AnimationMode.EASE_OUT_QUAD,
+                onComplete: () => {
+                    this._lockScreenState = MessageTray.State.HIDDEN;
+                    this._lockScreenGroup.hide();
+
+                    this._activationTime = 0;
+                    this._setActive(false);
+                },
+            });
+
             return;
         }
 
-        if (this._dialog && !this._isGreeter)
+        if (this._dialog)
             this._dialog.popModal();
 
         if (this._isModal) {
@@ -577,14 +652,23 @@ export class ScreenShield extends Signals.EventEmitter {
             this._isModal = false;
         }
 
-        this._longLightbox.lightOff();
-        this._shortLightbox.lightOff();
+        for (const overlay of this._lockscreenOverlayStack) {
+            if (overlay.activeData) {
+                this._deactivateLockscreenOverlay(overlay);
+//                overlay.emit_authenticated();
+            }
+        }
 
-        this._lockDialogGroup.ease({
-            translation_y: -global.screen_height,
-            duration: Overview.ANIMATION_TIME,
+        this.actor.ease({
+            translation_y: -global.stage.height,
+            duration: animate ? SHIELD_SLIDE_UP_TIME : 0,
             mode: Clutter.AnimationMode.EASE_OUT_QUAD,
-            onComplete: () => this._completeDeactivate(),
+            onComplete: () => {
+                this._lockScreenState = MessageTray.State.HIDDEN;
+                this._lockScreenGroup.hide();
+
+                this._completeDeactivate();
+            },
         });
     }
 
@@ -596,14 +680,9 @@ export class ScreenShield extends Signals.EventEmitter {
 
         this.actor.hide();
 
-        if (this._becameActiveId !== 0) {
-            this.idleMonitor.remove_watch(this._becameActiveId);
-            this._becameActiveId = 0;
-        }
-
-        if (this._lockTimeoutId !== 0) {
+        if (this._lockTimeoutId) {
             GLib.source_remove(this._lockTimeoutId);
-            this._lockTimeoutId = 0;
+            delete this._lockTimeoutId;
         }
 
         this._activationTime = 0;
@@ -612,29 +691,44 @@ export class ScreenShield extends Signals.EventEmitter {
         global.set_runtime_state(LOCKED_STATE_STR, null);
     }
 
-    activate(animate) {
+    activate(animate, showLater) {
         if (this._activationTime === 0)
             this._activationTime = GLib.get_monotonic_time();
 
         if (!this._ensureUnlockDialog(true))
             return;
 
-        this.actor.show();
-
-        if (Main.sessionMode.currentMode !== 'unlock-dialog') {
-            this._isGreeter = Main.sessionMode.isGreeter;
-            if (!this._isGreeter)
-                Main.sessionMode.pushMode('unlock-dialog');
-        }
-
-        this._resetLockScreen({
-            animateLockScreen: animate,
-            fadeToBlack: true,
-        });
         // On wayland, a crash brings down the entire session, so we don't
         // need to defend against being restarted unlocked
         if (!Meta.is_wayland_compositor())
             global.set_runtime_state(LOCKED_STATE_STR, GLib.Variant.new('b', true));
+
+        if (!showLater) {
+            this.actor.show();
+
+            if (Main.sessionMode.currentMode !== 'unlock-dialog') {
+                this._isGreeter = Main.sessionMode.isGreeter;
+                if (!this._isGreeter)
+                    Main.sessionMode.pushMode('unlock-dialog');
+            }
+
+            this._lockScreenGroup.show();
+            this._lockScreenState = MessageTray.State.SHOWING;
+
+            this.actor.translation_y = -global.screen_height;
+            this.actor.remove_all_transitions();
+
+            if (animate) {
+                this.actor.ease({
+                    translation_y: 0,
+                    duration: animate ? Overview.ANIMATION_TIME : 1,
+                    mode: Clutter.AnimationMode.EASE_OUT_QUAD,
+                    onStopped: () => this._lockScreenShown(),
+                });
+            } else {
+                this._lockScreenShown();
+            }
+        }
 
         // We used to set isActive and emit active-changed here,
         // but now we do that from lockScreenShown, which means
@@ -668,7 +762,7 @@ export class ScreenShield extends Signals.EventEmitter {
         delete this._credentialManagers[serviceName];
     }
 
-    lock(animate) {
+    lock(animate, showLater) {
         if (this._lockSettings.get_boolean(DISABLE_LOCK_KEY)) {
             log('Screen lock is locked down, not locking'); // lock, lock - who's there?
             return;
@@ -691,12 +785,26 @@ export class ScreenShield extends Signals.EventEmitter {
         let userManager = AccountsService.UserManager.get_default();
         let user = userManager.get_user(GLib.get_user_name());
 
-        this.activate(animate);
+        this.activate(animate, showLater);
 
         const lock = this._isGreeter
             ? true
             : user.password_mode !== AccountsService.UserPasswordMode.NONE;
         this._setLocked(lock);
+    }
+
+    showLater() {
+        this.actor.show();
+
+        if (Main.sessionMode.currentMode !== 'unlock-dialog') {
+            this._isGreeter = Main.sessionMode.isGreeter;
+            if (!this._isGreeter)
+                Main.sessionMode.pushMode('unlock-dialog');
+        }
+
+        this._lockScreenGroup.show();
+
+        this._lockScreenShown();
     }
 
     // If the previous shell crashed, and gnome-session restarted us, then re-lock

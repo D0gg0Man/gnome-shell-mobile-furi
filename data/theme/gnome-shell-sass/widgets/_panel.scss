@@ -181,8 +181,8 @@ $panel_transition_duration: 250ms; // same as the overview transition duration
 .clock-display-box {
   spacing: 2px;
   .clock {
-    padding-left: $scaled_padding * 2;
-    padding-right: $scaled_padding * 2;
+    padding-left: $scaled_padding;
+    padding-right: $scaled_padding;
   }
 }
 

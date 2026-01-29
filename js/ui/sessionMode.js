@@ -67,6 +67,7 @@ const _modes = {
     },
 
     'unlock-dialog': {
+        hasNotifications: true,
         isLocked: true,
         unlockDialog: undefined,
         components: ['polkitAgent'],

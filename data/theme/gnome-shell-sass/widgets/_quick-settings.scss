@@ -1,15 +1,85 @@
+.quick-settings-boxpointer {
+  // keep a distance from bottom screen edge
+  padding-bottom: 60px;
+}
+
+#uiGroup.mobile.horizontal .quick-settings-boxpointer {
+  padding-bottom: 0px;
+}
+
 .quick-settings {
-  padding: $base_padding * 3;
-  border-radius: $modal_radius * 2.25;
+/*  margin-top: 28px;
+  margin-left: $base_padding * 1;
+  margin-right: $base_padding * 1;
+*/
+//  margin-bottom: $base_padding * 10;
+
+  min-width: 28em;
+  max-width: 28em;
+  margin-top: 2.2em + 0.5em; // leave out the panel + a bit of spacing
+  margin-right: $base_padding * 2;
+
+  box-shadow: 0 4px 10px 0 $shadow_color;
+  border: 0;
+
+  // no paddings on the outer box due to the bind-constrained height of
+  // outer->inner box
+  padding: 0;
+
+  // bottom+left+right paddings need to be on individual elements because we want
+  // the notification banners to clip nicely when swiping them away and when scrolling
+  // the list
+  .inner-box {
+    padding-top: 8px;
+  }
+
+  .panel-clone {
+    margin-left: 12px;
+    margin-right: 12px;
+  }
+
+  .message-list {
+    margin-top: 0px;
+
+    .message-list-section {
+      padding-bottom: 16px;
+      padding-left: 16px;
+      padding-right: 16px;
+    }
+  }
 
   .icon-button, .button {
     padding: $base_padding * 1.75;
   }
 }
 
+.quick-settings-boxpointer StBin {
+//background-color:green;
+
+}
+
+#uiGroup.mobile .quick-settings {
+  // make sure it's always fullscreen
+  min-width: 1000em;
+  max-width: 1000em;
+  margin: 0;
+
+  border-radius: 0 0 $modal_radius * 1.25 $modal_radius * 1.25;
+}
+
 .quick-settings-grid {
+  margin-top: 6px;
+  margin-bottom: 16px;
+  margin-left: 16px;
+  margin-right: 16px;
+
   spacing-rows: $base_padding * 2;
   spacing-columns: $base_padding * 2;
+  n-columns: 2;
+}
+
+#uiGroup.mobile.horizontal .quick-settings-grid {
+  n-columns: 4;
 }
 
 .quick-toggle, .quick-toggle-has-menu {
@@ -242,7 +312,8 @@ $quick_toggle_checked_separator_color: if(
 // background apps
 
 .background-apps-quick-toggle {
-  min-height: to_em(40px);
+  padding-top: 0;
+  min-height: to_em(30px);
   background-color: transparent;
 
   & StIcon { icon-size: $scalable_icon_size !important; }

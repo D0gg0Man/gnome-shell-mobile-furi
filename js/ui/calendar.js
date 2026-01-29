@@ -780,7 +780,7 @@ class Placeholder extends St.BoxLayout {
 
 export const CalendarMessageList = GObject.registerClass(
 class CalendarMessageList extends St.Widget {
-    constructor() {
+    constructor(messageViewParams) {
         super({
             style_class: 'message-list',
             layout_manager: new Clutter.BinLayout(),
@@ -788,56 +788,25 @@ class CalendarMessageList extends St.Widget {
             y_expand: true,
         });
 
-        this._placeholder = new Placeholder();
-        this.add_child(this._placeholder);
-
-        let box = new St.BoxLayout({
-            orientation: Clutter.Orientation.VERTICAL,
-            x_expand: true,
-            y_expand: true,
-        });
-        this.add_child(box);
-
-        this._messageView = new MessageList.MessageView();
+        this._messageView = new MessageList.MessageView(messageViewParams);
 
         this._scrollView = new St.ScrollView({
-            overlay_scrollbars: true,
             x_expand: true, y_expand: true,
             child: this._messageView,
         });
-        box.add_child(this._scrollView);
+        this._scrollView.set_policy(St.PolicyType.NEVER, St.PolicyType.EXTERNAL);
 
-        let hbox = new St.BoxLayout({style_class: 'message-list-controls'});
-        box.add_child(hbox);
+        const panGesture = new Clutter.PanGesture();
+        panGesture.connect('may-recognize', this._panMayRecognize.bind(this));
+        panGesture.connect('pan-update', this._onPanUpdate.bind(this));
+        this._scrollView.add_action(panGesture);
 
-        this._clearButton = new St.Button({
-            style_class: 'message-list-clear-button button',
-            label: _('Clear'),
-            can_focus: true,
-            x_expand: true,
-            x_align: Clutter.ActorAlign.START,
-            accessible_name: C_('action', 'Clear all notifications'),
-        });
-        this._clearButton.connect('clicked', () => {
-            this._messageView.clear();
-        });
-        hbox.add_child(this._clearButton);
-
-        this._placeholder.bind_property('visible',
-            this._clearButton, 'visible',
-            GObject.BindingFlags.INVERT_BOOLEAN);
+        this.add_child(this._scrollView);
 
         this._messageView.connectObject(
             'message-focused', (_s, messageActor) => {
                 ensureActorVisibleInScrollView(this._scrollView, messageActor);
             }, this);
-
-        this._messageView.bind_property('empty',
-            this._placeholder, 'visible',
-            GObject.BindingFlags.SYNC_CREATE);
-        this._messageView.bind_property('can-clear',
-            this._clearButton, 'reactive',
-            GObject.BindingFlags.SYNC_CREATE);
     }
 
     maybeCollapseMessageGroupForEvent(event) {
@@ -862,5 +831,32 @@ class CalendarMessageList extends St.Widget {
             this._messageView.collapse();
 
         return Clutter.EVENT_PROPAGATE;
+    }
+
+    _panMayRecognize(gesture) {
+        const beginCoords = gesture.get_begin_centroid_abs();
+        if (!this.get_transformed_extents().contains_point(beginCoords))
+            return true;
+
+        const coords = gesture.get_centroid_abs();
+        const delta = coords.y - beginCoords.y;
+        const adj = this._scrollView.vadjustment;
+
+        // When panning upwards while the adjustment is at the end (scrolled
+        // all the way to bottom) let other gestures win.
+        if (delta < 0 && adj.value === (adj.upper - adj.page_size))
+            return false;
+
+        if (delta > 0 && adj.value === adj.lower)
+            return false;
+
+        return true;
+    }
+
+    _onPanUpdate(gesture) {
+        const [latestDeltaVec] = gesture.get_delta();
+
+        let adjustment = this._scrollView.vadjustment;
+        adjustment.value -= (latestDeltaVec.get_y() / this.height) * adjustment.page_size;
     }
 });
