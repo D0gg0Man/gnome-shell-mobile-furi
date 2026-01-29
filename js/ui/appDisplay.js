@@ -2634,8 +2634,7 @@ export const AppFolderDialog = GObject.registerClass({
         const clickGesture = new Clutter.ClickGesture();
         clickGesture.connect('may-recognize', () => {
             const coords = clickGesture.get_coords_abs();
-            const [, x, y] = this.child.transform_stage_point(coords.x, coords.y);
-            return !this._viewBox.allocation.contains(x, y);
+            return !this._withinDialog(coords.x, coords.y);
         });
         clickGesture.connect('recognize', () => this.popdown());
         this.add_action(clickGesture);
@@ -2959,8 +2958,8 @@ export const AppFolderDialog = GObject.registerClass({
     }
 
     _withinDialog(x, y) {
-        const childExtents = this.child.get_transformed_extents();
-        return childExtents.contains_point(new Graphene.Point({x, y}));
+        const viewExtents = this._viewBox.get_transformed_extents();
+        return viewExtents.contains_point(new Graphene.Point({x, y}));
     }
 
     _setupDragMonitor() {
