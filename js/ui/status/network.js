@@ -659,7 +659,9 @@ class NMModemDeviceItem extends NMDeviceItem {
 
         this._mobileDevice?.connectObject(
             'notify::operator-name', this._sync.bind(this),
-            'notify::signal-quality', () => this.notify('icon-name'), this);
+            'notify::simple-state', () => this.notify('icon-name'),
+            'notify::signal-quality', () => this.notify('icon-name'),
+            'notify::access-technology', () => this.notify('icon-name'), this);
 
         Main.sessionMode.connectObject('updated',
             this._sessionUpdated.bind(this), this);
@@ -667,18 +669,55 @@ class NMModemDeviceItem extends NMDeviceItem {
     }
 
     get icon_name() {
-        switch (this.state) {
-        case NM.ActiveConnectionState.ACTIVATING:
-            return 'network-cellular-acquiring-symbolic';
-        case NM.ActiveConnectionState.ACTIVATED: {
-            const qualityString = signalToIcon(this._mobileDevice.signal_quality);
-            return `network-cellular-signal-${qualityString}-symbolic`;
+        if (this._mobileDevice) {
+log("MODEM CHANGE: actual state " + this._mobileDevice._proxy.State + " simple state " + this._mobileDevice.simpleState + " NM state " + this.state + " access tech " + this._mobileDevice.accessTechnology + " signal qual " + this._mobileDevice.signal_quality);
+            switch (this._mobileDevice.simpleState) {
+            case 'connecting':
+                return 'network-cellular-acquiring-symbolic';
+            case 'connected': {
+                if (this.state === NM.ActiveConnectionState.ACTIVATING) {
+                    return 'network-cellular-acquiring-symbolic';
+                } else if (this.state === NM.ActiveConnectionState.ACTIVATED) {
+                    // When connected to mobile data, we show 3g/4g technology icon.
+                    // When connected to telephony service only we show signal strength.
+                    switch (this._mobileDevice.accessTechnology) {
+                    case 'GSM':
+                        // Not sure GSM itself even does mobile data, but let's not
+                        // make this too complicated..
+                        return 'network-cellular-2g-symbolic';
+                    case '2G':
+                        return 'network-cellular-2g-symbolic';
+                    case '3G':
+                        return 'network-cellular-3g-symbolic';
+                    case '4G':
+                        return 'network-cellular-4g-symbolic';
+                    case '5G':
+                        return 'network-cellular-5g-symbolic';
+                    case 'unknown':
+                    case 'other':
+                        // we don't know this type of network, let's show a generic icon
+                        return 'network-cellular-connected-symbolic';
+                    }
+                } else {
+                    const qualityString = signalToIcon(this._mobileDevice.signal_quality);
+                    return `network-cellular-signal-${qualityString}-symbolic`;
+                }
+            }
+            case 'locked':
+                return 'auth-sim-locked-symbolic';
+            case 'initializing':
+                // modem is starting up, this happens after unlocking the SIM
+                // and will take a while. In theory the device might remain in
+                // disabled state afterwards, but it's likely that we'll
+                // enable it immediately after startup, so let's just show
+                // the "aquiring" icon already.
+                return 'network-cellular-acquiring-symbolic';
+            case 'disabled':
+                return 'network-cellular-disabled-symbolic';
+            }
         }
-        default:
-            return this._activeConnection
-                ? 'network-cellular-signal-none-symbolic'
-                : 'network-cellular-disabled-symbolic';
-        }
+log("MODEM CHANGE: looks like no mobile dev " + this._mobileDevice);
+        return 'network-cellular-disabled-symbolic';
     }
 
     get name() {
@@ -691,13 +730,6 @@ class NMModemDeviceItem extends NMDeviceItem {
             NM.DeviceModemCapabilities.GSM_UMTS |
             NM.DeviceModemCapabilities.LTE;
         return this._device.current_capabilities & supportedCaps;
-    }
-
-    _autoConnect() {
-        if (this.wwanPanelSupported)
-            launchSettingsPanel('wwan', 'show-device', this._device.udi);
-        else
-            launchSettingsPanel('network', 'connect-3g', this._device.get_path());
     }
 
     _sessionUpdated() {
@@ -1716,6 +1748,7 @@ class NMDeviceToggle extends NMToggle {
     }
 
     _syncDeviceItem(device) {
+log("NM sync device item for " + this + " state " + device.state + " should show " + this._shouldShowDevice(device));
         if (this._shouldShowDevice(device))
             this._ensureDeviceItem(device);
         else
@@ -1723,17 +1756,26 @@ class NMDeviceToggle extends NMToggle {
     }
 
     _deviceStateChanged(device, newState, oldState, reason) {
+log("NM device state changed " + this + " to " + newState + " for reason " + reason);
         if (newState === oldState) {
             console.info(`${device} emitted state-changed without actually changing state`);
             return;
         }
 
-        /* Emit a notification if activation fails, but don't do it
-           if the reason is no secrets, as that indicates the user
-           cancelled the agent dialog */
-        if (newState === NM.DeviceState.FAILED &&
-            reason !== NM.DeviceStateReason.NO_SECRETS)
+
+        if (newState === NM.DeviceState.FAILED) {
+            // Don't notify if the reason is no secrets, as that indicates the user
+            // cancelled the agent dialog .
+            if (reason === NM.DeviceStateReason.NO_SECRETS)
+                return;
+
+            // When the user disables the modem, we get a failure with MODEM_NO_CARRIER
+            // first, let's ignore that.
+            if (reason === NM.DeviceStateReason.MODEM_NO_CARRIER)
+                return;
+
             this.emit('activation-failed');
+        }
     }
 
     _createDeviceMenuItem(_device) {
@@ -2109,11 +2151,17 @@ class Indicator extends SystemIndicator {
         });
 
         this._primaryIndicator = this._addIndicator();
+        this._secondaryIndicator = this._addIndicator();
         this._vpnIndicator = this._addIndicator();
 
         this._primaryIndicatorBinding = new GObject.BindingGroup();
         this._primaryIndicatorBinding.bind('icon-name',
             this._primaryIndicator, 'icon-name',
+            GObject.BindingFlags.DEFAULT);
+
+        this._secondaryIndicatorBinding = new GObject.BindingGroup();
+        this._secondaryIndicatorBinding.bind('icon-name',
+            this._secondaryIndicator, 'icon-name',
             GObject.BindingFlags.DEFAULT);
 
         this._vpnToggle.bind_property('checked',
@@ -2122,6 +2170,11 @@ class Indicator extends SystemIndicator {
         this._vpnToggle.bind_property('icon-name',
             this._vpnIndicator, 'icon-name',
             GObject.BindingFlags.SYNC_CREATE);
+
+        this._modemToggle.connect('notify::visible', () => {
+            if (this._client)
+                this._updateIcon()
+        });
 
         this._getClient().catch(logError);
     }
@@ -2239,7 +2292,17 @@ class Indicator extends SystemIndicator {
     _updateIcon() {
         const [dev] = this._mainConnection?.get_devices() ?? [];
         const primaryToggle = this._deviceToggles.get(dev?.device_type) ?? null;
+
         this._primaryIndicatorBinding.source = primaryToggle;
+log("MODEM: updating icons, n modem items: " + this._modemToggle._items.size + " visi "+ this._modemToggle.visible);
+
+        if (primaryToggle !== this._modemToggle && this._modemToggle.visible) {
+            this._secondaryIndicatorBinding.source = this._modemToggle;
+            this._secondaryIndicator.visible = true;
+        } else {
+            this._secondaryIndicatorBinding.source = null;
+            this._secondaryIndicator.visible = false
+        }
 
         if (!primaryToggle) {
             if (this._client.connectivity === NM.ConnectivityState.FULL)

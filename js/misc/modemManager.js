@@ -2,6 +2,7 @@ import Gio from 'gi://Gio';
 import GObject from 'gi://GObject';
 import NM from 'gi://NM';
 import NMA4 from 'gi://NMA4';
+import ModemManager from 'gi://ModemManager';
 
 import {loadInterfaceXML} from './fileUtils.js';
 
@@ -87,6 +88,62 @@ function _findProviderForSid(sid) {
     return null;
 }
 
+function _getSimpleAccessTech(accessTechnologies) {
+log("MODEM get access tech: " + accessTechnologies);
+
+    if (accessTechnologies & ModemManager.ModemAccessTechnology['5GNR'])
+        return '5G';
+
+    if (accessTechnologies & ModemManager.ModemAccessTechnology.LTE)
+        return '4G';
+
+    if (accessTechnologies & ModemManager.ModemAccessTechnology.UMTS ||
+        accessTechnologies & ModemManager.ModemAccessTechnology.HSDPA ||
+        accessTechnologies & ModemManager.ModemAccessTechnology.HSUPA ||
+        accessTechnologies & ModemManager.ModemAccessTechnology.HSPA ||
+        accessTechnologies & ModemManager.ModemAccessTechnology.HSPA_PLUS ||
+        accessTechnologies & ModemManager.ModemAccessTechnology['1XRTT'] ||
+        accessTechnologies & ModemManager.ModemAccessTechnology.EVDO0 ||
+        accessTechnologies & ModemManager.ModemAccessTechnology.EVDOA ||
+        accessTechnologies & ModemManager.ModemAccessTechnology.EVDOB)
+        return '3G';
+
+    if (accessTechnologies & ModemManager.ModemAccessTechnology.GPRS ||
+        accessTechnologies & ModemManager.ModemAccessTechnology.EDGE)
+        return '2G';
+
+    if (accessTechnologies & ModemManager.ModemAccessTechnology.GSM ||
+        accessTechnologies & ModemManager.ModemAccessTechnology.GSM_COMPACT)
+        return 'GSM';
+
+    return accessTechnologies === 0 ? 'unknown' : 'other';
+}
+
+function _getSimpleState(state) {
+log("MODEM Getting simple state " + state);
+    switch (state) {
+    case ModemManager.ModemState.CONNECTED:
+    // We're REGISTERED when we're not connected to mobile data but still on
+    // the network
+    case ModemManager.ModemState.REGISTERED:
+    // We can switch back and forth between CONNECTED and DISCONNECTING state
+    // when changing configuration (eg. turning off mobile data), so treat this
+    // one as "connected"
+    case ModemManager.ModemState.DISCONNECTING:
+        return 'connected';
+    case ModemManager.ModemState.ENABLING:
+    case ModemManager.ModemState.ENABLED:
+    case ModemManager.ModemState.SEARCHING:
+    case ModemManager.ModemState.CONNECTING:
+        return 'connecting';
+    case ModemManager.ModemState.LOCKED:
+        return 'locked';
+    case ModemManager.ModemState.INITIALIZING:
+        return 'initializing';
+    default:
+        return 'disabled';
+    }
+}
 
 // ----------------------------------------------------- //
 // Support for the old ModemManager interface (MM < 0.7) //
@@ -113,6 +170,14 @@ const ModemBase = GObject.registerClass({
             'signal-quality', null, null,
             GObject.ParamFlags.READABLE,
             0, 100, 0),
+        'access-technology': GObject.ParamSpec.string(
+            'access-technology', 'access-technology', 'access-technology',
+            GObject.ParamFlags.READABLE,
+            ""),
+        'simple-state': GObject.ParamSpec.string(
+            'simple-state', 'simple-state', 'simple-state',
+            GObject.ParamFlags.READABLE,
+            null),
     },
 }, class ModemBase extends GObject.Object {
     _init() {
@@ -129,6 +194,14 @@ const ModemBase = GObject.registerClass({
         return this._signalQuality;
     }
 
+    get accessTechnology() {
+        return this._accessTechnology;
+    }
+
+    get simpleState() {
+        return this._simpleState;
+    }
+
     _setOperatorName(operatorName) {
         if (this._operatorName === operatorName)
             return;
@@ -141,6 +214,22 @@ const ModemBase = GObject.registerClass({
             return;
         this._signalQuality = signalQuality;
         this.notify('signal-quality');
+    }
+
+    _setAccessTechnology(accessTechnology) {
+        if (this._accessTechnology === accessTechnology)
+            return;
+
+        this._accessTechnology = accessTechnology;
+        this.notify('access-technology');
+    }
+
+    _setSimpleState(simpleState) {
+        if (this._simpleState === simpleState)
+            return;
+
+        this._simpleState = simpleState;
+        this.notify('simple-state');
     }
 });
 
@@ -250,8 +339,20 @@ export const BroadbandModem = GObject.registerClass({
             const signalQualityChanged = !!properties.lookup_value('SignalQuality', null);
             if (signalQualityChanged)
                 this._reloadSignalQuality();
+
+            const accessTechnologiesChanged = !!properties.lookup_value('AccessTechnologies', null);
+            if (accessTechnologiesChanged)
+                this._reloadAccessTechnology();
+
+            const stateChanged = !!properties.lookup_value('State', null);
+            if (stateChanged) {
+log("MODEM: got state change property change notification");
+                this._reloadSimpleState();
+}
         });
         this._reloadSignalQuality();
+        this._reloadAccessTechnology();
+        this._reloadSimpleState();
 
         this._proxy_3gpp.connect('g-properties-changed', (proxy, properties) => {
             let unpacked = properties.deepUnpack();
@@ -271,6 +372,14 @@ export const BroadbandModem = GObject.registerClass({
     _reloadSignalQuality() {
         let [quality, recent_] = this._proxy.SignalQuality;
         this._setSignalQuality(quality);
+    }
+
+    _reloadAccessTechnology() {
+        this._setAccessTechnology(_getSimpleAccessTech(this._proxy.AccessTechnologies));
+    }
+
+    _reloadSimpleState() {
+        this._setSimpleState(_getSimpleState(this._proxy.State));
     }
 
     _reloadOperatorName() {
