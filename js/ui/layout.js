@@ -1260,7 +1260,7 @@ export const LayoutManager = GObject.registerClass({
         if (this._forceInvertIsPhone)
             isPhone = !isPhone;
 
-        if (this.primaryMonitor.width > this.primaryMonitor.height)
+        if (this.primaryMonitor && this.primaryMonitor.width > this.primaryMonitor.height)
             this.uiGroup.add_style_class_name('horizontal');
         else
             this.uiGroup.remove_style_class_name('horizontal');

@@ -26,9 +26,6 @@ const POWER_SCHEMA = 'org.gnome.settings-daemon.plugins.power';
 
 const LOCKED_STATE_STR = 'screenShield.locked';
 
-const GsdWacomIface = loadInterfaceXML('org.gnome.SettingsDaemon.Wacom');
-const GsdWacomProxy = Gio.DBusProxy.makeProxyWrapper(GsdWacomIface);
-
 const DisplayConfigIface = loadInterfaceXML('org.gnome.Mutter.DisplayConfig');
 const DisplayConfigProxy = Gio.DBusProxy.makeProxyWrapper(DisplayConfigIface);
 

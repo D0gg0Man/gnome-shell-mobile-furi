@@ -117,9 +117,9 @@ export class ScreenShield extends Signals.EventEmitter {
             work_area: true,
         }));
         this._lockDialogGroup.connect('notify::translation-x', () => {
-            this._lockscreenOverlayGroup.translation_x = this._lockDialogGroup.translation_x + Main.layoutManager.primaryMonitor.width;
+            this._lockscreenOverlayGroup.translation_x = this._lockDialogGroup.translation_x + (Main.layoutManager.primaryMonitor ? Main.layoutManager.primaryMonitor.width : 0);
         });
-        this._lockscreenOverlayGroup.translation_x = this._lockDialogGroup.translation_x + Main.layoutManager.primaryMonitor.width;
+        this._lockscreenOverlayGroup.translation_x = this._lockDialogGroup.translation_x + (Main.layoutManager.primaryMonitor ? Main.layoutManager.primaryMonitor.width : 0);
 
         this.actor.add_child(this._lockscreenOverlayGroup);
         this.actor.add_child(this._lockDialogGroup);

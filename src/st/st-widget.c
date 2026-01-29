@@ -475,7 +475,7 @@ st_widget_map (ClutterActor *actor)
   CLUTTER_ACTOR_CLASS (st_widget_parent_class)->map (actor);
 
   if (priv->is_style_dirty)
-    st_widget_recompute_style (self, NULL);
+    st_widget_recompute_style (self, NULL, STYLE_CHANGE_FLAGS_NO_TRANSITIONS);
 }
 
 static void

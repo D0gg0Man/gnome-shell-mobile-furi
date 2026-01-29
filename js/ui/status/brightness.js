@@ -1,4 +1,5 @@
 import Clutter from 'gi://Clutter';
+import Gio from 'gi://Gio';
 import GObject from 'gi://GObject';
 import St from 'gi://St';
 
@@ -6,6 +7,8 @@ import {QuickSlider, SystemIndicator} from '../quickSettings.js';
 import * as Main from '../main.js';
 import * as PopupMenu from '../popupMenu.js';
 import {Slider} from '../slider.js';
+
+import {loadInterfaceXML} from '../../misc/fileUtils.js';
 
 const BRIGHTNESS_NAME = _('Brightness');
 
