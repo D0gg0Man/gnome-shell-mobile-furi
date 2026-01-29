@@ -1201,8 +1201,17 @@ export const IconGrid = GObject.registerClass({
             row_spacing: 0,
         });
         const layoutManager = new IconGridLayout(layoutParams);
-        const pagesChangedId = layoutManager.connect('pages-changed',
-            () => this.emit('pages-changed'));
+        const pagesChangedId = layoutManager.connect('pages-changed', () => {
+            if (this._emitPagesChangedLater)
+                return;
+
+            const laters = global.compositor.get_laters();
+            this._emitPagesChangedLater = laters.add(Meta.LaterType.BEFORE_REDRAW, () => {
+                this.emit('pages-changed');
+                delete this._emitPagesChangedLater;
+                return GLib.SOURCE_REMOVE;
+            });
+        });
 
         super._init({
             style_class: 'icon-grid',
@@ -1215,7 +1224,15 @@ export const IconGrid = GObject.registerClass({
         this._currentPage = 0;
         this._currentMode = -1;
 
-        this.connect('destroy', () => layoutManager.disconnect(pagesChangedId));
+        this.connect('destroy', () => {
+            layoutManager.disconnect(pagesChangedId);
+
+            if (this._emitPagesChangedLater) {
+                const laters = global.compositor.get_laters();
+                laters.remove(this._emitPagesChangedLater);
+                delete this._emitPagesChangedLater;
+            }
+        });
     }
 
     vfunc_child_added(child) {
