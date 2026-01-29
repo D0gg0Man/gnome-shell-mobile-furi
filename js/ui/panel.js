@@ -427,6 +427,14 @@ const PANEL_ITEM_IMPLEMENTATIONS = {
     'screenSharing': ScreenSharingIndicator,
 };
 
+const PANEL_PHONE_ITEM_IMPLEMENTATIONS = {
+    'quickSettings': QuickSettings,
+    'dateMenu': DateMenuButton,
+    'keyboard': InputSourceIndicator, // this has to be there for OSK to work
+    'screenRecording': ScreenRecordingIndicator,
+    'screenSharing': ScreenSharingIndicator,
+};
+
 export const Panel = GObject.registerClass(
 class Panel extends St.Widget {
     _init() {
@@ -669,6 +677,9 @@ class Panel extends St.Widget {
     }
 
     _hideIndicators() {
+        const implementations = Main.layoutManager.is_phone
+            ? PANEL_PHONE_ITEM_IMPLEMENTATIONS : PANEL_ITEM_IMPLEMENTATIONS;
+
         for (let role in PANEL_ITEM_IMPLEMENTATIONS) {
             let indicator = this.statusArea[role];
             if (!indicator)
@@ -678,9 +689,12 @@ class Panel extends St.Widget {
     }
 
     _ensureIndicator(role) {
+        const implementations = Main.layoutManager.is_phone
+            ? PANEL_PHONE_ITEM_IMPLEMENTATIONS : PANEL_ITEM_IMPLEMENTATIONS;
+
         let indicator = this.statusArea[role];
         if (!indicator) {
-            let constructor = PANEL_ITEM_IMPLEMENTATIONS[role];
+            let constructor = implementations[role];
             if (!constructor) {
                 // This icon is not implemented (this is a bug)
                 return null;

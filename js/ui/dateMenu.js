@@ -867,7 +867,7 @@ class DateMenuButton extends PanelMenu.Button {
         this._clockDisplay = new St.Label({style_class: 'clock'});
         this._clockDisplay.clutter_text.y_align = Clutter.ActorAlign.CENTER;
         this._clockDisplay.clutter_text.ellipsize = Pango.EllipsizeMode.NONE;
-
+/*
         this._indicator = new MessagesIndicator();
 
         const indicatorPad = new St.Widget();
@@ -878,11 +878,11 @@ class DateMenuButton extends PanelMenu.Button {
             source: this._indicator,
             coordinate: Clutter.BindCoordinate.SIZE,
         }));
-
+*/
         let box = new St.BoxLayout({style_class: 'clock-display-box'});
-        box.add_child(indicatorPad);
+        //box.add_child(indicatorPad);
         box.add_child(this._clockDisplay);
-        box.add_child(this._indicator);
+        //box.add_child(this._indicator);
 
         this.label_actor = this._clockDisplay;
         this.add_child(box);
