@@ -17,6 +17,7 @@ import * as WindowManager from './windowManager.js';
 import * as WorkspaceThumbnail from './workspaceThumbnail.js';
 import * as WorkspacesView from './workspacesView.js';
 
+import * as Layout from './layout.js';
 import {STARTUP_ANIMATION_TIME} from './layout.js';
 
 export const SMALL_WORKSPACE_RATIO = 0.25;
