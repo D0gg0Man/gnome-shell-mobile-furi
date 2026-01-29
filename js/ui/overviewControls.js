@@ -7,6 +7,7 @@ import Shell from 'gi://Shell';
 import St from 'gi://St';
 
 import * as AppDisplay from './appDisplay.js';
+import * as Background from './background.js';
 import * as Dash from './dash.js';
 import * as Main from './main.js';
 import * as Overview from './overview.js';
@@ -38,7 +39,7 @@ export const ControlsState = {
 const ControlsManagerLayout = GObject.registerClass(
 class ControlsManagerLayout extends Clutter.LayoutManager {
     _init(searchEntry, appDisplay, workspacesDisplay, workspacesThumbnails,
-        searchController, dash, stateAdjustment) {
+        searchController, dash, stateAdjustment, background) {
         super._init();
 
         this._appDisplay = appDisplay;
@@ -48,6 +49,7 @@ class ControlsManagerLayout extends Clutter.LayoutManager {
         this._searchEntry = searchEntry;
         this._searchController = searchController;
         this._dash = dash;
+        this._background = background;
 
         this._cachedWorkspaceBoxes = new Map();
         this._postAllocationCallbacks = [];
@@ -287,6 +289,9 @@ class ControlsManagerLayout extends Clutter.LayoutManager {
 
         this._searchController.allocate(childBox);
 
+        box.y1 -= startY;
+        this._background.allocate(box);
+
         this._runPostAllocation();
     }
 
@@ -397,8 +402,6 @@ class ControlsManager extends St.Widget {
         this._searchController.connectObject('notify::search-active',
             () => this._onSearchChanged(), this);
 
-        Main.layoutManager.connectObject('monitors-changed', () =>
-            this._thumbnailsBox.setMonitorIndex(Main.layoutManager.primaryIndex), this);
         this._thumbnailsBox = new WorkspaceThumbnail.ThumbnailsBox(
             this._workspaceAdjustment, Main.layoutManager.primaryIndex);
         this._thumbnailsBox.connectObject('notify::should-show', () => {
@@ -417,6 +420,29 @@ class ControlsManager extends St.Widget {
             this._stateAdjustment);
         this._appDisplay = new AppDisplay.AppDisplay();
 
+        const wallpaper = new Clutter.Actor();
+        wallpaper.add_constraint(new Layout.MonitorConstraint({primary: true}));
+        Main.wm.workspaceTracker.bind_property('single-window-workspaces',
+            wallpaper, 'visible',
+            GObject.BindingFlags.SYNC_CREATE);
+
+        const updateBgManager = () => {
+            this._bgManager?.destroy();
+
+            this._bgManager = new Background.BackgroundManager({
+                container: wallpaper,
+                monitorIndex: Main.layoutManager.primaryIndex,
+                controlPosition: false,
+            });
+        }
+        updateBgManager();
+
+        Main.layoutManager.connect('monitors-changed', () => {
+            this._thumbnailsBox.setMonitorIndex(Main.layoutManager.primaryIndex);
+            updateBgManager();
+        });
+
+        this.add_child(wallpaper);
         this.add_child(this._searchEntryBin);
         this.add_child(this._appDisplay);
         this.add_child(this.dash);
@@ -431,7 +457,8 @@ class ControlsManager extends St.Widget {
             this._thumbnailsBox,
             this._searchController,
             this.dash,
-            this._stateAdjustment);
+            this._stateAdjustment,
+            wallpaper);
 
         this.dash.showAppsButton.connectObject('notify::checked',
             () => this._onShowAppsButtonToggled(), this);

@@ -3,6 +3,7 @@ import Cogl from 'gi://Cogl';
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 import GObject from 'gi://GObject';
+import Graphene from 'gi://Graphene';
 import Meta from 'gi://Meta';
 import Mtk from 'gi://Mtk';
 import Shell from 'gi://Shell';
@@ -15,6 +16,7 @@ import * as WorkspaceSwitcherPopup from './workspaceSwitcherPopup.js';
 import * as InhibitShortcutsDialog from './inhibitShortcutsDialog.js';
 import * as ModalDialog from './modalDialog.js';
 import * as WindowMenu from './windowMenu.js';
+import * as Overview from './windowMenu.js';
 import * as PadOsd from './padOsd.js';
 import * as CloseDialog from './closeDialog.js';
 import * as SwitchMonitor from './switchMonitor.js';
@@ -169,218 +171,888 @@ function getWindowDimmer(actor) {
     return effect;
 }
 
-/*
- * When the last window closed on a workspace is a dialog or splash
- * screen, we assume that it might be an initial window shown before
- * the main window of an application, and give the app a grace period
- * where it can map another window before we remove the workspace.
- */
-const LAST_WINDOW_GRACE_TIME = 1000;
+var AppStartupAnimation = GObject.registerClass(
+class AppStartupAnimation extends St.Widget {
+    _init(app, workspace) {
+        super._init({
+            style_class: 'tmp-overlay',
+            width: 0,
+            height: 0,
+        });
 
-class WorkspaceTracker {
-    constructor(wm) {
-        this._wm = wm;
+        this._workspace = workspace;
+
+        this._settings = new Gio.Settings({
+            schema_id: 'org.gnome.desktop.interface',
+        });
+
+        const updateColorScheme = () => {
+            const colorScheme = this._settings.get_string('color-scheme');
+            const darkMode = colorScheme === 'prefer-dark';
+            if (colorScheme === 'prefer-dark')
+                this.add_style_class_name('dark-mode-enabled');
+            else
+                this.remove_style_class_name('dark-mode-enabled');
+        }
+
+        this._settings.connect('changed::color-scheme',
+            updateColorScheme);
+
+        updateColorScheme();
+
+        this._appIcon = app.create_icon_texture(128);
+        this._appIcon.add_style_class_name('icon-dropshadow');
+        this._appIcon.opacity = 255;
+        this._appIcon.set_pivot_point(0.5, 0.5);
+
+        this.add_child(this._appIcon);
+
+        this._appIcon.add_constraint(new Clutter.AlignConstraint({
+            source: this,
+            align_axis: Clutter.AlignAxis.X_AXIS,
+            factor: 0.5,
+        }));
+        this._appIcon.add_constraint(new Clutter.AlignConstraint({
+            source: this,
+            align_axis: Clutter.AlignAxis.Y_AXIS,
+            factor: 0.5,
+        }));
+
+        const wmId = global.window_manager.connect('switch-workspace', () => {
+            if (this.visible && global.workspace_manager.get_active_workspace() !== workspace)
+                this.hide();
+        });
+
+        this.connect('destroy', () => {
+            global.window_manager.disconnect(wmId);
+        });
+    }
+
+    maybeShow() {
+        if (global.workspace_manager.get_active_workspace() === this._workspace)
+            this.show();
+    }
+
+    animateIn(existingAppIcon) {
+        if (this._animatedIn)
+            throw new Error("May only call animateIn() once");
+
+        const existingAppIconDestroyId = existingAppIcon.connect('destroy',
+            () => { existingAppIcon = null; });
+
+        const iconExtents = existingAppIcon.get_transformed_extents();
+        existingAppIcon.opacity = 0;
+
+        this._appIcon.scale_x = iconExtents.size.width / 128;
+        this._appIcon.scale_y = iconExtents.size.height / 128;
+
+        this.set_position(iconExtents.origin.x + iconExtents.size.width / 2,
+            iconExtents.origin.y + iconExtents.size.height / 2);
+
+        this._appIcon.ease({
+            scale_x: 1,
+            scale_y: 1,
+            duration: 400,
+            mode: Clutter.AnimationMode.EASE_IN_OUT_QUAD,
+        });
+
+        const workArea = Main.layoutManager.getWorkAreaForMonitor(Main.layoutManager.primaryMonitor)
+        this.ease({
+            width: workArea.width,
+            height: Main.layoutManager.primaryMonitor.height - workArea.y,
+            x: workArea.x,
+            y: workArea.y,
+            mode: Clutter.AnimationMode.EASE_IN_OUT_QUAD,
+            duration: 400,
+            onStopped: () => {
+                if (existingAppIcon) {
+                    existingAppIcon.opacity = 255;
+                    existingAppIcon.disconnect(existingAppIconDestroyId);
+                }
+            },
+        });
+
+        this._animatedIn = true;
+    }
+
+    waitAnimateInFinished() {
+        const existingTransition = this.get_transition('width');
+        if (!existingTransition)
+            return Promise.resolve();
+
+        return new Promise(resolve => {
+            const id = existingTransition.connect('stopped', (finished) => {
+                existingTransition.disconnect(id);
+                resolve();
+            });
+        });
+    }
+
+    animateOutAndDestroy() {
+        if (this._animatedOut)
+            throw new Error("May only call animateOut() once");
+
+        this._animatedOut = true;
+
+        this.ease({
+            opacity: 0,
+            duration: 350,
+            onStopped: () => this.destroy(),
+        });
+    }
+});
+
+const SPLASHSCREEN_GRACE_TIME_MS = 1000;
+
+const WorkspaceTracker = GObject.registerClass({
+    Properties: {
+        'single-window-workspaces': GObject.ParamSpec.boolean(
+            'single-window-workspaces', 'single-window-workspaces', 'single-window-workspaces',
+            GObject.ParamFlags.READWRITE,
+            false),
+    },
+}, class WorkspaceTracker extends GObject.Object {
+    _init(params) {
+        super._init(params);
 
         this._workspaces = [];
-        this._checkWorkspacesId = 0;
+        this._windowData = new Map();
+        this._updatesBlocked = false;
 
-        this._pauseWorkspaceCheck = false;
-
-        let tracker = Shell.WindowTracker.get_default();
-        tracker.connect('startup-sequence-changed', this._queueCheckWorkspaces.bind(this));
-
-        let workspaceManager = global.workspace_manager;
-        workspaceManager.connect('notify::n-workspaces',
-            this._nWorkspacesChanged.bind(this));
+        const workspaceManager = global.workspace_manager;
+        workspaceManager.connect('workspace-added',
+            this._workspaceAdded.bind(this));
+        workspaceManager.connect('workspace-removed',
+            this._workspaceRemoved.bind(this));
         workspaceManager.connect('workspaces-reordered', () => {
             this._workspaces.sort((a, b) => a.index() - b.index());
         });
-        global.window_manager.connect('switch-workspace',
-            this._queueCheckWorkspaces.bind(this));
 
-        global.display.connect('window-entered-monitor',
-            this._windowEnteredMonitor.bind(this));
-        global.display.connect('window-left-monitor',
-            this._windowLeftMonitor.bind(this));
+        global.window_manager.connect('switch-workspace',
+            this._workspaceSwitched.bind(this));
+
+        const tracker = Shell.WindowTracker.get_default();
+        tracker.connect('startup-sequence-changed',
+            this._startupSequenceChanged.bind(this));
+
+        this.connect('notify::single-window-workspaces',
+            this._redoLayout.bind(this));
 
         this._workspaceSettings = new Gio.Settings({schema_id: 'org.gnome.mutter'});
-        this._workspaceSettings.connect('changed::dynamic-workspaces', this._queueCheckWorkspaces.bind(this));
+        this._workspaceSettings.connect('changed::dynamic-workspaces',
+            this._redoLayout.bind(this));
 
-        this._nWorkspacesChanged();
+        for (let i = 0; i < workspaceManager.n_workspaces; i++)
+            this._workspaceAdded(workspaceManager, i);
+
+        this._redoLayout();
     }
 
     blockUpdates() {
-        this._pauseWorkspaceCheck = true;
+        this._updatesBlocked = true;
     }
 
     unblockUpdates() {
-        this._pauseWorkspaceCheck = false;
+        this._updatesBlocked = false;
+        this._redoLayout();
     }
 
-    _checkWorkspaces() {
-        let workspaceManager = global.workspace_manager;
-        let i;
-        let emptyWorkspaces = [];
-
-        if (!Meta.prefs_get_dynamic_workspaces()) {
-            this._checkWorkspacesId = 0;
-            return GLib.SOURCE_REMOVE;
+    _redoLayout() {
+        if (this.singleWindowWorkspaces && !Meta.prefs_get_dynamic_workspaces()) {
+            log("Disallowing single window workspaces: Dynamic workspaces are disabled");
+            this._useSingleWindowWorkspaces = false;
+        } else {
+            this._useSingleWindowWorkspaces = this.singleWindowWorkspaces;
         }
+log("WS: CHANGE single window: " + this._useSingleWindowWorkspaces);
 
-        // Update workspaces only if Dynamic Workspace Management has not been paused by some other function
-        if (this._pauseWorkspaceCheck)
-            return GLib.SOURCE_CONTINUE;
+        if (this._useSingleWindowWorkspaces) {
+            for (const w of this._windowData.keys()) {
+                if (!this._maybeMoveToOwnWorkspace(w)) {
+                    // Windows are auto-maximized when moving to a new workspace,
+                    // so we only need to maximize the window that's left on our
+                    // workspace.
+                    const vert = w.can_maximize_vertically();
+                    const horiz = w.can_maximize_horizontally();
 
-        for (i = 0; i < this._workspaces.length; i++) {
-            let lastRemoved = this._workspaces[i]._lastRemovedWindow;
-            if ((lastRemoved &&
-                 (lastRemoved.get_window_type() === Meta.WindowType.SPLASHSCREEN ||
-                  lastRemoved.get_window_type() === Meta.WindowType.DIALOG ||
-                  lastRemoved.get_window_type() === Meta.WindowType.MODAL_DIALOG)) ||
-                this._workspaces[i]._keepAliveId)
-                emptyWorkspaces[i] = false;
-            else
-                emptyWorkspaces[i] = true;
-        }
-
-        let sequences = Shell.WindowTracker.get_default().get_startup_sequences();
-        for (i = 0; i < sequences.length; i++) {
-            let index = sequences[i].get_workspace();
-            if (index >= 0 && index <= workspaceManager.n_workspaces)
-                emptyWorkspaces[index] = false;
-        }
-
-        let windows = global.get_window_actors();
-        for (i = 0; i < windows.length; i++) {
-            let actor = windows[i];
-            let win = actor.get_meta_window();
-
-            if (win.is_on_all_workspaces())
-                continue;
-
-            let workspaceIndex = win.get_workspace().index();
-            emptyWorkspaces[workspaceIndex] = false;
-        }
-
-        // If we don't have an empty workspace at the end, add one
-        if (!emptyWorkspaces[emptyWorkspaces.length - 1]) {
-            workspaceManager.append_new_workspace(false, global.get_current_time());
-            emptyWorkspaces.push(true);
-        }
-
-        // Enforce minimum number of workspaces
-        while (emptyWorkspaces.length < MIN_NUM_WORKSPACES) {
-            workspaceManager.append_new_workspace(false, global.get_current_time());
-            emptyWorkspaces.push(true);
-        }
-
-        let lastIndex = emptyWorkspaces.length - 1;
-        let lastEmptyIndex = emptyWorkspaces.lastIndexOf(false) + 1;
-        let activeWorkspaceIndex = workspaceManager.get_active_workspace_index();
-        emptyWorkspaces[activeWorkspaceIndex] = false;
-
-        // Delete empty workspaces except for the last one; do it from the end
-        // to avoid index changes
-        for (i = lastIndex; i >= 0; i--) {
-            if (workspaceManager.n_workspaces === MIN_NUM_WORKSPACES)
-                break;
-            if (emptyWorkspaces[i] && i !== lastEmptyIndex)
-                workspaceManager.remove_workspace(this._workspaces[i], global.get_current_time());
-        }
-
-        this._checkWorkspacesId = 0;
-        return GLib.SOURCE_REMOVE;
-    }
-
-    keepWorkspaceAlive(workspace, duration) {
-        if (workspace._keepAliveId)
-            GLib.source_remove(workspace._keepAliveId);
-
-        workspace._keepAliveId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, duration, () => {
-            workspace._keepAliveId = 0;
-            this._queueCheckWorkspaces();
-            return GLib.SOURCE_REMOVE;
-        });
-        GLib.Source.set_name_by_id(workspace._keepAliveId, '[gnome-shell] this._queueCheckWorkspaces');
-    }
-
-    _windowRemoved(workspace, window) {
-        workspace._lastRemovedWindow = window;
-        this._queueCheckWorkspaces();
-        let id = GLib.timeout_add(GLib.PRIORITY_DEFAULT, LAST_WINDOW_GRACE_TIME, () => {
-            if (workspace._lastRemovedWindow === window) {
-                workspace._lastRemovedWindow = null;
-                this._queueCheckWorkspaces();
+                    if (vert && horiz)
+                        w.maximize(Meta.MaximizeFlags.BOTH);
+                    else if (vert) {
+                        w.maximize(Meta.MaximizeFlags.VERTICAL);
+                        w.move_frame(false, 0, 0);
+                    } else if (horiz) {
+                        w.maximize(Meta.MaximizeFlags.HORIZONTAL);
+                        w.move_frame(false, 0, 0);
+                    }
+                }
             }
-            return GLib.SOURCE_REMOVE;
-        });
-        GLib.Source.set_name_by_id(id, '[gnome-shell] this._queueCheckWorkspaces');
-    }
 
-    _windowLeftMonitor(metaDisplay, monitorIndex, _metaWin) {
-        // If the window left the primary monitor, that
-        // might make that workspace empty
-        if (monitorIndex === Main.layoutManager.primaryIndex)
-            this._queueCheckWorkspaces();
-    }
+            this._workspaces.slice().reverse().forEach(w => this._maybeRemoveWorkspace(w));
+        } else {
+            for (const w of this._windowData.keys())
+                w.set_can_grab(true);
 
-    _windowEnteredMonitor(metaDisplay, monitorIndex, _metaWin) {
-        // If the window entered the primary monitor, that
-        // might make that workspace non-empty
-        if (monitorIndex === Main.layoutManager.primaryIndex)
-            this._queueCheckWorkspaces();
-    }
+            this._workspaces.forEach(w => {
+                if (w._newTilingWorkspaceTimeoutId) {
+                    GLib.source_remove(w._newTilingWorkspaceTimeoutId);
+                    delete w._newTilingWorkspaceTimeoutId;
+                }
+            });
 
-    _queueCheckWorkspaces() {
-        if (this._checkWorkspacesId === 0) {
-            const laters = global.compositor.get_laters();
-            this._checkWorkspacesId =
-                laters.add(Meta.LaterType.BEFORE_REDRAW, this._checkWorkspaces.bind(this));
+            if (Meta.prefs_get_dynamic_workspaces()) {
+                const workspaceManager = global.workspace_manager;
+                while (workspaceManager.n_workspaces < MIN_NUM_WORKSPACES)
+                    workspaceManager.append_new_workspace(false, global.get_current_time());
+
+                /* We always want one empty workspace at the end of the strip */
+                if (this._workspaceHasOwnWindows(this._workspaces[this._workspaces.length - 1]))
+                    workspaceManager.append_new_workspace(false, global.get_current_time());
+
+                this._workspaces.slice().reverse().forEach(w => this._maybeRemoveWorkspace(w));
+            }
         }
     }
 
-    _nWorkspacesChanged() {
-        let workspaceManager = global.workspace_manager;
-        let oldNumWorkspaces = this._workspaces.length;
-        let newNumWorkspaces = workspaceManager.n_workspaces;
+    _workspaceHasOwnWindows(workspace) {
+        for (const w of workspace.get_windows()) {
+            if (!w.on_all_workspaces)
+                return true;
+        }
 
-        if (oldNumWorkspaces === newNumWorkspaces)
+        return false;
+    }
+
+    _moveWindowToNewWorkspace(window, workspaceIndex) {
+        const workspaceManager = global.workspace_manager;
+        const timeRoundtrip = global.display.get_current_time_roundtrip();
+
+        // Don't activate yet: First append the workspace, then move it, then
+        // move the window, then activate!
+        const newWorkspace =
+            workspaceManager.append_new_workspace(false, timeRoundtrip);
+
+        workspaceManager.reorder_workspace(newWorkspace, workspaceIndex);
+        window.change_workspace_by_index(workspaceIndex, false);
+
+        newWorkspace.activate(timeRoundtrip);
+    }
+
+    _maybeRemoveWorkspace(workspace) {
+        const workspaceManager = global.workspace_manager;
+
+log("WS: MAYBE remove removing ws " + workspace.workspace_index);
+
+        if (this._updatesBlocked) {
+log("WS: nope, updates are blocked");
+            return;
+}
+
+
+        if (workspace._startupSequenceTimeoutId) {
+log("WS: nope, has a startup sequence");
+            return;
+}
+
+        if (workspace._splashscreenGraceTimeoutId) {
+log("WS: nope, there's a grace timeout");
+            return;
+}
+
+        if (this._workspaceHasOwnWindows(workspace)) {
+log("WS: nope, its occupied");
+            return;
+}
+        if (this._useSingleWindowWorkspaces) {
+            if (workspace._newTilingWorkspaceTimeoutId) {
+    log("WS: nope, has window added timeout");
+                return;
+    }
+
+            if (workspace._appOpeningOverlay) {
+                workspace._appOpeningOverlay.destroy(),
+                delete workspace._appOpeningOverlay;
+            }
+
+            // Workspace has no more windows and is the active one, in
+            // single-workspace mode in this case we don't want to go to the
+            // adjacent workspace, but instead always to the overview.
+            if (!Main.layoutManager.starting_up && workspace.active)
+                Main.overview.show(2);
+
+            /* There must always be a default workspace, don't remove that one */
+            if (this._workspaces.length > 1)
+                workspaceManager.remove_workspace(workspace, global.get_current_time());
+            else
+                log("WS: nope, it's the default one");
+        } else {
+            if (workspace.active ||
+                this._workspaces.length === MIN_NUM_WORKSPACES)
+                return;
+
+            /* We always want one empty workspace at the end of the strip */
+            if (workspace.workspace_index === this._workspaces.length - 1)
+                return;
+
+            workspaceManager.remove_workspace(workspace, global.get_current_time());
+        }
+    }
+
+    _windowShouldHaveOwnWorkspace(window) {
+        /* Transient windows are usually modal dialogs */
+        if (window.get_transient_for() !== null)
             return false;
 
-        if (newNumWorkspaces > oldNumWorkspaces) {
-            let w;
+        if (window.is_override_redirect())
+            return false;
 
-            // Assume workspaces are only added at the end
-            for (w = oldNumWorkspaces; w < newNumWorkspaces; w++)
-                this._workspaces[w] = workspaceManager.get_workspace_by_index(w);
+        if (window.on_all_workspaces)
+            return false;
 
-            for (w = oldNumWorkspaces; w < newNumWorkspaces; w++) {
-                this._workspaces[w].connectObject(
-                    'window-added', this._queueCheckWorkspaces.bind(this),
-                    'window-removed', this._windowRemoved.bind(this), this);
+        if (window.window_type === Meta.WindowType.SPLASHSCREEN ||
+            window.window_type === Meta.WindowType.DIALOG ||
+            window.window_type === Meta.WindowType.MODAL_DIALOG)
+            return false;
+
+        return true;
+    }
+
+    _windowShouldBeGrabbable(window) {
+        if (window.above)
+            return true;
+
+        // allow grabbing if the window has a width thats bigger
+        // than the workarea so it can at least be moved horizontally...
+        // vertically that wouldnt really help because window can
+        // only be grabbed on the headerbar, so impossible to move them up more
+        if (!window.fullscreen) {
+            const frameRect = window.get_frame_rect();
+            const workArea = window.get_work_area_current_monitor();
+            if (frameRect.width > workArea.width || frameRect.height > workArea.height)
+                return true;
+        }
+
+        return false;
+    }
+
+    _maybeMoveToOwnWorkspace(window) {
+        if (this._windowData.get(window).shouldHaveOwnWorkspace) {
+            const windowWorkspace = window.get_workspace();
+            let workspaceHasOtherWindows = false;
+            for (const [w, data] of this._windowData.entries()) {
+                if (w !== window &&
+                    (w.get_workspace() === windowWorkspace || w.on_all_workspaces) &&
+                    data.shouldHaveOwnWorkspace) {
+                    workspaceHasOtherWindows = true;
+                    break;
+                }
+            };
+
+            if (workspaceHasOtherWindows) {
+                log("WS: WINDOW ADDED: moving the window to new workspace");
+                this._moveWindowToNewWorkspace(window, window.get_workspace().workspace_index + 1);
+                return true;
             }
+        }
+
+        return false;
+    }
+
+    async _animateOutStartupOverlay(workspace) {
+        if (workspace._appOpeningOverlay) {
+            await workspace._appOpeningOverlay.waitAnimateInFinished();
+            workspace._appOpeningOverlay.animateOutAndDestroy();
+
+            delete workspace._appOpeningOverlay;
+        }
+    }
+
+    _maybeAnimateOutStartupOverlay(window) {
+        const workspace = window.get_workspace();
+        const frameRect = window.get_frame_rect();
+        const workArea = window.get_work_area_current_monitor();
+        const rectGood = frameRect.width === workArea.width && frameRect.height === workArea.height;
+        const isMaximized =
+            (window.maximized_vertically && window.maximized_horizontally && rectGood) ||
+            window.fullscreen ||
+            Main.keyboard.visible;
+
+        log(`WindowManager: maximized_v=${window.maximized_vertically} maximized_h=${window.maximized_horizontally} rectGood=${rectGood} (w=${frameRect.width} h=${frameRect.height}) fullscreen=${window.fullscreen} keyboard_visible=${Main.keyboard.visible}`);
+
+        if (workspace._waitForWindowToMaximize && isMaximized) {
+            delete workspace._waitForWindowToMaximize;
+            delete workspace._waitForWindowToShow;
+            if (workspace._animateOutTimeoutId) {
+                GLib.source_remove(workspace._animateOutTimeoutId);
+                delete workspace._animateOutTimeoutId;
+            }
+
+            if (!workspace._waitForWindowToShow)
+                this._animateOutStartupOverlay(workspace);
+        }
+    }
+
+    _windowAddedToWorkspace(workspace, window) {
+        if (!window.get_compositor_private()) {
+            /* Give newly opened windows some time to sort things out. If we
+             * passed a specific workspace the window should open on, it only
+             * gets moved to this workspace after 'window-added' got emitted, we
+             * want to wait until that happened.
+             */
+            const laters = global.compositor.get_laters();
+            window._addedLater = laters.add(Meta.LaterType.BEFORE_REDRAW, () => {
+                delete window._addedLater;
+
+                this._windowAddedToWorkspace(workspace, window);
+                return false;
+            });
+
+            return;
+        }
+
+        window._laterDone = true;
+
+        /* Little hack: Since startup sequences tend to never finish due to various bugs, pretend they finished
+         * when a window gets opened on the workspace */
+        if (workspace._startupSequenceTimeoutId) {
+            GLib.source_remove(workspace._startupSequenceTimeoutId);
+            delete workspace._startupSequenceTimeoutId;
+        }
+
+        let windowData = this._windowData.get(window);
+        if (!windowData) {
+            this._windowData.set(window, {
+                connections: [
+                    window.connect('transient-for-changed', () => {
+    log("WS: transient for change");
+                        this._windowData.get(window).shouldHaveOwnWorkspace =
+                            this._windowShouldHaveOwnWorkspace(window);
+
+                        if (this._useSingleWindowWorkspaces)
+                            this._maybeMoveToOwnWorkspace(window);
+
+                        const transientFor = window.get_transient_for();
+                        if (transientFor !== null) {
+                            const transientForWorkspace = transientFor.get_workspace();
+                            if (window.get_workspace() !== transientForWorkspace)
+                                window.change_workspace(transientForWorkspace);
+                        }
+                    }),
+                    window.connect('notify::window-type', () => {
+    log("WS: window type change");
+                        this._windowData.get(window).shouldHaveOwnWorkspace =
+                            this._windowShouldHaveOwnWorkspace(window);
+
+                        if (this._useSingleWindowWorkspaces)
+                            this._maybeMoveToOwnWorkspace(window);
+                    }),
+                    window.connect('notify::above', () => {
+                        if (this._useSingleWindowWorkspaces)
+                            window.set_can_grab(this._windowShouldBeGrabbable(window));
+                    }),
+                    window.connect('notify::maximized-horizontally', () => {
+                        this._maybeAnimateOutStartupOverlay(window);
+                    }),
+                    window.connect('notify::maximized-vertically', () => {
+                        this._maybeAnimateOutStartupOverlay(window);
+                    }),
+                    window.connect('notify::fullscreen', () => {
+                        this._maybeAnimateOutStartupOverlay(window);
+
+                        // Don't update window.set_can_grab() here even though
+                        // we check the fullscreen property in
+                        // _windowShouldBeGrabbable(): The fullscreen property
+                        // might already be false, but the frame rect isn't
+                        // updated yet, so we end up doing set_can_grab(true).
+                    }),
+                    window.connect('size-changed', () => {
+                        this._maybeAnimateOutStartupOverlay(window);
+
+                        if (this._useSingleWindowWorkspaces)
+                            window.set_can_grab(this._windowShouldBeGrabbable(window));
+                    }),
+                    window.connect('can-maximize-changed', (w) => {
+                        const vert = window.can_maximize_vertically();
+                        const horiz = window.can_maximize_horizontally();
+
+                        if (vert && horiz)
+                            window.maximize(Meta.MaximizeFlags.BOTH);
+                        else if (vert) {
+                            window.maximize(Meta.MaximizeFlags.VERTICAL);
+                            window.move_frame(false, 0, 0);
+                        } else if (horiz) {
+                            window.maximize(Meta.MaximizeFlags.HORIZONTAL);
+                            window.move_frame(false, 0, 0);
+                        }
+                    }),
+                    window.connect('unmanaged', () => {
+                        this._windowData.delete(window);
+                    }),
+                    window.connect('shown', () => {
+                        const ws = window.get_workspace();
+
+                        if (!ws._waitForWindowToShow)
+                            return;
+log("WindowManager: shown late, still waiting to max " + ws._waitForWindowToMaximize);
+                        delete ws._waitForWindowToShow;
+
+                        if (ws._waitForWindowToMaximize) {
+                            if (ws._animateOutTimeoutId)
+                                throw new Error();
+
+                            // If we're still waiting for maximize, give window
+                            // 1s to change size after showing.
+                            ws._animateOutTimeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 5000, () => {
+log("WindowManager: shown maximize timed out");
+                                delete ws._waitForWindowToMaximize;
+                                delete ws._animateOutTimeoutId;
+                                this._animateOutStartupOverlay(ws);
+                                return GLib.SOURCE_REMOVE;
+                            });
+                        } else {
+log("WindowManager: shown");
+                            this._animateOutStartupOverlay(ws);
+                        }
+                    }),
+                ],
+            });
+
+            windowData = this._windowData.get(window);
+        }
+
+        windowData.shouldHaveOwnWorkspace = this._windowShouldHaveOwnWorkspace(window);
+
+
+        if (!Meta.prefs_get_dynamic_workspaces())
+            return;
+
+        /* Stickies don't count as real windows */
+        if (window.on_all_workspaces)
+            return;
+
+        if (workspace._splashscreenGraceTimeoutId) {
+log("WS: WINDOW ADDED: removing grace timeout thingy");
+            GLib.source_remove(workspace._splashscreenGraceTimeoutId);
+            delete workspace._splashscreenGraceTimeoutId;
+        }
+
+
+        if (this._useSingleWindowWorkspaces) {
+            if (workspace._newTilingWorkspaceTimeoutId) {
+    log("WS: WINDOW ADDED: was app workspace, that worked, neat");
+                GLib.source_remove(workspace._newTilingWorkspaceTimeoutId);
+                delete workspace._newTilingWorkspaceTimeoutId;
+            }
+
+            const transientForWorkspace = window.get_transient_for()?.get_workspace();
+            if (transientForWorkspace && workspace !== transientForWorkspace) {
+                window.change_workspace(transientForWorkspace);
+                return; // let the other workspaces 'window-added' handler take over
+            }
+
+            if (this._maybeMoveToOwnWorkspace(window))
+                return; // let the other workspaces 'window-added' handler take over
+
+            const vert = window.can_maximize_vertically();
+            const horiz = window.can_maximize_horizontally();
+
+            log(`WindowManager: window added: visible=${window.get_compositor_private()?.visible} can_max_v${vert} can_max_h=${horiz} maximized_v=${window.maximized_vertically} maxixmized_h=${window.maximized_horizontally}`);
+
+            if (vert && horiz)
+                window.maximize(Meta.MaximizeFlags.BOTH);
+            else if (vert) {
+                window.maximize(Meta.MaximizeFlags.VERTICAL);
+                window.move_frame(false, 0, 0);
+            } else if (horiz) {
+                window.maximize(Meta.MaximizeFlags.HORIZONTAL);
+                window.move_frame(false, 0, 0);
+            }
+
+            const frameRect = window.get_frame_rect();
+            const workArea = window.get_work_area_current_monitor();
+            const rectGood = frameRect.width === workArea.width && frameRect.height === workArea.height;
+            const shouldWaitForSizeChange = window.maximized_vertically && window.maximized_horizontally && !rectGood;
+
+            const isWayland = window.toString().includes("MetaWindowWayland");
+            if (isWayland && (!window.get_compositor_private() || !window.get_compositor_private().visible))
+                workspace._waitForWindowToShow = true;
+
+            if (shouldWaitForSizeChange) {
+                workspace._waitForWindowToMaximize = true;
+
+                if (!workspace._waitForWindowToShow) {
+                    workspace._animateOutTimeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 5000, () => {
+                        delete workspace._waitForWindowToMaximize;
+                        delete workspace._animateOutTimeoutId;
+                        this._animateOutStartupOverlay(workspace);
+                        return GLib.SOURCE_REMOVE;
+                    });
+                }
+            } else {
+                if (!workspace._waitForWindowToShow) {
+                    this._animateOutStartupOverlay(workspace);
+                } else {
+                    // we'll wait for the "shown" signal and then animate out
+                }
+            }
+
+            window.set_can_grab(this._windowShouldBeGrabbable(window));
         } else {
-            // Assume workspaces are only removed sequentially
-            // (e.g. 2,3,4 - not 2,4,7)
-            let removedIndex;
-            let removedNum = oldNumWorkspaces - newNumWorkspaces;
-            for (let w = 0; w < oldNumWorkspaces; w++) {
-                let workspace = workspaceManager.get_workspace_by_index(w);
-                if (this._workspaces[w] !== workspace) {
-                    removedIndex = w;
+            const workspaceManager = global.workspace_manager;
+
+            /* We always want one empty workspace at the end of the strip */
+            if (!this._updatesBlocked && workspace.workspace_index === this._workspaces.length - 1)
+                workspaceManager.append_new_workspace(false, global.get_current_time());
+        }
+    }
+
+    _windowRemovedFromWorkspace(workspace, window) {
+        if (!window._laterDone) {
+            const laters = global.compositor.get_laters();
+            laters.remove(window._addedLater);
+            delete window._addedLater;
+
+            /* Window got removed so quickly again the MetaLater didn't even
+             * execute, let's pretend nothing happened.
+             */
+            return;
+        }
+
+        if (!Meta.prefs_get_dynamic_workspaces())
+            return;
+
+        /* Stickies don't count as real windows */
+        if (window.on_all_workspaces)
+            return;
+
+        const workspaceEmpty = !this._workspaceHasOwnWindows(workspace);
+
+log("WS: " + workspace.workspace_index + " WIN REMOVED, " + workspace.n_windows + " " + window.title + " empty " + workspaceEmpty);
+
+        if (workspaceEmpty) {
+            if (workspace._splashscreenGraceTimeoutId)
+                throw new Error();
+
+            /* If the last window that got closed is a temporary one (like a
+             * splashscreen), we leave the workspace around for a bit in case
+             * the app maps another window.
+             */
+            if (window.window_type === Meta.WindowType.SPLASHSCREEN) {
+log("WS: we have 0, delaying to later because splashscreen");
+                workspace._splashscreenGraceTimeoutId = GLib.timeout_add(
+                    GLib.PRIORITY_DEFAULT, SPLASHSCREEN_GRACE_TIME_MS, () => {
+log("WS: alright now is later");
+                        delete workspace._splashscreenGraceTimeoutId;
+                        this._maybeRemoveWorkspace(workspace);
+
+                        return GLib.SOURCE_REMOVE;
+                    });
+            } else {
+log("WS: we have 0, removing");
+
+                if (window._content && !Main.overview.visible) {
+                    let actorClone = new St.Widget({ content: window._content, });
+            //        actorClone.set_offscreen_redirect(Clutter.OffscreenRedirect.ALWAYS);
+                    actorClone.set_position(window._rect.x, window._rect.y);
+                    actorClone.set_size(window._rect.width, window._rect.height);
+                    actorClone.set_pivot_point(0.5, 0.5);
+
+                    Main.uiGroup.add_child(actorClone);
+                    Main.uiGroup.set_child_above_sibling(actorClone, Main.layoutManager.overviewGroup);
+                 /*   actorClone.ease({
+                        scale_x: 0.8,
+                        scale_y: 0.8,
+                        duration: 200,
+                        mode: Clutter.AnimationMode.EASE_IN_QUAD,
+                        onStopped: () => {
+                            actorClone.destroy();
+                        },
+                    });
+            */
+                    actorClone.ease({
+                        delay: 0,
+                        opacity: 0,
+                        duration: 230,
+                        mode: Clutter.AnimationMode.LINEAR,
+                    });
+                }
+
+                this._maybeRemoveWorkspace(workspace);
+            }
+        }
+    }
+
+    maybeCreateWorkspaceForWindow(time, app, existingIcon) {
+        if (!this._useSingleWindowWorkspaces)
+            return null;
+
+        if (!Meta.prefs_get_dynamic_workspaces())
+            return null;
+
+        let newWorkspace;
+
+        /* The default workspace always exists, if it's empty and not
+         * reserved already, use it.
+         */
+        if (this._workspaces.length === 1 &&
+            !this._workspaces[0]._startupSequenceTimeoutId &&
+            !this._workspaces[0]._splashscreenGraceTimeoutId &&
+            !this._workspaces[0]._newTilingWorkspaceTimeoutId &&
+            !this._workspaceHasOwnWindows(this._workspaces[0])) {
+            newWorkspace = this._workspaces[0];
+        } else {
+            const workspaceManager = global.workspace_manager;
+            const activeWsIndex = workspaceManager.get_active_workspace_index();
+
+            newWorkspace = workspaceManager.append_new_workspace(false, time);
+            workspaceManager.reorder_workspace(newWorkspace, activeWsIndex + 1);
+        }
+
+        newWorkspace.activate(time);
+
+        /* If no window or startup sequence appears within five seconds,
+         * we remove the workspace again.
+         */
+        newWorkspace._newTilingWorkspaceTimeoutId =
+            GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 5, () => {
+    log("WS: app ws " + newWorkspaceIndex + " timed out, removing");
+                delete newWorkspace._newTilingWorkspaceTimeoutId;
+                this._maybeRemoveWorkspace(newWorkspace);
+
+                return GLib.SOURCE_REMOVE;
+            });
+
+        const animationActor = new AppStartupAnimation(app, newWorkspace);
+        Main.uiGroup.add_child(animationActor);
+        Main.uiGroup.set_child_above_sibling(animationActor, Main.layoutManager.overviewGroup);
+
+        animationActor.animateIn(existingIcon);
+
+        newWorkspace._appOpeningOverlay = animationActor;
+
+        return newWorkspace;
+    }
+
+    _workspaceAdded(workspaceManager, index) {
+        const newWorkspace = workspaceManager.get_workspace_by_index(index);
+log("WS: added " + index);
+
+        this._workspaces.splice(index, 0, newWorkspace);
+
+        newWorkspace.connectObject(
+            'window-added', this._windowAddedToWorkspace.bind(this),
+            'window-removed', this._windowRemovedFromWorkspace.bind(this),
+            this);
+    }
+
+    _workspaceRemoved(workspaceManager, index) {
+log("WS: removed " + index);
+        if (!this._workspaces[index])
+            throw new Error();
+
+        if (this._workspaces[index]._startupSequenceTimeoutId)
+            throw new Error();
+
+        if (this._workspaces[index]._splashscreenGraceTimeoutId)
+            throw new Error();
+
+        if (this._workspaces[index]._newTilingWorkspaceTimeoutId)
+            throw new Error();
+
+        if (this._workspaces[index]._appOpeningOverlay)
+            throw new Error();
+
+        this._workspaces.splice(index, 1);
+    }
+
+    _workspaceSwitched(shellwm, fromIndex, toIndex, direction) {
+        if (!Meta.prefs_get_dynamic_workspaces())
+            return;
+
+        const workspaceManager = global.workspace_manager;
+
+        if (!this._useSingleWindowWorkspaces) {
+log("WS: switched, maybe reming index " + fromIndex);
+            this._maybeRemoveWorkspace(workspaceManager.get_workspace_by_index(fromIndex));
+}
+    }
+
+    _startupSequenceChanged(windowTracker, startupSequence) {
+        if (!Meta.prefs_get_dynamic_workspaces())
+            return;
+
+        /* Note that the way startup sequences work is quite sub-optimal
+         * right now: The workspace index gets set once when creating the
+         * sequence and it won't get updated if workspaces change. That
+         * means the index might be outdated and the window will open on
+         * the wrong workspace.
+         */
+
+log("WS: startup sequence changed " + startupSequence + " ws " + startupSequence.get_workspace() + " comp " + startupSequence.get_completed() + " app " + startupSequence.get_application_id() + " name " + startupSequence.get_name() + " icon " + startupSequence.get_icon_name());
+
+        const sequences = Shell.WindowTracker.get_default().get_startup_sequences();
+   /*     const workspacesStartingUp = [];
+        for (const sequence of sequences) {
+            if (sequence.get_completed())
+                continue;
+
+            const wsIndex = sequence.get_workspace();
+            if (wsIndex >= 0 && wsIndex < this._workspaces.length)
+                workspacesStartingUp[wsIndex] = true;
+        }
+
+        this._workspaces.slice().forEach((workspace, i) => {
+            const wasStartingUp = workspace._appStartingUp;
+
+            if (workspacesStartingUp[i]) {
+                if (workspace._newTilingWorkspaceTimeoutId) {
+        log("WS: STARTING UP : was app workspace, that worked, neat");
+                    GLib.source_remove(workspace._newTilingWorkspaceTimeoutId);
+                    delete workspace._newTilingWorkspaceTimeoutId;
+                }
+
+                workspace._appStartingUp = true;
+            } else if (wasStartingUp) {
+                delete workspace._appStartingUp;
+                this._maybeRemoveWorkspace(workspace);
+            }
+        });
+*/
+
+        this._workspaces.slice().forEach((workspace, i) => {
+            let isStartingUp = false;
+
+            for (const sequence of sequences) {
+                if (!sequence.get_completed() && sequence.get_workspace() === i) {
+                    isStartingUp = true;
                     break;
                 }
             }
 
-            let lostWorkspaces = this._workspaces.splice(removedIndex, removedNum);
-            lostWorkspaces.forEach(workspace => workspace.disconnectObject(this));
-        }
+            if (isStartingUp) {
+               if (workspace._newTilingWorkspaceTimeoutId) {
+                    log("WS: STARTUP: found new startup sequ for tiling workspace, that worked, neat");
+                    GLib.source_remove(workspace._newTilingWorkspaceTimeoutId);
+                    delete workspace._newTilingWorkspaceTimeoutId;
+                }
 
-        this._queueCheckWorkspaces();
+                /* Startup sequences can take veeery long to time out, so we use our own here */
+                if (!workspace._startupSequenceTimeoutId) {
+                    workspace._startupSequenceTimeoutId = GLib.timeout_add(
+                        GLib.PRIORITY_DEFAULT, 10000, () => {
+                            delete workspace._startupSequenceTimeoutId;
+                            this._maybeRemoveWorkspace(workspace);
 
-        return false;
+                            return GLib.SOURCE_REMOVE;
+                        });
+                }
+            } else if (workspace._startupSequenceTimeoutId) {
+                GLib.source_remove(workspace._startupSequenceTimeoutId);
+                delete workspace._startupSequenceTimeoutId;
+                this._maybeRemoveWorkspace(workspace);
+            }
+        });
     }
-}
+});
 
 export const TilePreview = GObject.registerClass(
 class TilePreview extends St.Widget {
@@ -903,8 +1575,13 @@ export class WindowManager {
 
         this._windowMenuManager = new WindowMenu.WindowMenuManager();
 
-        if (Main.sessionMode.hasWorkspaces)
-            this._workspaceTracker = new WorkspaceTracker(this);
+        if (Main.sessionMode.hasWorkspaces) {
+            this.workspaceTracker = new WorkspaceTracker();
+
+            Main.layoutManager.bind_property('is-phone',
+                this.workspaceTracker, 'single-window-workspaces',
+                GObject.BindingFlags.SYNC_CREATE);
+        }
 
         const allowedModes = Shell.ActionMode.NORMAL;
         const topDragGesture = new Shell.EdgeDragGesture({
@@ -1017,53 +1694,13 @@ export class WindowManager {
     }
 
     insertWorkspace(pos) {
-        let workspaceManager = global.workspace_manager;
+        const workspaceManager = global.workspace_manager;
 
         if (!Meta.prefs_get_dynamic_workspaces())
             return;
 
-        workspaceManager.append_new_workspace(false, global.get_current_time());
-
-        let windows = global.get_window_actors().map(a => a.meta_window);
-
-        // To create a new workspace, we slide all the windows on workspaces
-        // below us to the next workspace, leaving a blank workspace for us
-        // to recycle.
-        windows.forEach(window => {
-            // If the window is attached to an ancestor, we don't need/want
-            // to move it
-            if (window.get_transient_for() != null)
-                return;
-            // Same for OR windows
-            if (window.is_override_redirect())
-                return;
-            // Sticky windows don't need moving, in fact moving would
-            // unstick them
-            if (window.on_all_workspaces)
-                return;
-            // Windows on workspaces below pos don't need moving
-            let index = window.get_workspace().index();
-            if (index < pos)
-                return;
-            window.change_workspace_by_index(index + 1, true);
-        });
-
-        // If the new workspace was inserted before the active workspace,
-        // activate the workspace to which its windows went
-        let activeIndex = workspaceManager.get_active_workspace_index();
-        if (activeIndex >= pos) {
-            let newWs = workspaceManager.get_workspace_by_index(activeIndex + 1);
-            this._blockAnimations = true;
-            newWs.activate(global.get_current_time());
-            this._blockAnimations = false;
-        }
-    }
-
-    keepWorkspaceAlive(workspace, duration) {
-        if (!this._workspaceTracker)
-            return;
-
-        this._workspaceTracker.keepWorkspaceAlive(workspace, duration);
+        const newWs = workspaceManager.append_new_workspace(false, global.get_current_time());
+        workspaceManager.reorder_workspace(newWs, pos);
     }
 
     skipNextEffect(actor) {
@@ -1265,6 +1902,7 @@ export class WindowManager {
     _sizeChangeWindow(shellwm, actor, whichChange, oldFrameRect, _oldBufferRect) {
         const types = [Meta.WindowType.NORMAL];
         const shouldAnimate =
+            !this.workspaceTracker.singleWindowWorkspaces &&
             this._shouldAnimateActor(actor, types) &&
             oldFrameRect.width > 0 &&
             oldFrameRect.height > 0;
@@ -1469,6 +2107,11 @@ export class WindowManager {
 
         switch (this._getAnimationWindowType(actor)) {
         case Meta.WindowType.NORMAL:
+            if (this.workspaceTracker.singleWindowWorkspaces) {
+                shellwm.completed_map(actor);
+                return;
+            }
+
             actor.set_pivot_point(0.5, 1.0);
             actor.scale_x = 0.01;
             actor.scale_y = 0.05;
@@ -1534,6 +2177,15 @@ export class WindowManager {
             Meta.WindowType.DIALOG,
             Meta.WindowType.MODAL_DIALOG,
         ];
+
+        if (this.workspaceTracker.singleWindowWorkspaces) {
+            window._rect = window.get_frame_rect();
+            window._content = actor.paint_to_content(window._rect);
+
+            shellwm.completed_destroy(actor);
+            return;
+        }
+
         if (!this._shouldAnimateActor(actor, types)) {
             shellwm.completed_destroy(actor);
             return;
@@ -1794,10 +2446,10 @@ export class WindowManager {
 
         if (!Main.overview.visible) {
             if (this._workspaceSwitcherPopup == null) {
-                this._workspaceTracker.blockUpdates();
+                this.workspaceTracker.blockUpdates();
                 this._workspaceSwitcherPopup = new WorkspaceSwitcherPopup.WorkspaceSwitcherPopup();
                 this._workspaceSwitcherPopup.connect('destroy', () => {
-                    this._workspaceTracker.unblockUpdates();
+                    this.workspaceTracker.unblockUpdates();
                     this._workspaceSwitcherPopup = null;
                     this._isWorkspacePrepended = false;
                 });

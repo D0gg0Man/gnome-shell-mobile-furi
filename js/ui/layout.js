@@ -377,7 +377,7 @@ export const LayoutManager = GObject.registerClass({
         // Need to update struts on new workspaces when they are added
         let workspaceManager = global.workspace_manager;
         workspaceManager.connect('notify::n-workspaces',
-            this._queueUpdateRegions.bind(this));
+            this._updateRegions.bind(this));
 
         let display = global.display;
         display.connect('restacked',
@@ -1261,6 +1261,10 @@ export const LayoutManager = GObject.registerClass({
 
     get forceInvertIsPhone() {
         return this._forceInvertIsPhone;
+    }
+
+    get starting_up() {
+        return this._startingUp;
     }
 });
 
