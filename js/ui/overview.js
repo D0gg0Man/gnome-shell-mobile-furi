@@ -260,9 +260,9 @@ export class Overview extends Signals.EventEmitter {
                 pickupOnPress: false,
                 name: 'Single finger overview gesture',
             });
-        singleFingerOverviewGesture.connect('swipe-begin', this._overviewGestureBegin.bind(this));
-        singleFingerOverviewGesture.connect('swipe-update', this._overviewGestureUpdate.bind(this));
-        singleFingerOverviewGesture.connect('swipe-end', this._overviewGestureEnd.bind(this));
+        singleFingerOverviewGesture.connect('begin', this._overviewGestureBegin.bind(this));
+        singleFingerOverviewGesture.connect('update', this._overviewGestureUpdate.bind(this));
+        singleFingerOverviewGesture.connect('end', this._overviewGestureEnd.bind(this));
         this._singleFingerOverviewGesture = singleFingerOverviewGesture;
 
         const allowedModes = Shell.ActionMode.NORMAL | Shell.ActionMode.OVERVIEW;
@@ -292,9 +292,9 @@ export class Overview extends Signals.EventEmitter {
                 name: 'Single finger workspaces gesture',
                 pickupOnPress: false,
             });
-        singleFingerWorkspacesGesture.connect('swipe-begin', this._workspacesGestureBegin.bind(this));
-        singleFingerWorkspacesGesture.connect('swipe-update', this._workspacesGestureUpdate.bind(this));
-        singleFingerWorkspacesGesture.connect('swipe-end', this._workspacesGestureEnd.bind(this));
+        singleFingerWorkspacesGesture.connect('begin', this._workspacesGestureBegin.bind(this));
+        singleFingerWorkspacesGesture.connect('update', this._workspacesGestureUpdate.bind(this));
+        singleFingerWorkspacesGesture.connect('end', this._workspacesGestureEnd.bind(this));
         this._singleFingerWorkspacesGesture = singleFingerWorkspacesGesture;
 
         this._singleFingerWorkspacesGesture._panGesture.require_recognize_of(this._singleFingerOverviewEdgeDrag);
