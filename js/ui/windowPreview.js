@@ -11,6 +11,8 @@ import St from 'gi://St';
 import * as DND from './dnd.js';
 import * as OverviewControls from './overviewControls.js';
 
+import * as Main from './main.js';
+
 const WINDOW_DND_SIZE = 256;
 
 const WINDOW_OVERLAY_IDLE_HIDE_TIMEOUT = 750;
@@ -105,6 +107,23 @@ export const WindowPreview = GObject.registerClass({
         this._windowActor.connectObject('destroy', () => this.destroy(), this);
 
         this._updateAttachedDialogs();
+
+        this._panGesture = new WindowPreviewCloseGesture({
+            pan_axis: Clutter.PanAxis.Y,
+            max_n_points: 1,
+        });
+        this._panGesture.connect('may-recognize', this._panMayRecognize.bind(this));
+        this._panGesture.connect('recognize', this._panRecognize.bind(this));
+        this._panGesture.connect('pan-update', this._panUpdate.bind(this));
+        this._panGesture.connect('end', this._panEnd.bind(this));
+        this._panGesture.connect('cancel', this._panCancel.bind(this));
+        this.add_action(this._panGesture);
+
+  //      Main.overview._workspacesSwipeTracker.require_failure_of(this._panGesture);
+//        Main.overview._overviewSwipeTracker.require_failure_of(this._panGesture);
+
+  //      Main.overview._workspacesSwipeTracker.can_not_cancel(this._panGesture);
+//        Main.overview._overviewSwipeTracker.can_not_cancel(this._panGesture);
 
         this.connect('destroy', this._onDestroy.bind(this));
 
@@ -678,5 +697,56 @@ export const WindowPreview = GObject.registerClass({
             this.showOverlay(true);
 
         this.emit('drag-end');
+    }
+
+    _panMayRecognize(gesture) {
+        const delta = gesture.get_centroid(null).y - gesture.get_begin_centroid(null).y;
+
+        return delta < 0;
+    }
+
+    _panRecognize(gesture) {
+        this.remove_transition('translation-y');
+        this.remove_transition('opacity');
+
+        this._panHeight = this.get_transformed_extents().size.height;
+    }
+
+    _panUpdate(gesture) {
+        const [latestDeltaVec] = gesture.get_delta();
+        this.translation_y += latestDeltaVec.get_y();
+        if (this.translation_y > 0)
+            this.translation_y = 0;
+
+        this.opacity = 255 * (1 - Math.min(Math.abs(this.translation_y / this._panHeight), 1));
+    }
+
+    _panEnd(gesture) {
+        const velocityY = gesture.get_velocity().get_y();
+        const remainingHeight = this._panHeight - Math.abs(this.translation_y);
+
+log("pan End: " + velocityY);
+log("pan travelled: " + remainingHeight + " of " + this._panHeight);
+
+        if (velocityY < -0.9 || (remainingHeight < this._panHeight / 2 && velocityY < -0.5) || remainingHeight <= 0) {
+            this.ease({
+                translation_y: -this._panHeight,
+                opacity: 0,
+                duration: Math.clamp(Math.abs(velocityY) / remainingHeight, 100, 350),
+                mode: Clutter.AnimationMode.LINEAR,
+                onComplete: () => this._deleteAll(),
+            });
+        } else {
+            this.ease({
+                translation_y: 0,
+                opacity: 255,
+                duration: Math.clamp((1 - (remainingHeight / this._panHeight)) * 250, 100, 350),
+                mode: Clutter.AnimationMode.EASE_OUT_QUAD,
+            });
+        }
+    }
+
+    _panCancel(gesture) {
+
     }
 });
