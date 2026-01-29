@@ -854,7 +854,7 @@ export const QuickSettingsMenu = class extends PopupMenu.PopupMenu {
     }
 
     _panUpdate(gesture) {
-        const [latestDeltaVec] = gesture.get_delta();
+        const latestDeltaVec = gesture.get_delta();
 
         this.box.translation_y += latestDeltaVec.get_y();
         if (this.box.translation_y > 0)
@@ -985,7 +985,7 @@ export const QuickSettingsMenu = class extends PopupMenu.PopupMenu {
     }
 
     panelPanUpdate(gesture) {
-        const [latestDeltaVec] = gesture.get_delta();
+        const latestDeltaVec = gesture.get_delta();
 
         this.box.translation_y += latestDeltaVec.get_y();
         if (this.box.translation_y > 0)

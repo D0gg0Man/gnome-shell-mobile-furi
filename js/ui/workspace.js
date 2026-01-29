@@ -1254,7 +1254,7 @@ class Workspace extends St.Widget {
     }
 
     _panUpdate(gesture) {
-        const [latestDeltaVec] = gesture.get_delta();
+        const latestDeltaVec = gesture.get_delta();
 
         this.translation_y += latestDeltaVec.get_y();
         if (this.translation_y > 0)

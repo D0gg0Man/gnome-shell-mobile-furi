@@ -495,7 +495,8 @@ class Panel extends St.Widget {
     }
 
     _panUpdate(gesture) {
-        const [latestDeltaVec, totalDeltaVec] = gesture.get_delta();
+        const latestDeltaVec = gesture.get_delta();
+        const totalDeltaVec = gesture.get_accumulated_delta();
         this.statusArea.quickSettings.menu.panelPanUpdate(gesture,
             latestDeltaVec.get_x(), latestDeltaVec.get_y(), totalDeltaVec.length());
     }

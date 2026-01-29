@@ -854,7 +854,7 @@ class CalendarMessageList extends St.Widget {
     }
 
     _onPanUpdate(gesture) {
-        const [latestDeltaVec] = gesture.get_delta();
+        const latestDeltaVec = gesture.get_delta();
 
         let adjustment = this._scrollView.vadjustment;
         adjustment.value -= (latestDeltaVec.get_y() / this.height) * adjustment.page_size;

@@ -733,7 +733,7 @@ export const Message = GObject.registerClass({
     }
 
     _panUpdate(gesture) {
-        const [latestDeltaVec] = gesture.get_delta();
+        const latestDeltaVec = gesture.get_delta();
 
         this.translation_x += latestDeltaVec.get_x();
         this.opacity = 255 * (1 - Math.min(Math.abs(this.translation_x / (this._panWidth * 0.7)), 1));
@@ -778,7 +778,7 @@ export const Message = GObject.registerClass({
     }
 
     _hidePanUpdate(gesture) {
-        const [latestDeltaVec] = gesture.get_delta();
+        const latestDeltaVec = gesture.get_delta();
 
         if (this.translation_y + latestDeltaVec.get_y() > 0)
           this.translation_y = 0;
@@ -1430,7 +1430,7 @@ export const NotificationMessageGroup = GObject.registerClass({
     }
 
     _panUpdate(gesture) {
-        const [latestDeltaVec] = gesture.get_delta();
+        const latestDeltaVec = gesture.get_delta();
 
         this.translation_x += latestDeltaVec.get_x();
         this.opacity = 255 * (1 - Math.min(Math.abs(this.translation_x / (this._panWidth * 0.7)), 1));

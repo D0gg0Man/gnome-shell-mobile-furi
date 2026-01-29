@@ -182,7 +182,7 @@ export class ScreenShield extends Signals.EventEmitter {
     }
 
     _panUpdate(gesture) {
-        const [latestDeltaVec] = gesture.get_delta();
+        const latestDeltaVec = gesture.get_delta();
 
         this._lockDialogGroup.translation_x += latestDeltaVec.get_x();
         if (this._lockDialogGroup.translation_x > 0)

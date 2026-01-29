@@ -714,7 +714,7 @@ export const WindowPreview = GObject.registerClass({
     }
 
     _panUpdate(gesture) {
-        const [latestDeltaVec] = gesture.get_delta();
+        const latestDeltaVec = gesture.get_delta();
         this.translation_y += latestDeltaVec.get_y();
         if (this.translation_y > 0)
             this.translation_y = 0;

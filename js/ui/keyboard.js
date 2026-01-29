@@ -1651,7 +1651,7 @@ export const Keyboard = GObject.registerClass({
     }
 
     _panUpdate(gesture) {
-        const [latestDeltaVec] = gesture.get_delta();
+        const latestDeltaVec = gesture.get_delta();
         const deltaY = latestDeltaVec.get_y();
 
         if (this._panCurY < this._keyboardBeginY) {
