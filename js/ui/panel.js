@@ -216,6 +216,11 @@ class ActivitiesButton extends PanelMenu.Button {
             this);
 
         this._xdndTimeOut = 0;
+
+        const clickGesture = new Clutter.ClickGesture();
+        clickGesture.connect('may-recognize', () => Main.overview.shouldToggleByCornerOrButton());
+        clickGesture.connect('recognize', () => Main.overview.toggle());
+        this.add_action(clickGesture);
     }
 
     handleDragOver(source, _actor, _x, _y, _time) {
@@ -233,12 +238,6 @@ class ActivitiesButton extends PanelMenu.Button {
     }
 
     vfunc_event(event) {
-        if (event.type() === Clutter.EventType.TOUCH_END ||
-            event.type() === Clutter.EventType.BUTTON_RELEASE) {
-            if (Main.overview.shouldToggleByCornerOrButton())
-                Main.overview.toggle();
-        }
-
         return Main.wm.handleWorkspaceScroll(event);
     }
 
@@ -458,6 +457,16 @@ class Panel extends St.Widget {
             () => this.remove_style_pseudo_class('overview'),
             this);
 
+        this._panGesture = new Clutter.PanGesture({
+            pan_axis: Clutter.PanAxis.Y,
+            max_n_points: 1,
+        });
+        this._panGesture.connect('recognize', this._panBegin.bind(this));
+        this._panGesture.connect('pan-update', this._panUpdate.bind(this));
+        this._panGesture.connect('end', this._panEnd.bind(this));
+        this._panGesture.connect('cancel', this._panCancel.bind(this));
+        this.add_action(this._panGesture);
+
         Main.layoutManager.panelBox.add_child(this);
         Main.ctrlAltTabManager.addGroup(this,
             _('Top Bar'), 'shell-focus-top-bar-symbolic',
@@ -471,6 +480,24 @@ class Panel extends St.Widget {
             () => this.queue_relayout(),
             this);
         this._updatePanel();
+    }
+
+    _panBegin(gesture) {
+        this.statusArea.quickSettings.menu.panelPanBegin(gesture);
+    }
+
+    _panUpdate(gesture) {
+        const [latestDeltaVec, totalDeltaVec] = gesture.get_delta();
+        this.statusArea.quickSettings.menu.panelPanUpdate(gesture,
+            latestDeltaVec.get_x(), latestDeltaVec.get_y(), totalDeltaVec.length());
+    }
+
+    _panEnd(gesture) {
+        this.statusArea.quickSettings.menu.panelPanEnd(gesture);
+    }
+
+    _panCancel(gesture) {
+        this.statusArea.quickSettings.menu.panelPanCancel(gesture);
     }
 
     vfunc_get_preferred_width(_forHeight) {

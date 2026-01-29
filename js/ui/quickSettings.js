@@ -801,6 +801,58 @@ export const QuickSettingsMenu = class extends PopupMenu.PopupMenu {
         }));
 
         this.actor.add_child(this._overlay);
+
+        this._panGesture = new Clutter.PanGesture({
+            pan_axis: Clutter.PanAxis.Y,
+            max_n_points: 1,
+        });
+        this._panGesture.connect('recognize', this._panBegin.bind(this));
+        this._panGesture.connect('pan-update', this._panUpdate.bind(this));
+        this._panGesture.connect('end', this._panEnd.bind(this));
+        this._panGesture.connect('cancel', this._panCancel.bind(this));
+        this._boxPointer.add_action(this._panGesture);
+    }
+
+    _panBegin(gesture) {
+        this._boxPointer.remove_transition('translation-y');
+
+        this._panHeight = this._boxPointer.allocation.get_height();
+    }
+
+    _panUpdate(gesture) {
+        const [latestDeltaVec] = gesture.get_delta();
+
+        this._boxPointer.translation_y += latestDeltaVec.get_y();
+        if (this._boxPointer.translation_y > 0)
+            this._boxPointer.translation_y = 0;
+    }
+
+    _panEnd(gesture) {
+        const velocityY = gesture.get_velocity().get_y();
+
+        const remainingHeight = this._panHeight - Math.abs(this._boxPointer.translation_y);
+
+        if (velocityY < -0.9 || (remainingHeight < this._panHeight * 0.75 && velocityY <= 0)) {
+            this._boxPointer.ease({
+                translation_y: -this._panHeight,
+                duration: Math.clamp(remainingHeight / Math.abs(velocityY), 160, 450),
+                mode: Clutter.AnimationMode.EASE_OUT_EXPO,
+                onStopped: () => {
+                    this.close(false);
+                    this.box.translation_y = 0;
+                },
+            });
+        } else {
+            this._boxPointer.ease({
+                translation_y: 0,
+                duration: Math.clamp((this._panHeight - remainingHeight) / Math.abs(velocityY), 100, 250),
+                mode: Clutter.AnimationMode.EASE_OUT_QUINT,
+            });
+        }
+    }
+
+    _panCancel(gesture) {
+        this._boxPointer.translation_y = 0;
     }
 
     addItem(item, colSpan = 1) {
@@ -839,6 +891,10 @@ export const QuickSettingsMenu = class extends PopupMenu.PopupMenu {
     close(animate) {
         this._activeMenu?.close(animate);
         super.close(animate);
+
+        // set modal back to true in case we were opened by a pan gesture
+        // and that gesture wasn't finished, leaving this.modal = false.
+        this.modal = true;
     }
 
     _setDimmed(dim) {
@@ -856,6 +912,59 @@ export const QuickSettingsMenu = class extends PopupMenu.PopupMenu {
             onStopped: () => (this._dimEffect.enabled = dim),
         });
         this._dimEffect.enabled = true;
+    }
+
+    panelPanBegin(gesture) {
+        const centroid = gesture.get_begin_centroid();
+
+        this.modal = false;
+        this.open(false);
+
+        this._boxPointer.remove_transition('translation-y');
+
+        // FIXME: bad idea, before-paint is after updating matrices... we want an after-layout signal for this
+        const id = global.stage.connect('before-paint', () => {
+            this._panHeight = this._boxPointer.allocation.get_height();
+            this._boxPointer.translation_y = -this._panHeight + centroid.y;
+
+            global.stage.disconnect(id);
+        });
+    }
+
+    panelPanUpdate(gesture) {
+        const [latestDeltaVec] = gesture.get_delta();
+
+        this._boxPointer.translation_y += latestDeltaVec.get_y();
+        if (this._boxPointer.translation_y > 0)
+            this._boxPointer.translation_y = 0;
+    }
+
+    panelPanEnd(gesture) {
+        const velocityY = gesture.get_velocity().get_y();
+        const remainingHeight = Math.abs(this._boxPointer.translation_y);
+
+        if (velocityY > 0.9 || (remainingHeight < this._panHeight * 0.75 && velocityY >= 0)) {
+            this._boxPointer.ease({
+                translation_y: 0,
+                duration: Math.clamp(remainingHeight / Math.abs(velocityY), 160, 450),
+                mode: Clutter.AnimationMode.EASE_OUT_QUINT,
+                onStopped: () => { this.modal = true; },
+            });
+        } else {
+            this._boxPointer.ease({
+                translation_y: -this._panHeight,
+                duration: Math.clamp((this._panHeight - remainingHeight) / Math.abs(velocityY), 100, 250),
+                mode: Clutter.AnimationMode.EASE_OUT_EXPO,
+                onStopped: () => {
+                    this.close(false);
+                    this.box.translation_y = 0;
+                },
+            });
+        }
+    }
+
+    panelPanCancel(gesture) {
+        this.close(false);
     }
 };
 
