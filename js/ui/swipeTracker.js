@@ -201,7 +201,7 @@ export const SwipeTracker = GObject.registerClass({
     }
 
     _findPreviousPoint(pos) {
-        return this._snapPoints.findLastIndex(p => p <= pos);
+        return Math.max(0, this._snapPoints.findLastIndex(p => p <= pos));
     }
 
     _findPointForProjection(pos, velocity) {
