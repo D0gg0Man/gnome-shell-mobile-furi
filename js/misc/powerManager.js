@@ -239,6 +239,10 @@ export class PowerManager {
         log(`POWERMANAGER: cancelling action '${ongoingAction}' with reason '${cancelReason}'`);
 
         this._cancellingActionLock = (async () => {
+            // This is a bit complicated:
+            //
+            // 1) Take a look at the cancel reason and ignore the cancel request
+            // in some specific cases.
             switch (cancelReason) {
             case 'power-button-press':
             case 'session-inactive':
@@ -303,11 +307,14 @@ export class PowerManager {
                 throw new Error(`Unknown cancel reason: ${cancelReason}`);
             }
 
+            // 2) Actually remove the action variables, starting from here a new
+            // action can actually take over and we need to be careful executing async
+            // stuff.
             this._actionStartCancellable?.cancel();
             delete this._actionStartCancellable;
-         //   delete this._enteringActionLock;
             delete this._isInAction;
 
+            // 3) 
             if (this._userAlreadyIdle) {
                 if (!this._userActiveId)
                     throw new Error('there must still be a user active watch when deferring blank');
@@ -332,9 +339,12 @@ export class PowerManager {
                 }
             }
 
+            // 4) And now we actually go through the steps to tear down the action,
+            // what we have right now is the this._cancellingActionLock.
             switch (ongoingAction) {
             case 'dim':
                 this._cursorTracker.uninhibit_cursor_visibility();
+                delete this._cursorInvisible;
                 this._lightbox.lightOff(0).catch();
                 this._sensorDaemonProxy.UndimBacklightAsync(0).catch(e =>
                     log("POWERMANAGER: Undim backlight failed: " + e));
@@ -604,20 +614,8 @@ log("POWERMANAGER: turn on this._fadeInTimeout " + this._fadeInTimeout + " this.
         this._sensorDaemonProxy.UndimBacklightAsync(0).catch(e =>
             log("POWERMANAGER: Undim backlight failed: " + e));
 
-        if (this._displayConfigProxy.PowerSaveMode === 3) {
-            this._displayConfigProxy.PowerSaveMode = 0;
-            // turning on the screen will take a while, make sure at least part of the
-            // animation is shown by waiting a little...
-  //          this._fadeInTimeout = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 250, () => {
-//                delete this._fadeInTimeout;
-
-                await this._fadeIn();
-    //            return GLib.SOURCE_REMOVE;
-      //      });
-        } else {
-            this._displayConfigProxy.PowerSaveMode = 0;
-            await this._fadeIn();
-        }
+        this._displayConfigProxy.PowerSaveMode = 0;
+        await this._fadeIn();
     }
 
     async _fadeOut(duration) {
@@ -628,7 +626,10 @@ log("POWERMANAGER: turn on this._fadeInTimeout " + this._fadeInTimeout + " this.
 
         this._fadingOut = true;
 
-        this._cursorTracker.inhibit_cursor_visibility();
+        if (!this._cursorInvisible) {
+            this._cursorTracker.inhibit_cursor_visibility();
+            this._cursorInvisible = true;
+        }
         Main.uiGroup.set_child_above_sibling(this._lightbox, null);
         this._lightbox._fadeFactor = 1;
         this._lightbox.reactive = true;
@@ -655,6 +656,7 @@ log("POWERMANAGER: turn on this._fadeInTimeout " + this._fadeInTimeout + " this.
 
         this._lightbox.reactive = false;
         this._cursorTracker.uninhibit_cursor_visibility();
+        delete this._cursorInvisible;
 
         try {
             await this._lightbox.lightOff(350);
@@ -688,7 +690,6 @@ log("POWERMANAGER: turn on this._fadeInTimeout " + this._fadeInTimeout + " this.
             log(`POWERMANAGER: upgrading from '${this._isInAction}' action to '${action}'`);
             this._actionStartCancellable?.cancel();
             delete this._actionStartCancellable;
-          //  delete this._enteringActionLock;
             delete this._isInAction;
         }
 
@@ -704,9 +705,6 @@ log("POWERMANAGER: turn on this._fadeInTimeout " + this._fadeInTimeout + " this.
 
         if (this._actionStartCancellable)
             throw new Error('Called _doSystemAction() with this._actionStartCancellable set');
-
-     //   if (this._enteringActionLock)
-     //       throw new Error('Called _doSystemAction() with this._enteringActionLock set');
 
         if (this._suspended)
             throw new Error('Called _doSystemAction() with this._suspended set');
@@ -737,6 +735,7 @@ log("POWERMANAGER: turn on this._fadeInTimeout " + this._fadeInTimeout + " this.
                     log("POWERMANAGER: Dim backlight failed: " + e));
 
                 this._cursorTracker.inhibit_cursor_visibility();
+                this._cursorInvisible = true;
                 Main.uiGroup.set_child_above_sibling(this._lightbox, null);
                 this._lightbox._fadeFactor = wantLightboxEffect ? 0.5 : 0;
                 this._lightbox.reactive = true;
