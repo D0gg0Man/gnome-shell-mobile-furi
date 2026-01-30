@@ -147,7 +147,7 @@ const DEVICE_BRIGHTNESS_CONFIG = {
         minMaxNits: [ 4, 440 ],
         minBrightness: 1,
         brightnessScale: 'linear',
-        minSmoothTransitionBrightness: 2500,
+        minSmoothTransitionBrightness: 200,
         ambientLuxToNits: [
             // akima is a bit weird: for those sharp drops like "maintain 4 nits below 0.2 lux" it needs
             // 3 values that map to 1, not just 2 (with only 2 there will a "valley" between the two
@@ -728,11 +728,12 @@ export class AutoBacklightBrightness extends Signals.EventEmitter {
             if (perceivedDeltaAbs > 2)
                 return perceivedDeltaAbs * 1.3;
             // in case it's going down a little (but still abruptly),
-            // animate somewhat slowly
+            // animate really slowly (eg. during sunset, or when user is obscuring
+            // the light source with their body and un-obscuring it every now and then)
             else if (toPerceived > this._smoothTransitionThreshPerceived)
                 return perceivedDeltaAbs * 5;
             // if it's going down a little, but below the smooth transition
-            // threshold, animate fast again
+            // threshold, animate fast again, otherwise the animation will look bad
             else
                 return perceivedDeltaAbs * 1.3;
         } else if (isGoingDown) {
@@ -751,7 +752,7 @@ export class AutoBacklightBrightness extends Signals.EventEmitter {
             else if (toPerceived > this._smoothTransitionThreshPerceived)
                 return perceivedDeltaAbs * 6;
             // if it's going up a little, but below the smooth transition
-            // threshold, animate fast again
+            // threshold, animate fast again, otherwise the animation will look bad
             else
                 return perceivedDeltaAbs * 0.8;
         }
