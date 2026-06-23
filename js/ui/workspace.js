@@ -701,8 +701,12 @@ export const WorkspaceLayout = GObject.registerClass({
                 width = workspaceBoxWidth;
                 height = workspaceBoxHeight;
 
-                childBox.set_origin(x, y);
-                childBox.set_size(width, height);
+                // The window is a narrow portrait thumbnail centered in a wide
+                // card; widen its reactive box to the full card width so the
+                // swipe-to-close grab area covers the empty sides too. The clone
+                // stays height-constrained, so its visual size is unchanged.
+                childBox.set_origin(0, y);
+                childBox.set_size(containerWidth, height);
 
                 child.allocate(childBox);
             }

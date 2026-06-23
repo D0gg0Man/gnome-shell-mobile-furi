@@ -108,8 +108,11 @@ export const WindowPreview = GObject.registerClass({
 
         this._updateAttachedDialogs();
 
-/*
-        this._panGesture = new WindowPreviewCloseGesture({
+        // Phone: flick the card upwards to close the window. The original
+        // WindowPreviewCloseGesture was never ported, so re-implement it with
+        // the GNOME 49 Clutter.PanGesture. Combined with the full-width preview
+        // box (workspace.js) this gives a large, forgiving close target.
+        this._panGesture = new Clutter.PanGesture({
             pan_axis: Clutter.PanAxis.Y,
             max_n_points: 1,
         });
@@ -119,12 +122,11 @@ export const WindowPreview = GObject.registerClass({
         this._panGesture.connect('end', this._panEnd.bind(this));
         this._panGesture.connect('cancel', this._panCancel.bind(this));
         this.add_action(this._panGesture);
-*/
-  //      Main.overview._workspacesSwipeTracker.require_failure_of(this._panGesture);
-//        Main.overview._overviewSwipeTracker.require_failure_of(this._panGesture);
 
-  //      Main.overview._workspacesSwipeTracker.can_not_cancel(this._panGesture);
-//        Main.overview._overviewSwipeTracker.can_not_cancel(this._panGesture);
+        if (Main.overview._workspacesSwipeTracker?.require_failure_of)
+            Main.overview._workspacesSwipeTracker.require_failure_of(this._panGesture);
+        if (Main.overview._overviewSwipeTracker?.require_failure_of)
+            Main.overview._overviewSwipeTracker.require_failure_of(this._panGesture);
 
         this.connect('destroy', this._onDestroy.bind(this));
 
@@ -149,6 +151,10 @@ export const WindowPreview = GObject.registerClass({
         this.add_action(longPressGesture);
 
         longPressGesture.can_not_cancel(this._draggable.startGesture);
+
+        // A flick up should close the window, not pick it up for a DND move.
+        if (this._draggable.startGesture?.require_failure_of)
+            this._draggable.startGesture.require_failure_of(this._panGesture);
 
         this._overlayShown = false;
         this._closeRequested = false;
@@ -701,9 +707,12 @@ export const WindowPreview = GObject.registerClass({
     }
 
     _panMayRecognize(gesture) {
-        const delta = gesture.get_centroid(null).y - gesture.get_begin_centroid(null).y;
+        // Only close on an upward flick; let downward pans fall through to the
+        // overview so pulling the page down still navigates.
+        const beginCoords = gesture.get_begin_centroid_abs();
+        const coords = gesture.get_centroid_abs();
 
-        return delta < 0;
+        return coords.y - beginCoords.y < 0;
     }
 
     _panRecognize(gesture) {
