@@ -2,6 +2,7 @@ import Clutter from 'gi://Clutter';
 import Gdm from 'gi://Gdm';
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
+import GObject from 'gi://GObject';
 import * as Signals from '../misc/signals.js';
 
 import * as Batch from './batch.js';
@@ -44,6 +45,94 @@ export const DISABLE_USER_LIST_KEY = 'disable-user-list';
 
 // Give user 48ms to read each character of a PAM message
 const USER_READ_TIME = 48;
+
+// FuriOS GNOME Mobile runs without GDM, so there is no
+// org.gnome.DisplayManager to re-authenticate the lock screen against. When
+// the GDM client is unavailable, ShellUserVerifier falls back to this object,
+// which speaks the same signal/method surface as Gdm.UserVerifierProxy but
+// authenticates by spawning a small setuid PAM helper. Only the password
+// (gdm-password) service is supported; fingerprint/smartcard are not.
+const PAM_HELPER_PATH = '/usr/libexec/gnome-mobile-pam-helper';
+
+const PamUserVerifier = GObject.registerClass({
+    Signals: {
+        'info': {param_types: [GObject.TYPE_STRING, GObject.TYPE_STRING]},
+        'problem': {param_types: [GObject.TYPE_STRING, GObject.TYPE_STRING]},
+        'info-query': {param_types: [GObject.TYPE_STRING, GObject.TYPE_STRING]},
+        'secret-info-query': {param_types: [GObject.TYPE_STRING, GObject.TYPE_STRING]},
+        'conversation-started': {param_types: [GObject.TYPE_STRING]},
+        'conversation-stopped': {param_types: [GObject.TYPE_STRING]},
+        'service-unavailable': {param_types: [GObject.TYPE_STRING, GObject.TYPE_STRING]},
+        'reset': {},
+        'verification-complete': {param_types: [GObject.TYPE_STRING]},
+    },
+}, class PamUserVerifier extends GObject.Object {
+    _begin(serviceName) {
+        // Only the password service can be served by the PAM helper.
+        if (serviceName !== PASSWORD_SERVICE_NAME) {
+            this.emit('service-unavailable', serviceName, null);
+            return;
+        }
+        this.emit('conversation-started', serviceName);
+        // Defer the prompt so the caller's begin() promise settles first.
+        GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
+            this.emit('secret-info-query', serviceName, _('Password: '));
+            return GLib.SOURCE_REMOVE;
+        });
+    }
+
+    call_begin_verification_for_user(serviceName, _userName, _cancellable) {
+        this._begin(serviceName);
+        return Promise.resolve();
+    }
+
+    call_begin_verification(serviceName, _cancellable) {
+        this._begin(serviceName);
+        return Promise.resolve();
+    }
+
+    call_answer_query(serviceName, answer, _cancellable, _callback) {
+        let proc;
+        try {
+            proc = new Gio.Subprocess({
+                argv: [PAM_HELPER_PATH],
+                flags: Gio.SubprocessFlags.STDIN_PIPE,
+            });
+            proc.init(null);
+        } catch (e) {
+            logError(e, 'PAM helper spawn failed');
+            this.emit('conversation-stopped', serviceName);
+            return;
+        }
+        proc.communicate_utf8_async(`${answer}\n`, null, (p, res) => {
+            let ok = false;
+            try {
+                p.communicate_utf8_finish(res);
+                ok = p.get_successful();
+            } catch (e) {
+                logError(e, 'PAM helper communication failed');
+            }
+            if (ok) {
+                this.emit('verification-complete', serviceName);
+                // With GDM, a successful reauth makes GDM unlock the logind
+                // session, which the screen shield listens for. There is no GDM
+                // here, so dismiss the lock screen directly now that PAM has
+                // authenticated the user (this also clears logind's locked hint
+                // via ScreenShield.deactivate()).
+                if (Main.screenShield)
+                    Main.screenShield.deactivate(true);
+            } else {
+                this.emit('info', serviceName,
+                    _('Sorry, that didn’t work. Please try again.'));
+                this.emit('conversation-stopped', serviceName);
+            }
+        });
+    }
+
+    call_cancel_sync(_cancellable) {
+        return true;
+    }
+});
 const FINGERPRINT_SERVICE_PROXY_TIMEOUT = 5000;
 const FINGERPRINT_ERROR_TIMEOUT_WAIT = 15;
 
@@ -517,6 +606,11 @@ export class ShellUserVerifier extends Signals.EventEmitter {
                 return;
             }
 
+            if (this._pamFallbackAllowed(e)) {
+                this._usePamFallback();
+                return;
+            }
+
             this._reportInitError('Failed to open reauthentication channel', e);
             return;
         }
@@ -540,6 +634,10 @@ export class ShellUserVerifier extends Signals.EventEmitter {
         } catch (e) {
             if (e.matches(Gio.IOErrorEnum, Gio.IOErrorEnum.CANCELLED))
                 return;
+            if (this._pamFallbackAllowed(e)) {
+                this._usePamFallback();
+                return;
+            }
             this._reportInitError('Failed to obtain user verifier', e);
             return;
         }
@@ -549,6 +647,24 @@ export class ShellUserVerifier extends Signals.EventEmitter {
         else
             this._userVerifierChoiceList = null;
 
+        this._connectSignals();
+        this._beginVerification();
+        this._hold.release();
+    }
+
+    // On a gdm-free session org.gnome.DisplayManager is absent, so the GDM
+    // client calls fail with SERVICE_UNKNOWN / NAME_HAS_NO_OWNER. In that case
+    // authenticate via the local PAM helper instead of failing the unlock.
+    _pamFallbackAllowed(e) {
+        return e.matches(Gio.DBusError, Gio.DBusError.SERVICE_UNKNOWN) ||
+               e.matches(Gio.DBusError, Gio.DBusError.NAME_HAS_NO_OWNER);
+    }
+
+    _usePamFallback() {
+        this._clearUserVerifier();
+        this._userVerifier = new PamUserVerifier();
+        this._userVerifierChoiceList = null;
+        this.reauthenticating = true;
         this._connectSignals();
         this._beginVerification();
         this._hold.release();
