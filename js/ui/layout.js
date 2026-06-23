@@ -1241,6 +1241,14 @@ export const LayoutManager = GObject.registerClass({
     }
 
     _checkIsPhone() {
+        // On a fixed phone the form factor must not depend on the chosen
+        // display scale: the default heuristic below uses the logical size, so
+        // lowering the scale would flip the shell to the desktop layout.
+        // MOBILE_SHELL_FORCE_PHONE=1 (set by the FuriOS session) pins phone
+        // mode regardless of scale.
+        if (GLib.getenv('MOBILE_SHELL_FORCE_PHONE') === '1')
+            return true;
+
         if (!this.primaryMonitor)
             return false;
 
