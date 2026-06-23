@@ -468,7 +468,7 @@ export const UnlockDialog = GObject.registerClass({
 
     _ensureAuthPrompt() {
         if (!this._authPrompt) {
-            const pinEntryIndicator = new AuthPrompt.PinEntryIndicator(6);
+            const pinEntryIndicator = new AuthPrompt.PinEntryIndicator(7);
       //      pinEntryIndicator.y_expand = true;
             pinEntryIndicator.y_align = Clutter.ActorAlign.END;
             pinEntryIndicator.x_align = Clutter.ActorAlign.CENTER;
@@ -490,7 +490,7 @@ export const UnlockDialog = GObject.registerClass({
                 const textLen = this._authPrompt._entry.clutter_text.buffer.get_length();
                 pinEntryIndicator.setActiveDigits(textLen);
 
-                if (textLen === 6 && pinEntryIndicator.visible) {
+                if (textLen === 7 && pinEntryIndicator.visible) {
                     pinEntryIndicator.setIsLoading(true);
                     this._authPrompt._entry.clutter_text.activate();
                 }
