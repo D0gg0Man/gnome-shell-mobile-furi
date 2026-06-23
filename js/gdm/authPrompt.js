@@ -11,6 +11,7 @@ import * as AuthList from './authList.js';
 import * as Batch from './batch.js';
 import * as GdmUtil from './util.js';
 import * as Params from '../misc/params.js';
+import * as Main from '../ui/main.js';
 import * as ShellEntry from '../ui/shellEntry.js';
 import * as UserWidget from '../ui/userWidget.js';
 import {wiggle} from '../misc/animationUtils.js';
@@ -63,7 +64,39 @@ export const PinUnlockKeyboard = GObject.registerClass({
             row_homogeneous: true,
         });
 
+        this._buttonLabels = [];
         this._createGrid();
+
+        // The CSS button size is fixed, so at lower display scales (larger
+        // logical resolution) the keypad looks tiny relative to the screen.
+        // Size the buttons as a fraction of the logical screen width so the
+        // keypad fills the screen consistently at any display scale.
+        this._updateButtonSize();
+        const themeContext = St.ThemeContext.get_for_stage(global.stage);
+        themeContext.connectObject('notify::scale-factor',
+            () => this._updateButtonSize(), this);
+        Main.layoutManager.connectObject('monitors-changed',
+            () => this._updateButtonSize(), this);
+    }
+
+    _updateButtonSize() {
+        const monitor = Main.layoutManager.primaryMonitor;
+        if (!this._buttonLabels.length || !monitor)
+            return;
+        const {scaleFactor} = St.ThemeContext.get_for_stage(global.stage);
+        const logicalWidth = monitor.width / scaleFactor;
+        // ~20% of the logical width per button reproduces the design size
+        // (72px at the 360px-wide phone scale) and scales proportionally.
+        const size = Math.floor(logicalWidth * 0.2);
+        if (size < 1)
+            return;
+        for (const label of this._buttonLabels) {
+            label.set_size(size, size);
+            if (label instanceof St.Label)
+                label.style = `font-size: ${Math.floor(size * 0.42)}px; font-weight: bold;`;
+            else if (label instanceof St.Icon)
+                label.icon_size = Math.floor(size * 0.5);
+        }
     }
 
     _createGrid() {
@@ -121,6 +154,7 @@ export const PinUnlockKeyboard = GObject.registerClass({
                 }
 
                 button.child = label;
+                this._buttonLabels.push(label);
 
                 this.layout_manager.attach(button, col, row, 1, 1);
 
