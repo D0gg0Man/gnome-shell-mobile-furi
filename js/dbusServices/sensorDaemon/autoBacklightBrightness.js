@@ -212,7 +212,7 @@ export class AutoBacklightBrightness extends Signals.EventEmitter {
             'org.freedesktop.login1',
             '/org/freedesktop/login1/session/auto');
 
-        this._udevClient = new GUdev.Client({subsystems: ['backlight']});
+        this._udevClient = new GUdev.Client({subsystems: ['backlight', 'leds']});
         const udevDevice = this._findUdevBacklightDevice();
         if (!udevDevice)
             throw new Error('No udev backlight device found, giving up');
@@ -221,6 +221,7 @@ export class AutoBacklightBrightness extends Signals.EventEmitter {
         const brightnessFilePath = GLib.build_filenamev([backlightSysfsPath, 'brightness']);
         this._backlightSysfsFile = Gio.File.new_for_path(brightnessFilePath);
         this._backlightName = udevDevice.get_name();
+        this._backlightSubsystem = udevDevice.get_subsystem();
 
         this._maxPwm = udevDevice.get_sysfs_attr_as_int('max_brightness');
 
@@ -351,6 +352,19 @@ export class AutoBacklightBrightness extends Signals.EventEmitter {
             if (device.get_sysfs_attr('type') === 'raw')
                 return device;
         }
+
+        // FuriOS/hybris panels expose the backlight as an Android LED
+        // (e.g. /sys/class/leds/lcd-backlight) rather than a backlight-class
+        // device; fall back to that. logind's SetBrightness accepts "leds".
+        const leds = this._udevClient.query_by_subsystem('leds');
+        for (const device of leds) {
+            const name = device.get_name();
+            if (name === 'lcd-backlight' || name === 'backlight' ||
+                name.endsWith('-backlight'))
+                return device;
+        }
+
+        return null;
     }
 
     _updateCurBrightnessFromUdev() {
@@ -508,7 +522,7 @@ export class AutoBacklightBrightness extends Signals.EventEmitter {
         if (this._lastSetPwm !== newPwm) {
             this._inStep = true;
 
-            this._brightnessProxy.SetBrightnessAsync("backlight", this._backlightName, newPwm).catch(e => console.error(e)).finally(() => {
+            this._brightnessProxy.SetBrightnessAsync(this._backlightSubsystem, this._backlightName, newPwm).catch(e => console.error(e)).finally(() => {
                 this._lastSetPwm = newPwm;
                 this._curPerceived = newPerceived;
 
