@@ -524,6 +524,15 @@ class Panel extends St.Widget {
         let allocWidth = box.x2 - box.x1;
         let allocHeight = box.y2 - box.y1;
 
+        // Phone: inset the side boxes from the screen edges so the clock and
+        // status icons aren't jammed into the corners.
+        const scaleFactor =
+            St.ThemeContext.get_for_stage(global.stage).get_scale_factor();
+        const leftInset = Main.layoutManager.is_phone
+            ? Math.round(72 * scaleFactor) : 0;
+        const rightInset = Main.layoutManager.is_phone
+            ? Math.round(28 * scaleFactor) : 0;
+
         let [, leftNaturalWidth] = this._leftBox.get_preferred_width(-1);
         let [, centerNaturalWidth] = this._centerBox.get_preferred_width(-1);
         let [, rightNaturalWidth] = this._rightBox.get_preferred_width(-1);
@@ -555,6 +564,9 @@ class Panel extends St.Widget {
             childBox.x2 = Math.min(Math.floor(sideWidth), leftNaturalWidth);
         }
         this._leftBox.allocate(childBox);
+        // Inset from the screen edge via a paint-time transform (allocating the
+        // box at an offset doesn't move it on the phone panel).
+        this._leftBox.translation_x = leftInset;
 
         childBox.x1 = Math.ceil(sideWidth);
         childBox.y1 = 0;
@@ -574,6 +586,7 @@ class Panel extends St.Widget {
             childBox.x2 = allocWidth;
         }
         this._rightBox.allocate(childBox);
+        this._rightBox.translation_x = -rightInset;
     }
 
     _tryDragWindow(event) {
