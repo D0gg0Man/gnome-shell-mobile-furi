@@ -572,7 +572,54 @@ export class PowerManager {
             }
         }
 
+        // On HWC2/hybris devices DPMS-off (PowerSaveMode 3 above) can't power
+        // down the panel -- the DRM connector is owned by the composer -- so the
+        // backlight LED stays lit behind the black overlay (visible glow). Save
+        // the current level and turn it fully off; _turnOnScreen restores it.
+        const led = this._findBacklightLed();
+        if (led && this._loginSession) {
+            const cur = this._readBacklight(led);
+            if (cur > 0)
+                this._savedBacklight = cur;
+            this._loginSession.SetBrightnessAsync('leds', led, 0).catch(e =>
+                log("POWERMANAGER: backlight off failed: " + e));
+        }
+
         Main.screenShield.cancelUnlock();
+    }
+
+    _readBacklight(led) {
+        try {
+            const [ok, data] = GLib.file_get_contents(`/sys/class/leds/${led}/brightness`);
+            if (ok)
+                return parseInt(new TextDecoder().decode(data));
+        } catch (e) {}
+        return 0;
+    }
+
+    _findBacklightLed() {
+        if (this._backlightLed !== undefined)
+            return this._backlightLed;
+
+        this._backlightLed = null;
+        try {
+            const dir = Gio.File.new_for_path('/sys/class/leds');
+            const en = dir.enumerate_children('standard::name',
+                Gio.FileQueryInfoFlags.NOFOLLOW_SYMLINKS, null);
+            let info;
+            while ((info = en.next_file(null)) !== null) {
+                const name = info.get_name();
+                if (name === 'lcd-backlight' || name === 'backlight' ||
+                    name.endsWith('-backlight')) {
+                    this._backlightLed = name;
+                    break;
+                }
+            }
+            en.close(null);
+        } catch (e) {
+            log("POWERMANAGER: scanning for backlight LED failed: " + e);
+        }
+        return this._backlightLed;
     }
 
     async _isInPocket() {
@@ -609,6 +656,17 @@ log("POWERMANAGER: turn on this._fadeInTimeout " + this._fadeInTimeout + " this.
         }
 
         log("POWERMANAGER: _turnOnScreen(), dpms mode " + this._displayConfigProxy.PowerSaveMode + " opacity " + this._lightbox.opacity);
+
+        // Restore the backlight we turned fully off in _turnOffScreen (DPMS-off
+        // can't power the panel back on via DRM on HWC2/hybris). This runs
+        // before UndimBacklight so the screen is never stuck dark even if the
+        // SensorDaemon's state got desynced by the direct off-write.
+        const led = this._findBacklightLed();
+        if (led && this._loginSession && this._savedBacklight > 0) {
+            this._loginSession.SetBrightnessAsync('leds', led, this._savedBacklight).catch(e =>
+                log("POWERMANAGER: backlight restore failed: " + e));
+            delete this._savedBacklight;
+        }
 
         // undim in case we were dimmed earlier and got woken up by something that's not a user active watch
         this._sensorDaemonProxy.UndimBacklightAsync(0).catch(e =>

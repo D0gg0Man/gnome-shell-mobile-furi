@@ -879,6 +879,11 @@ export class AutoBacklightBrightness extends Signals.EventEmitter {
     }
 
     setManually(perceivedBrightnessPercent) {
+        // Never let the manual slider take the screen below a visible level, or
+        // the user can't see to turn it back up. (Auto-brightness may still go
+        // lower in a dark room; this only floors the manual slider.)
+        perceivedBrightnessPercent = Math.max(perceivedBrightnessPercent, 0.08);
+
         const targetPerceived = linearMap(perceivedBrightnessPercent,
             0, 1, this._minPerceived, this._maxPerceived);
 
